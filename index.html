@@ -1,0 +1,761 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Noty · 纵向便签 Dock</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --dock-width: 76px;
+      --ease: cubic-bezier(.22, 1, .36, 1);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Segoe UI", sans-serif;
+      background: #11131a;
+    }
+
+    button, textarea { font: inherit; }
+
+    body {
+      color: rgba(255,255,255,.92);
+      background:
+        radial-gradient(circle at 18% 12%, rgba(255, 154, 194, .24), transparent 31%),
+        radial-gradient(circle at 80% 72%, rgba(83, 91, 255, .26), transparent 38%),
+        linear-gradient(135deg, #141727 0%, #23223a 45%, #10121d 100%);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: .35;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.07'/%3E%3C/svg%3E");
+      mix-blend-mode: soft-light;
+    }
+
+    .desktop {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      isolation: isolate;
+    }
+
+    .menubar {
+      height: 34px;
+      padding: 0 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 500;
+      background: rgba(14, 15, 24, .38);
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      backdrop-filter: blur(28px) saturate(1.3);
+      -webkit-backdrop-filter: blur(28px) saturate(1.3);
+    }
+
+    .menu-left, .menu-right { display: flex; align-items: center; gap: 18px; }
+    .menu-left strong { font-size: 16px; }
+    .menu-right { gap: 11px; color: rgba(255,255,255,.82); }
+
+    .workspace-copy {
+      position: absolute;
+      left: clamp(28px, 7vw, 112px);
+      top: clamp(88px, 16vh, 170px);
+      max-width: 560px;
+      user-select: none;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      gap: 7px;
+      align-items: center;
+      margin-bottom: 20px;
+      padding: 7px 11px;
+      color: rgba(255,255,255,.65);
+      font-size: 12px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 99px;
+      background: rgba(255,255,255,.05);
+      backdrop-filter: blur(14px);
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #ffd85e;
+      box-shadow: 0 0 12px #ffd85e;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 520px;
+      font-size: clamp(46px, 7vw, 92px);
+      line-height: .95;
+      letter-spacing: -.065em;
+      font-weight: 650;
+    }
+
+    h1 span { color: rgba(255,255,255,.36); }
+
+    .workspace-copy p {
+      width: min(440px, 75vw);
+      margin: 26px 0 0;
+      color: rgba(255,255,255,.55);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    .hint {
+      position: absolute;
+      left: clamp(28px, 7vw, 112px);
+      bottom: 42px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      color: rgba(255,255,255,.4);
+      font-size: 12px;
+    }
+
+    .hint kbd {
+      padding: 4px 8px;
+      border: 1px solid rgba(255,255,255,.14);
+      border-bottom-color: rgba(255,255,255,.25);
+      border-radius: 6px;
+      color: rgba(255,255,255,.68);
+      background: rgba(255,255,255,.07);
+      box-shadow: inset 0 -1px rgba(0,0,0,.22);
+    }
+
+    .edge-glow {
+      position: fixed;
+      z-index: 5;
+      right: -56px;
+      top: 50%;
+      width: 100px;
+      height: 62vh;
+      border-radius: 50%;
+      transform: translateY(-50%);
+      background: rgba(255,255,255,.08);
+      filter: blur(34px);
+      pointer-events: none;
+    }
+
+    .dock-shell {
+      position: fixed;
+      z-index: 20;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      align-items: center;
+      perspective: 700px;
+    }
+
+    .dock {
+      position: relative;
+      width: 70px;
+      padding: 8px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 2px;
+    }
+
+    .dock::before {
+      content: "";
+      position: absolute;
+      z-index: -1;
+      top: 24px;
+      right: -8px;
+      width: 54px;
+      height: 540px;
+      border-radius: 32px 0 0 32px;
+      background: rgba(8, 10, 20, .24);
+      filter: blur(18px);
+      transform: translateX(-6px);
+      pointer-events: none;
+    }
+
+    .dock-item {
+      position: relative;
+      width: 96px;
+      height: 114px;
+      flex: 0 0 114px;
+      display: grid;
+      place-items: center;
+      margin-right: -22px;
+      border: 0;
+      padding: 0;
+      color: #24232a;
+      background: transparent;
+      cursor: pointer;
+      transform-origin: right center;
+      will-change: transform;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .dock-item[data-title] { transform: rotate(var(--tilt, 0deg)); }
+    .dock-item[data-title] + .dock-item[data-title] { margin-top: -9px; }
+    .dock-item[data-title]:nth-child(1) { --tilt: -1.8deg; margin-right: -54px; z-index: 1; }
+    .dock-item[data-title]:nth-child(2) { --tilt: .9deg; margin-right: -51px; z-index: 2; }
+    .dock-item[data-title]:nth-child(3) { --tilt: -1.1deg; margin-right: -57px; z-index: 3; }
+    .dock-item[data-title]:nth-child(4) { --tilt: 1.25deg; margin-right: -52px; z-index: 4; }
+    .dock-item[data-title]:nth-child(5) { --tilt: -1.35deg; margin-right: -55px; z-index: 5; }
+    .dock-item[data-title]:hover,
+    .dock-item[data-title].is-focused { z-index: 12; }
+
+    .note-icon {
+      position: relative;
+      width: 96px;
+      height: 114px;
+      overflow: hidden;
+      border-radius: 18px 0 0 18px;
+      background: var(--paper);
+      box-shadow:
+        -10px 10px 20px rgba(0,0,0,.28),
+        -3px 3px 6px rgba(0,0,0,.14),
+        inset 0 1px rgba(255,255,255,.62);
+      transition: filter .2s ease, box-shadow .24s ease;
+    }
+
+    .dock-item:hover .note-icon {
+      filter: brightness(1.045);
+      box-shadow:
+        -16px 14px 28px rgba(0,0,0,.32),
+        -3px 3px 7px rgba(0,0,0,.14),
+        inset 0 1px rgba(255,255,255,.68);
+    }
+
+    .note-icon::before {
+      content: "";
+      position: absolute;
+      z-index: 2;
+      top: 10px;
+      right: 50%;
+      bottom: 10px;
+      border-right: 1px dashed rgba(72,58,43,.2);
+    }
+
+    .note-icon::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(145deg, rgba(255,255,255,.3), transparent 38%, rgba(0,0,0,.05));
+      pointer-events: none;
+    }
+
+    .note-lines { display: none; }
+
+    .dock-item[data-title] .dock-label {
+      position: absolute;
+      z-index: 3;
+      left: 0;
+      top: 9px;
+      bottom: 9px;
+      width: 38px;
+      display: grid;
+      place-items: center;
+      writing-mode: vertical-rl;
+      text-orientation: upright;
+      white-space: nowrap;
+      color: rgba(42,38,36,.78);
+      font-size: 14px;
+      font-weight: 750;
+      letter-spacing: .08em;
+      pointer-events: none;
+    }
+
+    .note-actions {
+      position: absolute;
+      z-index: 5;
+      top: 0;
+      right: 8px;
+      bottom: 0;
+      width: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .action-icon {
+      width: 31px;
+      height: 31px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      color: rgba(50,44,41,.64);
+      cursor: pointer;
+      opacity: 0;
+      transform: translateX(7px) scale(.92);
+      pointer-events: none;
+      transition: color .18s ease, background .18s ease, box-shadow .2s ease, transform .2s var(--ease), opacity .16s ease;
+    }
+
+    .dock-item.stage-actions .action-icon {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+      pointer-events: auto;
+    }
+
+    .action-icon svg {
+      width: 17px;
+      height: 17px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      pointer-events: none;
+    }
+
+    .dock-item.stage-actions .action-icon:hover { color: rgba(255,255,255,.96); transform: translateX(0) scale(1.06); }
+    .action-icon[data-action="archive"]:hover {
+      background: #5b92e8;
+      box-shadow: 0 4px 16px rgba(58,123,230,.7), 0 0 0 1px rgba(255,255,255,.18) inset;
+    }
+    .action-icon[data-action="delete"]:hover {
+      background: #ef6262;
+      box-shadow: 0 4px 16px rgba(235,65,65,.7), 0 0 0 1px rgba(255,255,255,.18) inset;
+    }
+
+    .dock-action .dock-label {
+      position: absolute;
+      right: calc(100% + 12px);
+      top: 50%;
+      padding: 7px 10px;
+      transform: translate(8px, -50%);
+      white-space: nowrap;
+      color: white;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 8px;
+      background: rgba(20,20,26,.8);
+      box-shadow: 0 8px 22px rgba(0,0,0,.25);
+      backdrop-filter: blur(12px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .16s ease, transform .2s var(--ease);
+    }
+
+    .dock-action.is-focused .dock-label {
+      opacity: 1;
+      transform: translate(0, -50%);
+    }
+
+    .separator {
+      width: 54px;
+      height: 1px;
+      margin: 8px 0 6px;
+      background: rgba(255,255,255,.18);
+    }
+
+    .dock-action {
+      width: 64px;
+      height: 52px;
+      flex-basis: 52px;
+      margin-right: -10px;
+    }
+
+    .dock-action .note-icon {
+      display: grid;
+      width: 58px;
+      height: 48px;
+      place-items: center;
+      border: 1px solid rgba(255,255,255,.18);
+      border-right: 0;
+      border-radius: 17px 0 0 17px;
+      color: rgba(255,255,255,.84);
+      background: rgba(245,246,250,.2);
+      box-shadow: -5px 7px 18px rgba(0,0,0,.18), inset 0 1px rgba(255,255,255,.16);
+      backdrop-filter: blur(18px);
+    }
+
+    .dock-action .note-icon::before { display: none; }
+    .dock-action svg { width: 22px; height: 22px; stroke-width: 1.8; }
+
+    .editor-card {
+      position: fixed;
+      z-index: 15;
+      right: 108px;
+      top: 50%;
+      width: min(380px, calc(100vw - 145px));
+      height: min(490px, 72vh);
+      padding: 0;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.28);
+      border-radius: 20px;
+      color: #2c2930;
+      background: var(--editor-paper, #ffe78a);
+      box-shadow: 0 34px 90px rgba(0,0,0,.36), inset 0 1px rgba(255,255,255,.66);
+      transform: translate(36px, -50%) scale(.88);
+      transform-origin: right center;
+      opacity: 0;
+      visibility: hidden;
+    }
+
+    .editor-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(145deg, rgba(255,255,255,.26), transparent 26%, rgba(107,73,25,.05));
+    }
+
+    .editor-toolbar {
+      position: relative;
+      z-index: 1;
+      height: 54px;
+      padding: 0 15px 0 19px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(70,55,30,.11);
+    }
+
+    .editor-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: rgba(45,39,34,.52); }
+    .editor-meta b { color: rgba(45,39,34,.82); font-size: 13px; }
+
+    .close-btn {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border: 0;
+      border-radius: 50%;
+      color: rgba(40,35,31,.58);
+      background: rgba(255,255,255,.22);
+      cursor: pointer;
+      transition: background .18s ease, transform .18s ease;
+    }
+
+    .close-btn:hover { background: rgba(255,255,255,.38); transform: scale(1.06); }
+    .close-btn svg { width: 17px; height: 17px; }
+
+    .editor-title, .editor-body {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      border: 0;
+      outline: 0;
+      resize: none;
+      color: #29262b;
+      background: transparent;
+    }
+
+    .editor-title {
+      height: 74px;
+      padding: 20px 22px 8px;
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: -.035em;
+    }
+
+    .editor-body {
+      height: calc(100% - 128px);
+      padding: 8px 22px 24px;
+      font-size: 15px;
+      line-height: 1.75;
+    }
+
+    .editor-title::placeholder, .editor-body::placeholder { color: rgba(45,39,34,.4); }
+
+    .toast {
+      position: fixed;
+      z-index: 40;
+      left: 50%;
+      bottom: 30px;
+      padding: 10px 14px;
+      transform: translate(-50%, 12px);
+      color: rgba(255,255,255,.9);
+      font-size: 13px;
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 11px;
+      background: rgba(18,18,24,.72);
+      box-shadow: 0 14px 42px rgba(0,0,0,.26);
+      backdrop-filter: blur(18px);
+      opacity: 0;
+      visibility: hidden;
+    }
+
+    @media (max-height: 720px) {
+      .dock-item[data-title] { height: 88px; flex-basis: 88px; }
+      .dock-item[data-title] + .dock-item[data-title] { margin-top: -7px; }
+      .dock-item[data-title] .note-icon { height: 88px; border-radius: 15px 0 0 15px; }
+      .dock-item[data-title] .dock-label { font-size: 12px; letter-spacing: .02em; }
+      .dock::before { height: 400px; }
+      .dock { gap: 1px; }
+    }
+
+    @media (max-width: 680px) {
+      .workspace-copy { top: 100px; }
+      .workspace-copy p { max-width: calc(100vw - 130px); }
+      .editor-card { right: 94px; width: calc(100vw - 112px); }
+      .dock-shell { right: 0; }
+      .menu-left span:not(:first-of-type) { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="desktop">
+    <header class="menubar" aria-label="模拟 macOS 菜单栏">
+      <div class="menu-left"><strong>●</strong><b>Noty</b><span>文件</span><span>编辑</span><span>窗口</span></div>
+      <div class="menu-right"><span>⌁</span><span>◔</span><span id="clock">09:41</span></div>
+    </header>
+
+    <section class="workspace-copy" aria-labelledby="page-title">
+      <div class="eyebrow">Experimental interface · 01</div>
+      <h1 id="page-title">灵感，<br><span>贴在手边。</span></h1>
+      <p>把光标移到屏幕右侧的便签栏。它会像 macOS Dock 一样感知距离、放大当前便签，并带动相邻项目。</p>
+    </section>
+
+    <div class="hint"><kbd>Hover</kbd><span>轻触展开</span><kbd>1s</kbd><span>显示快捷操作</span><kbd>Esc</kbd><span>收起</span></div>
+    <div class="edge-glow"></div>
+
+    <aside class="dock-shell" aria-label="便签 Dock">
+      <nav class="dock">
+        <button class="dock-item" data-title="今日灵感" data-color="#FFE57A" data-body="让工具像家具一样安静，像朋友一样及时。\n\n· 调整首页留白\n· 试试侧边吸附\n· 周五前完成原型" aria-label="打开今日灵感">
+          <span class="note-icon" style="--paper:#FFE57A"><span class="note-lines"><i></i><i></i><i></i></span><span class="note-actions"><span class="action-icon" data-action="archive" title="归档"><svg viewBox="0 0 24 24"><path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6"/></svg></span><span class="action-icon" data-action="delete" title="删除"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></span></span></span>
+          <span class="dock-label">今日灵感</span>
+        </button>
+        <button class="dock-item" data-title="产品待办" data-color="#FFB8A7" data-body="高优先级\n\n01 纵向 Dock 动效\n02 便签快速唤起\n03 本地自动保存" aria-label="打开产品待办">
+          <span class="note-icon" style="--paper:#FFB8A7"><span class="note-lines"><i></i><i></i><i></i></span><span class="note-actions"><span class="action-icon" data-action="archive" title="归档"><svg viewBox="0 0 24 24"><path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6"/></svg></span><span class="action-icon" data-action="delete" title="删除"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></span></span></span>
+          <span class="dock-label">产品待办</span>
+        </button>
+        <button class="dock-item" data-title="阅读清单" data-color="#A9E5D1" data-body="这个月想读：\n\n《设计中的设计》\n《毫无意义的工作》\n《制造消费者》" aria-label="打开阅读清单">
+          <span class="note-icon" style="--paper:#A9E5D1"><span class="note-lines"><i></i><i></i><i></i></span><span class="note-actions"><span class="action-icon" data-action="archive" title="归档"><svg viewBox="0 0 24 24"><path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6"/></svg></span><span class="action-icon" data-action="delete" title="删除"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></span></span></span>
+          <span class="dock-label">阅读清单</span>
+        </button>
+        <button class="dock-item" data-title="会议速记" data-color="#AED6FF" data-body="Design Sync · 14:30\n\n减少永久可见的控件，用上下文和动效去提示下一步。" aria-label="打开会议速记">
+          <span class="note-icon" style="--paper:#AED6FF"><span class="note-lines"><i></i><i></i><i></i></span><span class="note-actions"><span class="action-icon" data-action="archive" title="归档"><svg viewBox="0 0 24 24"><path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6"/></svg></span><span class="action-icon" data-action="delete" title="删除"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></span></span></span>
+          <span class="dock-label">会议速记</span>
+        </button>
+        <button class="dock-item" data-title="周末计划" data-color="#D8C1FF" data-body="周六去植物园。\n\n带上相机、野餐布，还有那本一直没有读完的书。" aria-label="打开周末计划">
+          <span class="note-icon" style="--paper:#D8C1FF"><span class="note-lines"><i></i><i></i><i></i></span><span class="note-actions"><span class="action-icon" data-action="archive" title="归档"><svg viewBox="0 0 24 24"><path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6"/></svg></span><span class="action-icon" data-action="delete" title="删除"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></span></span></span>
+          <span class="dock-label">周末计划</span>
+        </button>
+
+        <div class="separator" role="separator"></div>
+
+        <button class="dock-item dock-action" id="archive" aria-label="更多便签">
+          <span class="note-icon" style="font-weight:750;font-size:15px">+4</span>
+          <span class="dock-label">更多便签</span>
+        </button>
+        <button class="dock-item dock-action" id="addNote" aria-label="新建便签">
+          <span class="note-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          <span class="dock-label">新建便签</span>
+        </button>
+        <button class="dock-item dock-action" id="settings" aria-label="设置">
+          <span class="note-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.17.38.38.73.6 1 .28.34.67.54 1.1.6H21v4h-.09A1.7 1.7 0 0 0 19.4 15Z"/></svg></span>
+          <span class="dock-label">设置</span>
+        </button>
+      </nav>
+    </aside>
+
+    <article class="editor-card" id="editor" aria-hidden="true">
+      <div class="editor-toolbar">
+        <div class="editor-meta"><b>便签</b><span>刚刚编辑</span></div>
+        <button class="close-btn" id="closeEditor" aria-label="关闭便签"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m7 7 10 10M17 7 7 17"/></svg></button>
+      </div>
+      <textarea class="editor-title" id="editorTitle" aria-label="便签标题"></textarea>
+      <textarea class="editor-body" id="editorBody" aria-label="便签正文"></textarea>
+    </article>
+
+    <div class="toast" id="toast" role="status"></div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+  <script>
+    (() => {
+      const dock = document.querySelector('.dock');
+      const items = [...document.querySelectorAll('.dock-item')];
+      const noteItems = [...document.querySelectorAll('.dock-item[data-title]')];
+      const editor = document.querySelector('#editor');
+      const titleField = document.querySelector('#editorTitle');
+      const bodyField = document.querySelector('#editorBody');
+      const closeButton = document.querySelector('#closeEditor');
+      const toast = document.querySelector('#toast');
+      const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      let editorOpen = false;
+      let toastTween;
+      const hoverTimers = new WeakMap();
+
+      const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+      const mapRange = (inMin, inMax, outMin, outMax, value) => {
+        const progress = clamp((value - inMin) / (inMax - inMin), 0, 1);
+        return outMin + (outMax - outMin) * progress;
+      };
+
+      const animators = items.map((item) => ({
+        scale: gsap.quickTo(item, 'scale', { duration: reduceMotion ? 0 : .34, ease: 'power3.out' }),
+        x: gsap.quickTo(item, 'x', { duration: reduceMotion ? 0 : .34, ease: 'power3.out' })
+      }));
+
+      function resetDock() {
+        items.forEach((item, index) => {
+          clearTimeout(hoverTimers.get(item));
+          item.classList.remove('is-focused', 'stage-peek', 'stage-actions');
+          animators[index].scale(1);
+          animators[index].x(item.classList.contains('active') ? -20 : 0);
+        });
+      }
+
+      dock.addEventListener('pointermove', (event) => {
+        let closest = { item: null, distance: Infinity };
+        const hoveredItem = event.target.closest('.dock-item');
+
+        items.forEach((item, index) => {
+          const rect = item.getBoundingClientRect();
+          const centerY = rect.top + rect.height / 2;
+          const distance = Math.abs(event.clientY - centerY);
+          const influence = clamp(1 - distance / 132, 0, 1);
+          const scale = 1 + influence * .14;
+          let x = mapRange(0, 1, 0, -24, influence);
+          if (item.classList.contains('active')) x -= 20;
+
+          if (item === hoveredItem && item.dataset.title) {
+            x = mapRange(0, 1, 0, -4, influence);
+            x += item.classList.contains('stage-actions') ? -42 : -20;
+          }
+
+          animators[index].scale(scale);
+          animators[index].x(x);
+
+          if (distance < closest.distance) closest = { item, distance };
+        });
+
+        items.forEach((item) => item.classList.toggle('is-focused', item === closest.item && closest.distance < 58));
+      });
+
+      dock.addEventListener('pointerleave', resetDock);
+
+      function openNote(item) {
+        const isSame = item.classList.contains('active') && editorOpen;
+        noteItems.forEach((note) => {
+          const isActive = note === item;
+          note.classList.toggle('active', isActive);
+          const index = items.indexOf(note);
+          animators[index].x(isActive ? -20 : 0);
+        });
+        titleField.value = item.dataset.title;
+        bodyField.value = item.dataset.body;
+        editor.style.setProperty('--editor-paper', item.dataset.color);
+        editor.setAttribute('aria-hidden', 'false');
+        editorOpen = true;
+
+        gsap.killTweensOf(editor);
+        gsap.fromTo(editor,
+          { autoAlpha: isSame ? 1 : 0, x: reduceMotion ? 0 : 36, yPercent: -50, scale: reduceMotion ? 1 : .88, rotationY: reduceMotion ? 0 : -7 },
+          { autoAlpha: 1, x: 0, yPercent: -50, scale: 1, rotationY: 0, duration: reduceMotion ? 0 : .48, ease: 'back.out(1.25)', overwrite: 'auto' }
+        );
+      }
+
+      function closeEditor() {
+        if (!editorOpen) return;
+        editorOpen = false;
+        editor.setAttribute('aria-hidden', 'true');
+        noteItems.forEach((note) => {
+          note.classList.remove('active', 'stage-peek', 'stage-actions');
+          const index = items.indexOf(note);
+          animators[index].x(0);
+        });
+        gsap.to(editor, {
+          autoAlpha: 0,
+          x: reduceMotion ? 0 : 30,
+          yPercent: -50,
+          scale: reduceMotion ? 1 : .94,
+          duration: reduceMotion ? 0 : .26,
+          ease: 'power2.in',
+          overwrite: 'auto'
+        });
+      }
+
+      function showToast(message) {
+        if (toastTween) toastTween.kill();
+        toast.textContent = message;
+        toastTween = gsap.timeline()
+          .set(toast, { visibility: 'visible' })
+          .to(toast, { autoAlpha: 1, y: 0, duration: reduceMotion ? 0 : .25, ease: 'power2.out' })
+          .to(toast, { autoAlpha: 0, y: 8, duration: reduceMotion ? 0 : .22, ease: 'power2.in', delay: 1.35 });
+      }
+
+      noteItems.forEach((item) => {
+        const index = items.indexOf(item);
+
+        item.addEventListener('pointerenter', () => {
+          clearTimeout(hoverTimers.get(item));
+          item.classList.add('stage-peek');
+          animators[index].x(-20);
+
+          const timer = setTimeout(() => {
+            if (!item.matches(':hover')) return;
+            item.classList.add('stage-actions');
+            animators[index].x(-42);
+          }, 1000);
+          hoverTimers.set(item, timer);
+        });
+
+        item.addEventListener('pointerleave', () => {
+          clearTimeout(hoverTimers.get(item));
+          item.classList.remove('stage-peek', 'stage-actions');
+          animators[index].x(item.classList.contains('active') ? -20 : 0);
+        });
+
+        item.addEventListener('click', (event) => {
+          if (!event.target.closest('.action-icon')) openNote(item);
+        });
+      });
+
+      document.querySelectorAll('.action-icon').forEach((icon) => {
+        icon.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const noteTitle = icon.closest('.dock-item').dataset.title;
+          showToast(icon.dataset.action === 'archive' ? `“${noteTitle}”已归档` : `“${noteTitle}”已移到废纸篓`);
+        });
+      });
+
+      closeButton.addEventListener('click', closeEditor);
+      document.querySelector('#addNote').addEventListener('click', () => showToast('已创建一张新便签'));
+      document.querySelector('#archive').addEventListener('click', () => showToast('还有 4 张便签')); 
+      document.querySelector('#settings').addEventListener('click', () => showToast('已打开偏好设置'));
+      document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeEditor(); });
+
+      const updateClock = () => {
+        document.querySelector('#clock').textContent = new Intl.DateTimeFormat('zh-CN', {
+          hour: '2-digit', minute: '2-digit', hour12: false
+        }).format(new Date());
+      };
+      updateClock();
+      setInterval(updateClock, 30000);
+
+      if (!reduceMotion) {
+        gsap.from('.workspace-copy > *', { y: 22, autoAlpha: 0, duration: .8, stagger: .09, ease: 'power3.out' });
+        gsap.from('.dock', { x: 80, autoAlpha: 0, duration: .8, delay: .18, ease: 'back.out(1.2)' });
+        gsap.from('.dock-item', { x: 24, autoAlpha: 0, duration: .45, stagger: .045, delay: .38, ease: 'power3.out' });
+      }
+    })();
+  </script>
+</body>
+</html>

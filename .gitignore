@@ -1,0 +1,146 @@
+# ---------------------------------------------------------------------------
+# Windows
+# ---------------------------------------------------------------------------
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.stackdump
+*.lnk
+
+# ---------------------------------------------------------------------------
+# .NET / WPF / Visual Studio  (主要技术栈: .NET LTS + WPF)
+# ---------------------------------------------------------------------------
+## Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+artifacts/
+
+## Visual Studio / Rider / VS Code
+.vs/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.userprefs
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.sln.iml
+*.swp
+*.swo
+*.DS_Store
+
+## Build / test tooling
+*.binlog
+*.VisualState.xml
+TestResult.xml
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+coverage*.json
+coverage*.xml
+coverage*.info
+*.coverage
+*.coveragexml
+*.opencover.xml
+BenchmarkDotNet.Artifacts/
+
+## NuGet
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+
+## MSBuild / ReSharper / DotCover
+*.tlog
+*.ilk
+*.meta
+*.obj
+*.iobj
+*.pch
+*.pdb
+*.ipdb
+*.pgc
+*.pgd
+*.rsp
+*.sbr
+*.tlb
+*.tli
+*.tlh
+*.tmp
+*.tmp_proj
+*_wpftmp.csproj
+*.vspscc
+*.vssscc
+.builds
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+*.dotCover
+
+## Publish / 安装包产物
+publish/
+[Pp]ublish[Ss]cripts/
+AppPackages/
+BundleArtifacts/
+*.appx
+*.msix
+*.msixbundle
+*.msixupload
+*.appxbundle
+*.appxupload
+*.zip
+*.7z
+*.dmg
+*.exe
+*.msi
+
+# ---------------------------------------------------------------------------
+# 前端原型 (index.html 及后续可能的构建工具)
+# ---------------------------------------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm/
+.pnpm-store/
+.cache/
+.parcel-cache/
+dist/
+build/
+out/
+.next/
+.nuxt/
+.svelte-kit/
+.vite/
+.temp/
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+
+# ---------------------------------------------------------------------------
+# 项目本地资产
+# ---------------------------------------------------------------------------
+# macOS 版 Noty 的参考源码（上游仓库副本，非本项目代码）
+# 如需随仓库一起提交，删除下面一行即可
+/.research-noty/
