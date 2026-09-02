@@ -912,3 +912,4 @@ Noty.Tests
 2. 编辑器：中文/日文 IME、RTL、Undo、任务 checkbox 和 Markdown 样式共存。
 
 同时锁定 `.stickies v2` golden fixtures，并接受“当前格式不迁移 pinned”的事实。只有上述原型通过后，才应冻结框架、工期和正式发布日期。
+
