@@ -39,65 +39,44 @@ pub fn is_primary_mouse_button_pressed() -> bool {
 }
 
 #[tauri::command]
-pub fn resize_dock_window(
+pub fn show_dock_panel(
+    app: tauri::AppHandle,
     window: tauri::WebviewWindow,
-    logical_width: f64,
-    anchor_right: bool,
+    anchor_side: String,
 ) -> Result<(), String> {
-    let scale_factor = window.scale_factor().map_err(|error| error.to_string())?;
-    let width = (logical_width * scale_factor).round().max(1.0) as u32;
-    set_dock_window_extent(&window, width, anchor_right)
+    use tauri::Manager;
+
+    let panel = app
+        .get_webview_window("dock-panel")
+        .ok_or_else(|| "dock panel window is unavailable".to_string())?;
+    let rail_position = window.outer_position().map_err(|error| error.to_string())?;
+    let rail_size = window.outer_size().map_err(|error| error.to_string())?;
+    let panel_size = panel.outer_size().map_err(|error| error.to_string())?;
+
+    // The panel hugs the rail on the side that points into the screen. Top
+    // edges stay aligned so the vertical centering matches the rail.
+    let x = if anchor_side == "left" {
+        rail_position.x + rail_size.width as i32
+    } else {
+        rail_position.x - panel_size.width as i32
+    };
+    let y = rail_position.y;
+
+    panel
+        .set_position(tauri::PhysicalPosition::new(x, y))
+        .map_err(|error| error.to_string())?;
+    panel.show().map_err(|error| error.to_string())?;
+    panel.set_focus().map_err(|error| error.to_string())
 }
 
-#[cfg(target_os = "windows")]
-fn set_dock_window_extent(
-    window: &tauri::WebviewWindow,
-    width: u32,
-    anchor_right: bool,
-) -> Result<(), String> {
-    use std::ffi::c_void;
+#[tauri::command]
+pub fn hide_dock_panel(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager;
 
-    type Hwnd = *mut c_void;
-    #[link(name = "user32")]
-    unsafe extern "system" {
-        fn SetWindowPos(
-            window: Hwnd,
-            insert_after: Hwnd,
-            x: i32,
-            y: i32,
-            width: i32,
-            height: i32,
-            flags: u32,
-        ) -> i32;
+    if let Some(panel) = app.get_webview_window("dock-panel") {
+        panel.hide().map_err(|error| error.to_string())?;
     }
-
-    const SWP_NOZORDER: u32 = 0x0004;
-    const SWP_NOACTIVATE: u32 = 0x0010;
-
-    let hwnd = window.hwnd().map_err(|error| error.to_string())?;
-    let position = window.outer_position().map_err(|error| error.to_string())?;
-    let size = window.outer_size().map_err(|error| error.to_string())?;
-    let x = if anchor_right {
-        position.x + size.width as i32 - width as i32
-    } else {
-        position.x
-    };
-    let updated = unsafe {
-        SetWindowPos(
-            hwnd.0,
-            std::ptr::null_mut(),
-            x,
-            position.y,
-            width as i32,
-            size.height as i32,
-            SWP_NOZORDER | SWP_NOACTIVATE,
-        )
-    };
-    if updated == 0 {
-        Err(std::io::Error::last_os_error().to_string())
-    } else {
-        Ok(())
-    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -132,26 +111,6 @@ pub fn show_dock_toast(
     toast.emit("dock-toast", message).map_err(|error| error.to_string())
 }
 
-#[cfg(not(target_os = "windows"))]
-fn set_dock_window_extent(
-    window: &tauri::WebviewWindow,
-    width: u32,
-    anchor_right: bool,
-) -> Result<(), String> {
-    let position = window.outer_position().map_err(|error| error.to_string())?;
-    let size = window.outer_size().map_err(|error| error.to_string())?;
-    let x = if anchor_right {
-        position.x + size.width as i32 - width as i32
-    } else {
-        position.x
-    };
-    window
-        .set_position(tauri::PhysicalPosition::new(x, position.y))
-        .map_err(|error| error.to_string())?;
-    window
-        .set_size(tauri::PhysicalSize::new(width, size.height))
-        .map_err(|error| error.to_string())
-}
 
 #[cfg(target_os = "windows")]
 fn primary_mouse_button_pressed_impl() -> bool {
