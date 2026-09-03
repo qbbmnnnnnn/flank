@@ -134,6 +134,8 @@ out/
 .vite/
 .temp/
 *.tsbuildinfo
+/src-tauri/target/
+/src-tauri/gen/
 .env
 .env.local
 .env.*.local
