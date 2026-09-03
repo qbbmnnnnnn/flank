@@ -146,3 +146,4 @@ out/
 # macOS 版 Noty 的参考源码（上游仓库副本，非本项目代码）
 # 如需随仓库一起提交，删除下面一行即可
 /.research-noty/
+.Artifacts/*

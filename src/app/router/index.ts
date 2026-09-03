@@ -5,8 +5,13 @@ export const router = createRouter({
   routes: [
     {
       path: "/",
-      name: "home",
-      component: () => import("../../features/home/HomeView.vue"),
+      name: "settings",
+      component: () => import("../../features/settings/SettingsView.vue"),
+    },
+    {
+      path: "/dock",
+      name: "dock",
+      component: () => import("../../features/dock/DockView.vue"),
     },
   ],
 });

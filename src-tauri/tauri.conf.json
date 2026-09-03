@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Flank",
+  "productName": "Noty",
   "version": "0.1.0",
-  "identifier": "com.flank.desktop",
+  "identifier": "com.noty.desktop",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
@@ -13,12 +13,29 @@
     "windows": [
       {
         "label": "main",
-        "title": "Flank",
-        "width": 960,
-        "height": 680,
+        "title": "Noty 设置",
+        "width": 1080,
+        "height": 720,
         "minWidth": 640,
         "minHeight": 480,
         "center": true
+      },
+      {
+        "label": "dock",
+        "title": "Noty Dock",
+        "url": "index.html#/dock",
+        "width": 500,
+        "height": 720,
+        "minWidth": 104,
+        "minHeight": 420,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "resizable": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "focus": false,
+        "visible": false
       }
     ],
     "security": {

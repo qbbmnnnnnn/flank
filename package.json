@@ -1,5 +1,5 @@
 {
-  "name": "flank",
+  "name": "noty-desktop",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
+    "gsap": "^3.15.0",
     "pinia": "^3.0.3",
     "vue": "^3.5.13",
     "vue-router": "^4.6.3"
