@@ -57,11 +57,13 @@ let saveTimer: number | undefined;
 let saveStateTimer: number | undefined;
 let toastTimer: number | undefined;
 let contrastTimer: number | undefined;
+let controlsHideTimer: number | undefined;
 let controlsTimeline: gsap.core.Timeline | undefined;
 let noteListObserver: ResizeObserver | undefined;
 let unlistenDockFocus: (() => void) | undefined;
 let panelAnimation: gsap.core.Timeline | undefined;
 let closingPanel = false;
+let switchingPanel = false;
 const hoverTimers = new Map<string, number>();
 const quickSetters = new Map<HTMLElement, { x: (value: number) => void; scaleX: (value: number) => void; scaleY: (value: number) => void }>();
 
@@ -73,10 +75,20 @@ function displayTitle(title: string) {
   return chars.length > 6 ? `${chars.slice(0, 5).join("")}…` : title;
 }
 
-function showToast(message: string) {
+function showLocalToast(message: string) {
   toast.value = message;
   window.clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => (toast.value = ""), 1800);
+}
+
+function showToast(message: string) {
+  if (!("__TAURI_INTERNALS__" in window)) {
+    showLocalToast(message);
+    return;
+  }
+  void import("@tauri-apps/api/core")
+    .then(({ invoke }) => invoke("show_dock_toast", { message }))
+    .catch(() => showLocalToast(message));
 }
 
 function isReducedMotion() {
@@ -135,8 +147,8 @@ async function resizeForPanel(expanded: boolean) {
     const newWidth = expanded ? 500 : 104;
     if ("__TAURI_INTERNALS__" in window) {
       const { invoke } = await import("@tauri-apps/api/core");
-      // Windows keeps a stable 500px host and only changes its native region;
-      // this avoids relocating a visible WebView when the right panel opens.
+      // Resize the real native window instead of clipping a permanently wide
+      // transparent HWND; this avoids stale WebView2/DWM caption artifacts.
       await invoke("resize_dock_window", { logicalWidth: newWidth, anchorRight: side.value === "right" });
       if (expanded) await waitForDockViewportWidth(newWidth);
       return;
@@ -181,6 +193,7 @@ function findTab(id: string) {
 
 function onRailMove(event: PointerEvent) {
   if (dragging.value) return;
+  showControls();
   const direction = inward();
   const hovered = (event.target as HTMLElement).closest<HTMLElement>(".note-tab");
   const tabs = [...(root.value?.querySelectorAll<HTMLElement>(".note-tab") ?? [])];
@@ -265,6 +278,7 @@ function buildControlsTimeline() {
 }
 
 function showControls() {
+  window.clearTimeout(controlsHideTimer);
   if (dragging.value || controlsVisible.value) return;
   controlsVisible.value = true;
   nextTick(() => {
@@ -274,6 +288,7 @@ function showControls() {
 }
 
 function hideControls(force = false) {
+  window.clearTimeout(controlsHideTimer);
   if (dragging.value && !force) return;
   controlsVisible.value = false;
   if (force || isReducedMotion()) {
@@ -291,7 +306,8 @@ function hideControls(force = false) {
 function onRailLeave() {
   if (dragging.value) return;
   resetRail();
-  hideControls();
+  window.clearTimeout(controlsHideTimer);
+  controlsHideTimer = window.setTimeout(() => hideControls(), 1200);
 }
 
 function playPanelEntrance(panel: HTMLElement) {
@@ -323,6 +339,8 @@ function playPanelEntrance(panel: HTMLElement) {
 
 async function openPreview(note: Note) {
   const wasClosed = mode.value === "closed";
+  const isSwitch = !wasClosed && activeNote.value?.id !== note.id;
+  if (switchingPanel) return;
   if (mode.value === "preview" && activeNote.value?.id === note.id) {
     editNote();
     return;
@@ -333,30 +351,43 @@ async function openPreview(note: Note) {
   }
   if (mode.value === "edit") flushSave();
 
-  // Keep the panel unpainted until both the native window and WebView viewport
-  // have reached the expanded geometry. This specifically avoids the first
-  // right-edge open painting against the old 104px backing surface.
-  panelPending.value = wasClosed;
-  if (wasClosed) await resizeForPanel(true);
-  activeNote.value = note;
-  draftTarget.value = null;
-  isNewNote.value = false;
-  mode.value = "preview";
-  actionNote.value = null;
-  await nextTick();
+  switchingPanel = isSwitch;
+  try {
+    const currentPanel = root.value?.querySelector<HTMLElement>(".note-panel");
+    if (currentPanel && isSwitch && !isReducedMotion()) {
+      panelAnimation?.kill();
+      const direction = inward();
+      const offscreenX = -(currentPanel.offsetWidth + 128) * direction;
+      panelAnimation = gsap.timeline({ defaults: { overwrite: "auto" } })
+        .to(currentPanel, { x: 10 * direction, rotation: -1.5 * direction, duration: .1, ease: "power1.out" })
+        .to(currentPanel, { x: offscreenX, rotation: 8 * direction, autoAlpha: 0, duration: .28, ease: "power3.in" });
+      await panelAnimation;
+    }
 
-  const panel = root.value?.querySelector<HTMLElement>(".note-panel");
-  if (panel && wasClosed) {
-    playPanelEntrance(panel);
-  } else {
-    const content = panel?.querySelector<HTMLElement>(".preview-body");
-    if (content) gsap.fromTo(content, { autoAlpha: .72, y: 4 }, { autoAlpha: 1, y: 0, duration: isReducedMotion() ? 0 : .18, ease: "power2.out", overwrite: true });
+    // Keep the panel unpainted until both the native window and WebView viewport
+    // have reached the expanded geometry. This specifically avoids the first
+    // right-edge open painting against the old 104px backing surface.
+    panelPending.value = wasClosed;
+    if (wasClosed) await resizeForPanel(true);
+    activeNote.value = note;
+    draftTarget.value = null;
+    isNewNote.value = false;
+    mode.value = "preview";
+    actionNote.value = null;
+    await nextTick();
+
+    const panel = root.value?.querySelector<HTMLElement>(".note-panel");
+    if (panel && (wasClosed || isSwitch)) {
+      playPanelEntrance(panel);
+    }
+    resetRail();
+  } finally {
+    switchingPanel = false;
   }
-  resetRail();
 }
 
 async function closePreview() {
-  if (mode.value === "closed" || closingPanel) return;
+  if (mode.value === "closed" || closingPanel || switchingPanel) return;
   closingPanel = true;
   if (mode.value === "edit") flushSave();
   const panel = root.value?.querySelector<HTMLElement>(".note-panel");
@@ -849,21 +880,39 @@ async function snapNativeWindow() {
   }
 }
 
-async function waitForPrimaryPointerRelease() {
-  try {
-    const { invoke } = await import("@tauri-apps/api/core");
-    while (await invoke<boolean>("is_primary_mouse_button_pressed")) {
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 16));
-    }
-  } catch {
-    // startDragging normally resolves on release; this guard only handles the
-    // Windows compositor occasionally ending the move loop while still held.
-  }
-}
-
 async function beginWindowDrag(event: PointerEvent) {
-  if (event.button !== 0 || dragging.value) return;
+  if (event.button !== 0 || dragging.value || switchingPanel) return;
   event.preventDefault();
+  const dragTarget = event.currentTarget as HTMLElement;
+  const pointerId = event.pointerId;
+  let latestPointer = { x: event.screenX, y: event.screenY };
+  let released = false;
+  let moveWindow: (() => void) | undefined;
+  let resolveRelease: (() => void) | undefined;
+  const releasePromise = new Promise<void>((resolve) => (resolveRelease = resolve));
+  const onMove = (moveEvent: PointerEvent) => {
+    if (moveEvent.pointerId !== pointerId) return;
+    latestPointer = { x: moveEvent.screenX, y: moveEvent.screenY };
+    moveWindow?.();
+  };
+  const onRelease = (upEvent: PointerEvent) => {
+    if (upEvent.pointerId !== pointerId || released) return;
+    if (upEvent.type === "pointerup") latestPointer = { x: upEvent.screenX, y: upEvent.screenY };
+    released = true;
+    resolveRelease?.();
+  };
+  const cleanupPointer = () => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onRelease);
+    window.removeEventListener("pointercancel", onRelease);
+    if (dragTarget.hasPointerCapture?.(pointerId)) dragTarget.releasePointerCapture(pointerId);
+  };
+
+  dragTarget.setPointerCapture?.(pointerId);
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onRelease);
+  window.addEventListener("pointercancel", onRelease);
+  const winPromise = getDockWindow();
   if (mode.value !== "closed") await closePreview();
   dragging.value = true;
   resetRail();
@@ -871,19 +920,56 @@ async function beginWindowDrag(event: PointerEvent) {
   await nextTick();
   const handle = root.value?.querySelector<HTMLElement>(".drag-handle");
   if (handle) gsap.set(handle, { autoAlpha: 1, y: 0, scale: 1 });
-  const win = await getDockWindow();
+  const win = await winPromise;
   if (!win) {
-    beginBrowserDrag(event);
+    cleanupPointer();
+    if (released) {
+      dragging.value = false;
+      showControlsAfterDrag();
+    } else {
+      beginBrowserDrag(event);
+    }
     return;
   }
+
   try {
-    await win.startDragging();
+    const [{ PhysicalPosition }, startPosition, scaleFactor] = await Promise.all([
+      import("@tauri-apps/api/dpi"), win.outerPosition(), win.scaleFactor(),
+    ]);
+    const startPointer = { x: latestPointer.x * scaleFactor, y: latestPointer.y * scaleFactor };
+    let pendingPosition: InstanceType<typeof PhysicalPosition> | null = null;
+    let moving = false;
+    let movementPromise = Promise.resolve();
+
+    moveWindow = () => {
+      pendingPosition = new PhysicalPosition(
+        Math.round(startPosition.x + latestPointer.x * scaleFactor - startPointer.x),
+        Math.round(startPosition.y + latestPointer.y * scaleFactor - startPointer.y),
+      );
+      if (moving) return;
+      moving = true;
+      movementPromise = (async () => {
+        while (pendingPosition) {
+          const position = pendingPosition;
+          pendingPosition = null;
+          await win.setPosition(position);
+        }
+        moving = false;
+      })().catch(() => {
+        pendingPosition = null;
+        moving = false;
+      });
+    };
+
+    if (!released) await releasePromise;
+    moveWindow();
+    await movementPromise;
   } catch {
-    // Snap from the last accepted position.
+    // Keep the last accepted position when manual movement is unavailable.
+  } finally {
+    cleanupPointer();
   }
-  // Never infer "drop" from a pause in pointer movement. Only snap after the
-  // physical primary button is actually released.
-  await waitForPrimaryPointerRelease();
+
   await snapNativeWindow();
   dragging.value = false;
   showControlsAfterDrag();
@@ -1054,6 +1140,7 @@ onUnmounted(() => {
   window.clearTimeout(saveTimer);
   window.clearTimeout(saveStateTimer);
   window.clearTimeout(toastTimer);
+  window.clearTimeout(controlsHideTimer);
   window.clearInterval(contrastTimer);
   hoverTimers.forEach((timer) => window.clearTimeout(timer));
   noteListObserver?.disconnect();
@@ -1068,6 +1155,7 @@ onUnmounted(() => {
 
 <template>
   <main ref="root" class="dock-window" :class="[`dock-${side}`, { dragging, 'screen-compact': compact }]" :style="{ '--screen-height': `${screenHeight}px` }" @keydown="onRootKeydown" @pointerdown="onRootPointerDown">
+    <button v-if="mode !== 'closed'" class="panel-dismiss-layer" type="button" aria-label="关闭便签" @pointerdown.stop="closePreview"></button>
     <article v-if="mode !== 'closed'" class="note-panel" :class="[mode, { 'panel-pending': panelPending }]" :style="{ '--paper': mode === 'edit' ? draftColor : activeNote?.color }">
         <template v-if="mode === 'preview' && activeNote">
           <header class="panel-header">
@@ -1109,11 +1197,11 @@ onUnmounted(() => {
 
     <aside class="dock-rail" :class="{ 'controls-visible': controlsVisible }" aria-label="便签栏" @pointermove="onRailMove" @pointerleave="onRailLeave">
       <div class="grab-zone">
-        <button class="drag-handle adaptive-control" data-control="handle" :data-tone="controlTones.handle" type="button" aria-label="拖动便签栏" :aria-pressed="dragging ? 'true' : 'false'" title="拖动便签栏" @pointerdown.left="beginWindowDrag" @keydown.enter.prevent="toggleSideWithKeyboard" @keydown.space.prevent="toggleSideWithKeyboard"><span><i></i><i></i><i></i><i></i><i></i><i></i></span></button>
+        <button class="drag-handle adaptive-control" data-control="handle" :data-tone="controlTones.handle" type="button" draggable="false" aria-label="拖动便签栏" :aria-pressed="dragging ? 'true' : 'false'" title="拖动便签栏" @pointerdown.left="beginWindowDrag" @keydown.enter.prevent="toggleSideWithKeyboard" @keydown.space.prevent="toggleSideWithKeyboard"><span><i></i><i></i><i></i><i></i><i></i><i></i></span></button>
       </div>
       <div class="note-list-shell" :class="{ 'blur-top': canScrollUp, 'blur-bottom': canScrollDown }">
         <div ref="noteList" class="note-list" @scroll="updateScrollEdges" @pointerenter="showControls">
-        <div v-for="note in notes" :key="note.id" class="note-tab" :class="{ active: activeNote?.id === note.id, actions: actionNote === note.id }" :data-id="note.id" role="button" tabindex="0" :aria-label="`打开${note.title}`" @pointerenter="beginHover(note)" @pointerleave="endHover(note)" @click="openPreview(note)" @keydown.enter.prevent="openPreview(note)" @keydown.space.prevent="openPreview(note)">
+        <div v-for="note in notes" :key="note.id" class="note-tab" :class="{ active: activeNote?.id === note.id, actions: actionNote === note.id }" :data-id="note.id" role="button" tabindex="0" draggable="false" :aria-label="`打开${note.title}`" @pointerenter="beginHover(note)" @pointerleave="endHover(note)" @click="openPreview(note)" @keydown.enter.prevent="openPreview(note)" @keydown.space.prevent="openPreview(note)">
           <span class="paper" :style="{ '--paper': note.color }"><span class="title">{{ displayTitle(note.title) }}</span><span class="quick-actions"><button type="button" title="归档" aria-label="归档" @click.stop="archiveNote(note)"><svg viewBox="0 0 24 24"><path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6"/></svg></button><button type="button" title="删除" aria-label="删除" @click.stop="deleteNote(note)"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></button></span></span>
         </div>
         </div>
@@ -1129,14 +1217,14 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.dock-window{--rail:104px;--ease:cubic-bezier(.22,1,.36,1);width:100vw;height:100vh;position:relative;overflow:hidden;color:#29262b;background:transparent;user-select:none}.dock-rail{position:absolute;z-index:5;top:50%;right:0;width:var(--rail);max-height:calc(100vh - 16px);padding:3px 0;display:flex;flex-direction:column;align-items:flex-end;transform:translateY(-50%);perspective:700px}.dock-left .dock-rail{left:0;right:auto;align-items:flex-start}
-.grab-zone{width:100%;height:38px;flex:0 0 38px;display:flex;align-items:center;justify-content:flex-end;opacity:0;visibility:hidden;transform:translateY(20px);pointer-events:none}.dock-left .grab-zone{justify-content:flex-start}.controls-visible .grab-zone,.dragging .grab-zone{pointer-events:auto}.drag-handle{width:48px;height:32px;margin-right:8px;padding:0;display:grid;place-items:center;border:1px solid rgba(255,255,255,.2);border-radius:11px;color:rgba(255,255,255,.72);background:rgba(245,246,250,.2);box-shadow:none;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);cursor:grab;touch-action:none}.dock-left .drag-handle{margin:0 0 0 8px}.drag-handle>span{width:16px;display:grid;grid-template-columns:repeat(2,4px);grid-template-rows:repeat(3,4px);justify-content:space-between;gap:3px 0}.drag-handle i{width:4px;height:4px;border-radius:50%;background:currentColor}.drag-handle:hover{color:rgba(255,255,255,.96);background:rgba(245,246,250,.28)}.drag-handle:active,.dragging .drag-handle{cursor:grabbing}
-.note-list-shell{position:relative;width:100%;min-height:0;max-height:min(calc(var(--screen-height) - 228px),calc(100vh - 156px))}.note-list-shell::before,.note-list-shell::after{content:"";position:absolute;z-index:20;left:0;right:0;height:24px;opacity:0;pointer-events:none;transition:opacity .18s ease;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}.note-list-shell::before{top:0;mask-image:linear-gradient(to bottom,#000,transparent);-webkit-mask-image:linear-gradient(to bottom,#000,transparent)}.note-list-shell::after{bottom:0;mask-image:linear-gradient(to top,#000,transparent);-webkit-mask-image:linear-gradient(to top,#000,transparent)}.note-list-shell.blur-top::before,.note-list-shell.blur-bottom::after{opacity:1}.note-list{width:100%;max-height:inherit;padding:10px 0 12px;display:flex;flex-direction:column;align-items:flex-end;gap:2px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scroll-behavior:smooth;scrollbar-width:none}.blur-top:not(.blur-bottom) .note-list{mask-image:linear-gradient(to bottom,transparent 0,#000 22px);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px)}.blur-bottom:not(.blur-top) .note-list{mask-image:linear-gradient(to bottom,#000 calc(100% - 22px),transparent 100%);-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 22px),transparent 100%)}.blur-top.blur-bottom .note-list{mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%)}.note-list::-webkit-scrollbar{display:none}.dock-left .note-list{align-items:flex-start}.note-tab{position:relative;width:96px;height:114px;flex:0 0 114px;margin:0 -54px 0 0;padding:0;border:0;color:#302c2e;background:transparent;cursor:pointer;transform-origin:right center;will-change:transform;rotate:var(--tilt,0deg)}.note-tab+.note-tab{margin-top:-9px}.dock-left .note-tab{margin-right:0;margin-left:-54px;transform-origin:left center}.note-tab:nth-child(1){--tilt:-1.8deg;z-index:1}.note-tab:nth-child(2){--tilt:.9deg;z-index:2}.note-tab:nth-child(3){--tilt:-1.1deg;z-index:3}.note-tab:nth-child(4){--tilt:1.25deg;z-index:4}.note-tab:nth-child(5){--tilt:-1.35deg;z-index:5}.note-tab:nth-child(n+6){--tilt:-1deg}.note-tab.nearest,.note-tab.active,.note-tab:hover{z-index:12}.paper{position:absolute;inset:0;overflow:hidden;display:block;border-radius:18px 0 0 18px;background:var(--paper);box-shadow:none;transition:filter .2s ease}.note-tab:hover .paper{filter:brightness(1.045);box-shadow:none}.dock-left .paper{border-radius:0 18px 18px 0;box-shadow:none}.paper::after{content:"";position:absolute;inset:0;background:linear-gradient(145deg,rgba(255,255,255,.3),transparent 40%,rgba(60,45,30,.05));pointer-events:none}.paper::before{content:"";position:absolute;z-index:2;top:9px;bottom:9px;right:50%;border-right:1px dashed rgba(72,58,43,.2)}.title{position:absolute;z-index:3;left:0;top:9px;bottom:9px;width:38px;display:grid;place-items:center;writing-mode:vertical-rl;text-orientation:upright;color:rgba(47,42,40,.78);font-size:14px;font-weight:800;letter-spacing:.08em;overflow:hidden;text-overflow:ellipsis}.dock-left .title{left:auto;right:0}
+.dock-window{--rail:104px;--ease:cubic-bezier(.22,1,.36,1);width:100vw;height:100vh;position:relative;overflow:hidden;color:#29262b;background:transparent;pointer-events:none;user-select:none;-webkit-user-select:none}.dock-window svg,.note-tab,.paper{-webkit-user-drag:none}.note-tab,.note-panel,.note-panel *,.drag-handle,.rail-controls>button{pointer-events:auto}.dock-rail{position:absolute;z-index:5;top:50%;right:0;width:var(--rail);height:min(calc(var(--screen-height) - 16px),calc(100vh - 16px));padding:3px 0;display:flex;flex-direction:column;align-items:flex-end;transform:translateY(-50%);perspective:700px;pointer-events:none}.dock-left .dock-rail{left:0;right:auto;align-items:flex-start}
+.grab-zone{width:100%;height:38px;flex:0 0 38px;display:flex;align-items:center;justify-content:flex-end;opacity:0;visibility:hidden;transform:translateY(20px);pointer-events:none}.dock-left .grab-zone{justify-content:flex-start}.controls-visible .grab-zone,.dragging .grab-zone{pointer-events:none}.drag-handle{width:48px;height:32px;margin-right:8px;padding:0;display:grid;place-items:center;border:1px solid rgba(255,255,255,.2);border-radius:11px;color:rgba(255,255,255,.72);background:rgba(245,246,250,.2);box-shadow:none;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);cursor:grab;touch-action:none}.dock-left .drag-handle{margin:0 0 0 8px}.drag-handle>span{width:16px;display:grid;grid-template-columns:repeat(2,4px);grid-template-rows:repeat(3,4px);justify-content:space-between;gap:3px 0}.drag-handle i{width:4px;height:4px;border-radius:50%;background:currentColor}.drag-handle:hover{color:rgba(255,255,255,.96);background:rgba(245,246,250,.28)}.drag-handle:active,.dragging .drag-handle{cursor:grabbing}
+.note-list-shell{position:relative;width:100%;min-height:0;max-height:min(calc(var(--screen-height) - 228px),calc(100vh - 156px));flex:1 1 auto;overflow:hidden;pointer-events:none}.note-list-shell::before,.note-list-shell::after{content:"";position:absolute;z-index:20;left:0;right:0;height:24px;opacity:0;pointer-events:none;transition:opacity .18s ease;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}.note-list-shell::before{top:0;mask-image:linear-gradient(to bottom,#000,transparent);-webkit-mask-image:linear-gradient(to bottom,#000,transparent)}.note-list-shell::after{bottom:0;mask-image:linear-gradient(to top,#000,transparent);-webkit-mask-image:linear-gradient(to top,#000,transparent)}.note-list-shell.blur-top::before,.note-list-shell.blur-bottom::after{opacity:1}.note-list{width:100%;height:100%;max-height:none;padding:10px 0 15px;pointer-events:none;display:flex;flex-direction:column;align-items:flex-end;gap:2px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scroll-behavior:smooth;scrollbar-width:none}.blur-top:not(.blur-bottom) .note-list{mask-image:linear-gradient(to bottom,transparent 0,#000 22px);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px)}.blur-bottom:not(.blur-top) .note-list{mask-image:linear-gradient(to bottom,#000 calc(100% - 22px),transparent 100%);-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 22px),transparent 100%)}.blur-top.blur-bottom .note-list{mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%)}.note-list::-webkit-scrollbar{display:none}.dock-left .note-list{align-items:flex-start}.note-tab{position:relative;width:96px;height:114px;flex:0 0 114px;margin:0 -54px 0 0;padding:0;border:0;color:#302c2e;background:transparent;cursor:pointer;transform-origin:right center;will-change:transform;rotate:var(--tilt,0deg)}.note-tab+.note-tab{margin-top:-9px}.dock-left .note-tab{margin-right:0;margin-left:-54px;transform-origin:left center}.note-tab:nth-child(1){--tilt:-1.8deg;z-index:1}.note-tab:nth-child(2){--tilt:.9deg;z-index:2}.note-tab:nth-child(3){--tilt:-1.1deg;z-index:3}.note-tab:nth-child(4){--tilt:1.25deg;z-index:4}.note-tab:nth-child(5){--tilt:-1.35deg;z-index:5}.note-tab:nth-child(n+6){--tilt:-1deg}.note-tab.nearest,.note-tab.active,.note-tab:hover{z-index:12}.paper{position:absolute;inset:0;overflow:hidden;display:block;border-radius:18px 0 0 18px;background:var(--paper);box-shadow:none;transition:filter .2s ease}.note-tab:hover .paper{filter:brightness(1.045);box-shadow:none}.dock-left .paper{border-radius:0 18px 18px 0;box-shadow:none}.paper::after{content:"";position:absolute;inset:0;background:linear-gradient(145deg,rgba(255,255,255,.3),transparent 40%,rgba(60,45,30,.05));pointer-events:none}.paper::before{content:"";position:absolute;z-index:2;top:9px;bottom:9px;right:50%;border-right:1px dashed rgba(72,58,43,.2)}.title{position:absolute;z-index:3;left:0;top:9px;bottom:9px;width:38px;display:grid;place-items:center;writing-mode:vertical-rl;text-orientation:upright;color:rgba(47,42,40,.78);font-size:14px;font-weight:800;letter-spacing:.08em;overflow:hidden;text-overflow:ellipsis}.dock-left .title{left:auto;right:0}
 .quick-actions{position:absolute;z-index:4;right:7px;top:0;bottom:0;width:45px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;opacity:0;transform:translateX(7px) scale(.92);pointer-events:none;transition:opacity .16s ease,transform .22s var(--ease)}.dock-left .quick-actions{left:7px;right:auto;transform:translateX(-7px) scale(.92)}.note-tab.actions .quick-actions{opacity:1;transform:none;pointer-events:auto}.quick-actions button{width:31px;height:31px;padding:0;display:grid;place-items:center;border:0;border-radius:10px;color:rgba(52,45,44,.63);background:transparent;cursor:pointer;transition:color .18s ease,background .18s ease,transform .2s var(--ease)}.quick-actions svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.quick-actions button:hover{color:#fff;transform:scale(1.06)}.quick-actions button:hover:first-child{background:#5b92e8;box-shadow:none}.quick-actions button:hover:last-child{background:#ef6262;box-shadow:none}
-.rail-controls{position:relative;z-index:30;width:100%;padding-top:10px;display:flex;flex:0 0 auto;flex-direction:column;align-items:flex-end;opacity:0;visibility:hidden;transform:translateX(18px);pointer-events:none}.dock-left .rail-controls{align-items:flex-start;transform:translateX(-18px)}.controls-visible:not(.dragging) .rail-controls{pointer-events:auto}.rail-controls .separator{width:54px;height:1px;margin:8px 0 6px;background:rgba(255,255,255,.18)}.rail-controls>button{position:relative;width:48px;height:48px;margin:0 4px 6px 0;padding:0;display:grid;place-items:center;border:1px solid rgba(255,255,255,.2);border-radius:50%;color:rgba(255,255,255,.9);background:rgba(28,30,35,.72);box-shadow:none;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);cursor:pointer}.dock-left .rail-controls>button{margin-right:0;margin-left:4px}.rail-controls>button>svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s var(--ease)}.rail-controls>button:hover{color:#fff;background:rgba(18,20,24,.84)}.rail-controls>button:hover>svg{transform:scale(1.16)}.rail-controls>button:active>svg{transform:scale(.94)}
-.adaptive-control[data-tone="dark"]{color:rgba(255,255,255,.9)!important;border-color:rgba(255,255,255,.2)!important;background:rgba(28,30,35,.72)!important;box-shadow:none}.adaptive-control[data-tone="dark"]:hover{color:#fff!important;background:rgba(18,20,24,.84)!important}
-.note-panel{position:absolute;z-index:3;top:50%;right:94px;width:min(380px,calc(100vw - 117px));overflow:hidden;will-change:transform,opacity;border:1px solid rgba(255,255,255,.28);border-radius:20px;color:#2c2930;background:var(--paper,#ffe78a);box-shadow:none;transform:translateY(-50%);transform-origin:right center;user-select:text}.note-panel.panel-pending{visibility:hidden;opacity:0}.note-panel.preview{height:min(490px,72vh)}.note-panel.edit{height:min(560px,78vh)}.dock-left .note-panel{left:94px;right:auto;transform-origin:left center}.note-panel::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(145deg,rgba(255,255,255,.26),transparent 26%,rgba(107,73,25,.05))}.panel-header{position:relative;z-index:1;height:64px;padding:0 15px 0 19px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(70,55,30,.11)}.panel-header h1{min-width:0;margin:0;overflow:hidden;color:#29262b;font-size:22px;line-height:1.2;letter-spacing:-.025em;text-overflow:ellipsis;white-space:nowrap}.panel-actions{display:flex;gap:6px}.panel-actions button,.panel-close{width:30px;height:30px;padding:0;display:grid;place-items:center;border:0;border-radius:50%;color:rgba(40,35,31,.58);background:rgba(255,255,255,.22);cursor:pointer;transition:background .18s ease,transform .18s ease}.panel-actions button:hover,.panel-close:hover{background:rgba(255,255,255,.42);transform:scale(1.06)}.panel-actions svg,.panel-close svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.preview-body{position:relative;z-index:1;height:calc(100% - 64px);padding:18px 22px 30px;overflow-y:auto;user-select:text;font-size:17px;line-height:1.85;scrollbar-width:thin;scrollbar-color:rgba(70,55,30,.22) transparent}.preview-body p{min-height:1.7em;margin:2px 0}.preview-body h1,.preview-body h2,.preview-body h3{margin:19px 0 8px;line-height:1.3}.preview-body h1{font-size:23px}.preview-body h2{font-size:20px}.preview-body h3{font-size:17px}.preview-body :deep(code){padding:2px 5px;border-radius:5px;background:rgba(255,255,255,.28);font-family:"Cascadia Code",Consolas,monospace;font-size:.9em}.preview-body :deep(a){color:#315f9f;text-decoration-thickness:1px;text-underline-offset:2px}.preview-body blockquote{margin:8px 0;padding-left:12px;border-left:3px solid rgba(54,48,53,.3);color:rgba(54,48,53,.72)}.preview-task,.preview-list{display:flex;align-items:flex-start;gap:9px;margin:5px 0}.preview-task button{width:19px;height:19px;flex:0 0 auto;margin-top:6px;padding:0;display:grid;place-items:center;border:1.6px solid rgba(54,48,53,.48);border-radius:6px;color:#fff;background:rgba(255,255,255,.2);cursor:pointer;font-size:13px}.preview-task.done button{border-color:#3d985c;background:#4cab69}.preview-task.done span{opacity:.55;text-decoration:line-through}.preview-list i{width:5px;height:5px;flex:0 0 auto;margin:10px 5px 0 6px;border-radius:50%;background:currentColor;opacity:.58}
-.editor-header{position:relative;z-index:1;height:56px;padding:0 14px 0 19px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid rgba(70,55,30,.11)}.editor-header>div:first-child{display:flex;align-items:center;gap:9px;white-space:nowrap}.editor-header b{font-size:13px}.save-state{display:inline-flex;align-items:center;gap:6px;color:rgba(45,39,34,.58);font-size:11px;font-weight:650;transition:opacity .18s ease}.save-state.idle,.save-state.typing{opacity:0}.save-state i{width:6px;height:6px;border-radius:50%;background:rgba(45,39,34,.28)}.save-state.saving i{background:#4e7fc9;animation:pulse .7s ease-in-out infinite alternate}.save-state.saved i{background:#3e9b5d}.palette{margin-left:auto;display:flex;gap:7px}.palette button{width:18px;height:18px;padding:0;border:2px solid rgba(255,255,255,.62);border-radius:50%;box-shadow:none;cursor:pointer;transition:transform .16s ease}.palette button:hover{transform:scale(1.16)}.palette button.selected{border-color:rgba(43,38,35,.7);transform:scale(.88)}.editor-title{position:relative;z-index:1;width:100%;height:78px;padding:20px 22px 10px;border:0;outline:0;color:#29262b;background:transparent;font-size:27px;font-weight:700;line-height:1.2;letter-spacing:-.035em}.editor-title::placeholder{color:rgba(45,39,34,.4)}.editor-body-shell{position:relative;z-index:1;height:calc(100% - 188px);min-height:0}.editor-body{position:absolute;inset:0;padding:10px 22px 20px;overflow-y:auto;outline:0;font-size:17px;line-height:1.85;scrollbar-width:thin;scrollbar-color:rgba(70,55,30,.28) transparent}.editor-body.is-empty::before{content:attr(data-placeholder);position:absolute;left:22px;top:10px;color:rgba(45,39,34,.4);pointer-events:none}.editor-body :deep(.editor-line){min-height:31.45px;display:block;overflow-wrap:anywhere;white-space:pre-wrap}.editor-body :deep(.editor-line.is-task){display:grid;grid-template-columns:19px minmax(0,1fr);align-items:start;gap:9px}.editor-body :deep(.editor-line-copy){min-width:0;outline:0;overflow-wrap:anywhere;white-space:pre-wrap}.editor-body :deep(.editor-task-box){width:19px;height:19px;margin-top:6px;padding:0;display:grid;place-items:center;border:1.6px solid rgba(54,48,53,.5);border-radius:6px;color:#fff;background:transparent;cursor:pointer}.editor-body :deep(.editor-task-box.is-checked){border-color:#3d985c;background:#4cab69}.editor-body :deep(.editor-task-box.is-checked::after){content:"✓";font-size:13px;font-weight:800;line-height:1}.format-bar{position:absolute;z-index:2;left:0;right:0;bottom:0;height:54px;padding:0 18px;display:flex;align-items:center;gap:5px;border-top:1px solid rgba(70,55,30,.1);background:rgba(255,255,255,.12)}.format-bar button{width:32px;height:32px;padding:0;display:grid;place-items:center;border:0;border-radius:8px;color:rgba(43,38,42,.66);background:transparent;cursor:pointer;font-weight:750}.format-bar button:hover{color:#29242a;background:rgba(255,255,255,.36)}.format-bar svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.format-bar>i{width:1px;height:20px;margin:0 3px;background:rgba(70,55,30,.13)}.format-bar>span{margin-left:auto;color:rgba(45,39,34,.5);font-size:10px;white-space:nowrap}
+.rail-controls{position:relative;z-index:30;width:100%;padding-top:0;display:flex;flex:0 0 auto;flex-direction:column;align-items:flex-end;opacity:0;visibility:hidden;transform:translateX(18px);pointer-events:none}.dock-left .rail-controls{align-items:flex-start;transform:translateX(-18px)}.controls-visible:not(.dragging) .rail-controls{pointer-events:none}.rail-controls .separator{position:absolute;top:-8px;right:0;width:54px;height:1px;margin:0;background:rgba(255,255,255,.18)}.dock-left .rail-controls .separator{right:auto;left:0}.rail-controls>button{position:relative;width:48px;height:48px;margin:0 4px 6px 0;padding:0;display:grid;place-items:center;border:1px solid rgba(255,255,255,.2);border-radius:50%;color:rgba(255,255,255,.9);background:rgba(28,30,35,.72);box-shadow:none;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);cursor:pointer}.dock-left .rail-controls>button{margin-right:0;margin-left:4px}.rail-controls>button>svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s var(--ease)}.rail-controls>button:hover{color:#fff;background:rgba(18,20,24,.84)}.rail-controls>button:hover>svg{transform:scale(1.16)}.rail-controls>button:active>svg{transform:scale(.94)}
+.panel-dismiss-layer{position:absolute;z-index:2;inset:0;padding:0;border:0;background:transparent;pointer-events:auto;cursor:default}.adaptive-control[data-tone="dark"]{color:rgba(255,255,255,.9)!important;border-color:rgba(255,255,255,.2)!important;background:rgba(28,30,35,.72)!important;box-shadow:none}.adaptive-control[data-tone="dark"]:hover{color:#fff!important;background:rgba(18,20,24,.84)!important}
+.note-panel{position:absolute;z-index:3;top:50%;right:94px;width:min(380px,calc(100vw - 117px));overflow:hidden;will-change:transform,opacity;border:1px solid rgba(255,255,255,.28);border-radius:20px;color:#2c2930;background:var(--paper,#ffe78a);box-shadow:none;transform:translateY(-50%);transform-origin:right center;pointer-events:none;user-select:none;-webkit-user-select:none}.note-panel.panel-pending{visibility:hidden;opacity:0}.note-panel.preview{height:min(490px,72vh)}.note-panel.edit{height:min(560px,78vh)}.dock-left .note-panel{left:94px;right:auto;transform-origin:left center}.note-panel::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(145deg,rgba(255,255,255,.26),transparent 26%,rgba(107,73,25,.05))}.panel-header{position:relative;z-index:1;height:64px;padding:0 15px 0 19px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(70,55,30,.11)}.panel-header h1{min-width:0;margin:0;overflow:hidden;color:#29262b;font-size:22px;line-height:1.2;letter-spacing:-.025em;text-overflow:ellipsis;white-space:nowrap}.panel-actions{display:flex;gap:6px}.panel-actions button,.panel-close{width:30px;height:30px;padding:0;display:grid;place-items:center;border:0;border-radius:50%;color:rgba(40,35,31,.58);background:rgba(255,255,255,.22);cursor:pointer;transition:background .18s ease,transform .18s ease}.panel-actions button:hover,.panel-close:hover{background:rgba(255,255,255,.42);transform:scale(1.06)}.panel-actions svg,.panel-close svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.preview-body{position:relative;z-index:1;height:calc(100% - 64px);padding:18px 22px 30px;overflow-y:auto;user-select:none;-webkit-user-select:none;font-size:17px;line-height:1.85;scrollbar-width:thin;scrollbar-color:rgba(70,55,30,.22) transparent}.preview-body p{min-height:1.7em;margin:2px 0}.preview-body h1,.preview-body h2,.preview-body h3{margin:19px 0 8px;line-height:1.3}.preview-body h1{font-size:23px}.preview-body h2{font-size:20px}.preview-body h3{font-size:17px}.preview-body :deep(code){padding:2px 5px;border-radius:5px;background:rgba(255,255,255,.28);font-family:"Cascadia Code",Consolas,monospace;font-size:.9em}.preview-body :deep(a){color:#315f9f;text-decoration-thickness:1px;text-underline-offset:2px}.preview-body blockquote{margin:8px 0;padding-left:12px;border-left:3px solid rgba(54,48,53,.3);color:rgba(54,48,53,.72)}.preview-task,.preview-list{display:flex;align-items:flex-start;gap:9px;margin:5px 0}.preview-task button{width:19px;height:19px;flex:0 0 auto;margin-top:6px;padding:0;display:grid;place-items:center;border:1.6px solid rgba(54,48,53,.48);border-radius:6px;color:#fff;background:rgba(255,255,255,.2);cursor:pointer;font-size:13px}.preview-task.done button{border-color:#3d985c;background:#4cab69}.preview-task.done span{opacity:.55;text-decoration:line-through}.preview-list i{width:5px;height:5px;flex:0 0 auto;margin:10px 5px 0 6px;border-radius:50%;background:currentColor;opacity:.58}
+.editor-header{position:relative;z-index:1;height:56px;padding:0 14px 0 19px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid rgba(70,55,30,.11)}.editor-header>div:first-child{display:flex;align-items:center;gap:9px;white-space:nowrap}.editor-header b{font-size:13px}.save-state{display:inline-flex;align-items:center;gap:6px;color:rgba(45,39,34,.58);font-size:11px;font-weight:650;transition:opacity .18s ease}.save-state.idle,.save-state.typing{opacity:0}.save-state i{width:6px;height:6px;border-radius:50%;background:rgba(45,39,34,.28)}.save-state.saving i{background:#4e7fc9;animation:pulse .7s ease-in-out infinite alternate}.save-state.saved i{background:#3e9b5d}.palette{margin-left:auto;display:flex;gap:7px}.palette button{width:18px;height:18px;padding:0;border:2px solid rgba(255,255,255,.62);border-radius:50%;box-shadow:none;cursor:pointer;transition:transform .16s ease}.palette button:hover{transform:scale(1.16)}.palette button.selected{border-color:rgba(43,38,35,.7);transform:scale(.88)}.editor-title{position:relative;z-index:1;width:100%;height:78px;padding:20px 22px 10px;border:0;outline:0;color:#29262b;background:transparent;font-size:27px;font-weight:700;line-height:1.2;letter-spacing:-.035em}.editor-title::placeholder{color:rgba(45,39,34,.4)}.editor-body-shell{position:relative;z-index:1;height:calc(100% - 188px);min-height:0}.editor-title,.editor-body{user-select:text;-webkit-user-select:text}.editor-body{position:absolute;inset:0;padding:10px 22px 20px;overflow-y:auto;outline:0;font-size:17px;line-height:1.85;scrollbar-width:thin;scrollbar-color:rgba(70,55,30,.28) transparent}.editor-body.is-empty::before{content:attr(data-placeholder);position:absolute;left:22px;top:10px;color:rgba(45,39,34,.4);pointer-events:none}.editor-body :deep(.editor-line){min-height:31.45px;display:block;overflow-wrap:anywhere;white-space:pre-wrap}.editor-body :deep(.editor-line.is-task){display:grid;grid-template-columns:19px minmax(0,1fr);align-items:start;gap:9px}.editor-body :deep(.editor-line-copy){min-width:0;outline:0;overflow-wrap:anywhere;white-space:pre-wrap}.editor-body :deep(.editor-task-box){width:19px;height:19px;margin-top:6px;padding:0;display:grid;place-items:center;border:1.6px solid rgba(54,48,53,.5);border-radius:6px;color:#fff;background:transparent;cursor:pointer}.editor-body :deep(.editor-task-box.is-checked){border-color:#3d985c;background:#4cab69}.editor-body :deep(.editor-task-box.is-checked::after){content:"✓";font-size:13px;font-weight:800;line-height:1}.format-bar{position:absolute;z-index:2;left:0;right:0;bottom:0;height:54px;padding:0 18px;display:flex;align-items:center;gap:5px;border-top:1px solid rgba(70,55,30,.1);background:rgba(255,255,255,.12)}.format-bar button{width:32px;height:32px;padding:0;display:grid;place-items:center;border:0;border-radius:8px;color:rgba(43,38,42,.66);background:transparent;cursor:pointer;font-weight:750}.format-bar button:hover{color:#29242a;background:rgba(255,255,255,.36)}.format-bar svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.format-bar>i{width:1px;height:20px;margin:0 3px;background:rgba(70,55,30,.13)}.format-bar>span{margin-left:auto;color:rgba(45,39,34,.5);font-size:10px;white-space:nowrap}
 .dragging .dock-rail{z-index:50}.dragging .note-list{mask-image:none;-webkit-mask-image:none;align-items:flex-end}.dock-left.dragging .note-list{align-items:flex-end}.dragging .note-tab{width:96px;height:96px;flex-basis:96px;margin:-4px 0 0!important;transform-origin:center}.dragging .paper{border-radius:16px!important;animation:wiggle .22s ease-in-out infinite alternate}.dragging .note-tab:nth-child(2n) .paper{animation-delay:-.11s}.dragging .note-tab:nth-child(3n) .paper{animation-delay:-.055s}.dragging .title{inset:0;width:auto;writing-mode:horizontal-tb;text-orientation:mixed;letter-spacing:.04em}.dragging .paper::before,.dragging .quick-actions,.dragging .rail-controls{display:none}.screen-compact .note-list-shell{max-height:min(calc(var(--screen-height) - 224px),calc(100vh - 170px))}.screen-compact .note-list{gap:1px}.screen-compact .note-tab{height:88px;flex-basis:88px}.screen-compact .note-tab+.note-tab{margin-top:-7px}.screen-compact .paper{border-radius:15px 0 0 15px}.screen-compact.dock-left .paper{border-radius:0 15px 15px 0}.screen-compact .title{font-size:12px;letter-spacing:.02em}.screen-compact.dragging .note-tab{width:88px;height:88px;flex-basis:88px}.screen-compact.dragging .paper{border-radius:15px!important}
 .dock-toast{position:absolute;z-index:60;left:50%;bottom:16px;padding:9px 13px;border:1px solid rgba(255,255,255,.13);border-radius:10px;color:#fff;background:rgba(28,26,32,.86);box-shadow:none;transform:translateX(-50%);font-size:10px;white-space:nowrap}.toast-enter-active,.toast-leave-active{transition:opacity .16s ease,transform .2s ease}.toast-enter-from,.toast-leave-to{opacity:0;transform:translate(-50%,7px)}.panel-fade-leave-active{transition:opacity .15s ease}.panel-fade-leave-to{opacity:0}@keyframes wiggle{from{transform:rotate(-2deg) translate3d(-1px,0,0)}to{transform:rotate(2deg) translate3d(1px,-1px,0)}}@keyframes pulse{to{opacity:.35;transform:scale(.72)}}
 @media(max-width:500px){.palette{gap:4px}.palette button{width:14px;height:14px}.format-bar>span{display:none}}@media(prefers-reduced-motion:reduce){.dragging .paper{animation:none!important}*{scroll-behavior:auto!important}}

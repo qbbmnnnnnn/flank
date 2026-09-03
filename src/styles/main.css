@@ -18,7 +18,8 @@
 * { box-sizing: border-box; }
 html, body, #app { min-width: 720px; min-height: 100%; margin: 0; }
 body { min-height: 100vh; overflow: hidden; background: #eeece8; }
-html.dock-document, body.dock-document, body.dock-document #app { min-width: 0; width: 100%; height: 100%; background: transparent; }
+html.dock-document, body.dock-document, body.dock-document #app,
+html.dock-toast-document, body.dock-toast-document, body.dock-toast-document #app { min-width: 0; width: 100%; height: 100%; background: transparent; pointer-events: none; user-select: none; -webkit-user-select: none; }
 button, input, select, textarea { font: inherit; }
 button, select, input { outline: none; }
 button { color: inherit; }

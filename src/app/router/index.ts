@@ -13,5 +13,10 @@ export const router = createRouter({
       name: "dock",
       component: () => import("../../features/dock/DockView.vue"),
     },
+    {
+      path: "/dock-toast",
+      name: "dock-toast",
+      component: () => import("../../features/dock/DockToastView.vue"),
+    },
   ],
 });

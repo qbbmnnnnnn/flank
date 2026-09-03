@@ -36,6 +36,21 @@
         "skipTaskbar": true,
         "focus": false,
         "visible": false
+      },
+      {
+        "label": "dock-toast",
+        "title": "Noty Toast",
+        "url": "index.html#/dock-toast",
+        "width": 320,
+        "height": 52,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "resizable": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "focus": false,
+        "visible": false
       }
     ],
     "security": {

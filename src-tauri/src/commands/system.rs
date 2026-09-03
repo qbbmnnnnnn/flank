@@ -52,50 +52,84 @@ pub fn resize_dock_window(
 #[cfg(target_os = "windows")]
 fn set_dock_window_extent(
     window: &tauri::WebviewWindow,
-    visible_width: u32,
+    width: u32,
     anchor_right: bool,
 ) -> Result<(), String> {
     use std::ffi::c_void;
 
-    type Hrgn = *mut c_void;
     type Hwnd = *mut c_void;
-    #[link(name = "gdi32")]
-    unsafe extern "system" {
-        fn CreateRectRgn(left: i32, top: i32, right: i32, bottom: i32) -> Hrgn;
-        fn DeleteObject(object: Hrgn) -> i32;
-    }
     #[link(name = "user32")]
     unsafe extern "system" {
-        fn SetWindowRgn(window: Hwnd, region: Hrgn, redraw: i32) -> i32;
+        fn SetWindowPos(
+            window: Hwnd,
+            insert_after: Hwnd,
+            x: i32,
+            y: i32,
+            width: i32,
+            height: i32,
+            flags: u32,
+        ) -> i32;
     }
+
+    const SWP_NOZORDER: u32 = 0x0004;
+    const SWP_NOACTIVATE: u32 = 0x0010;
 
     let hwnd = window.hwnd().map_err(|error| error.to_string())?;
+    let position = window.outer_position().map_err(|error| error.to_string())?;
     let size = window.outer_size().map_err(|error| error.to_string())?;
-    let is_expanded = visible_width >= size.width.saturating_sub(1);
-    let region = if is_expanded {
-        std::ptr::null_mut()
+    let x = if anchor_right {
+        position.x + size.width as i32 - width as i32
     } else {
-        let left = if anchor_right {
-            size.width.saturating_sub(visible_width) as i32
-        } else {
-            0
-        };
-        unsafe { CreateRectRgn(left, 0, left + visible_width as i32, size.height as i32) }
+        position.x
     };
-    if !is_expanded && region.is_null() {
-        return Err(std::io::Error::last_os_error().to_string());
-    }
-
-    let updated = unsafe { SetWindowRgn(hwnd.0, region, 1) };
+    let updated = unsafe {
+        SetWindowPos(
+            hwnd.0,
+            std::ptr::null_mut(),
+            x,
+            position.y,
+            width as i32,
+            size.height as i32,
+            SWP_NOZORDER | SWP_NOACTIVATE,
+        )
+    };
     if updated == 0 {
-        // SetWindowRgn owns the region only on success.
-        if !region.is_null() {
-            unsafe { DeleteObject(region) };
-        }
         Err(std::io::Error::last_os_error().to_string())
     } else {
         Ok(())
     }
+}
+
+#[tauri::command]
+pub fn show_dock_toast(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    message: String,
+) -> Result<(), String> {
+    use tauri::{Emitter, Manager};
+
+    let toast = app
+        .get_webview_window("dock-toast")
+        .ok_or_else(|| "dock toast window is unavailable".to_string())?;
+    let monitor = window
+        .current_monitor()
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "current monitor is unavailable".to_string())?;
+    let monitor_position = monitor.position();
+    let monitor_size = monitor.size();
+    let toast_size = toast.outer_size().map_err(|error| error.to_string())?;
+    let scale_factor = monitor.scale_factor();
+    let x = monitor_position.x + (monitor_size.width.saturating_sub(toast_size.width) / 2) as i32;
+    let y = monitor_position.y
+        + monitor_size.height.saturating_sub(toast_size.height) as i32
+        - (28.0 * scale_factor).round() as i32;
+
+    toast
+        .set_position(tauri::PhysicalPosition::new(x, y))
+        .map_err(|error| error.to_string())?;
+    toast.set_ignore_cursor_events(true).map_err(|error| error.to_string())?;
+    toast.show().map_err(|error| error.to_string())?;
+    toast.emit("dock-toast", message).map_err(|error| error.to_string())
 }
 
 #[cfg(not(target_os = "windows"))]

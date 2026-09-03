@@ -46,7 +46,8 @@ pub fn run() {
             crate::commands::system::get_app_info,
             crate::commands::system::sample_screen_luminance,
             crate::commands::system::is_primary_mouse_button_pressed,
-            crate::commands::system::resize_dock_window
+            crate::commands::system::resize_dock_window,
+            crate::commands::system::show_dock_toast
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Noty");
