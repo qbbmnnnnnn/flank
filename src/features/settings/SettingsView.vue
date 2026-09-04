@@ -1,9 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import { useRouter } from "vue-router";
 
 import { useAppStore } from "../../app/stores/app";
+import type { AppSettings } from "../../contracts/app";
+import { appService } from "../../services/appService";
 
 type SectionId = "general" | "shortcuts" | "dock" | "notes" | "privacy" | "updates";
+
+const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
+const emit = defineEmits<{ close: [] }>();
 
 type Shortcut = {
   id: string;
@@ -13,14 +19,18 @@ type Shortcut = {
 };
 
 const app = useAppStore();
+const router = useRouter();
 const activeSection = ref<SectionId>("general");
 const toast = ref("");
 const recordingShortcut = ref<string | null>(null);
 let toastTimer: number | undefined;
 
-const settings = reactive({
+const settings = reactive<AppSettings>({
   language: "zh-CN",
   launchAtLogin: false,
+  closeBehavior: "background",
+  dockEnabled: true,
+  dockVisibleCount: 7,
   dockSide: "right",
   verticalPosition: 52,
   dockSize: "medium",
@@ -35,6 +45,76 @@ const settings = reactive({
   defaultColor: "random",
   automaticUpdates: true,
 });
+const recommendedDockCount = ref(7);
+const settingsLoaded = ref(false);
+let saveTimer: number | undefined;
+
+const recommendedDockRange = computed(() => {
+  const maximum = recommendedDockCount.value;
+  return maximum <= 5 ? "5" : `${Math.max(5, maximum - 2)}–${maximum}`;
+});
+const dockCountWarning = computed(() => settings.dockVisibleCount > recommendedDockCount.value);
+
+function clampDockCount() {
+  settings.dockVisibleCount = Math.min(12, Math.max(5, Math.round(Number(settings.dockVisibleCount) || 5)));
+}
+
+async function updateCloseBehavior(value: AppSettings["closeBehavior"]) {
+  settings.closeBehavior = value;
+  if (!settingsLoaded.value) return;
+  window.clearTimeout(saveTimer);
+  try {
+    Object.assign(settings, await appService.saveSettings({ ...settings }));
+  } catch {
+    showToast("关闭行为保存失败，请重试");
+  }
+}
+
+async function updateDockRecommendation() {
+  try {
+    const [{ currentMonitor, monitorFromPoint }, { getAllWebviewWindows }] = await Promise.all([
+      import("@tauri-apps/api/window"),
+      import("@tauri-apps/api/webviewWindow"),
+    ]);
+    const dock = (await getAllWebviewWindows()).find((item) => item.label === "dock");
+    let monitor = await currentMonitor();
+    if (dock) {
+      const [position, size] = await Promise.all([dock.outerPosition(), dock.outerSize()]);
+      monitor = await monitorFromPoint(position.x + size.width / 2, position.y + size.height / 2) ?? monitor;
+    }
+    const logicalHeight = monitor ? monitor.size.height / monitor.scaleFactor : window.screen.availHeight;
+    const compact = logicalHeight <= 800;
+    const reserved = compact ? 249 : 253;
+    const noteHeight = compact ? 104 : 126;
+    const step = compact ? 91 : 112;
+    recommendedDockCount.value = Math.min(12, Math.max(5, 1 + Math.floor((logicalHeight - reserved - noteHeight) / step)));
+  } catch {
+    const logicalHeight = window.screen.availHeight || 1080;
+    recommendedDockCount.value = logicalHeight <= 800 ? 5 : logicalHeight <= 960 ? 6 : logicalHeight <= 1080 ? 7 : logicalHeight <= 1200 ? 8 : logicalHeight <= 1440 ? 10 : 12;
+  }
+}
+
+async function loadSettings() {
+  try {
+    Object.assign(settings, await appService.getSettings());
+  } catch {
+    // Browser preview keeps the defaults above.
+  } finally {
+    settingsLoaded.value = true;
+  }
+}
+
+watch(settings, () => {
+  if (!settingsLoaded.value) return;
+  window.clearTimeout(saveTimer);
+  saveTimer = window.setTimeout(async () => {
+    try {
+      Object.assign(settings, await appService.saveSettings({ ...settings }));
+    } catch {
+      showToast("设置保存失败，请重试");
+    }
+  }, 350);
+}, { deep: true });
 
 const shortcuts = ref<Shortcut[]>([
   { id: "dock", label: "显示 / 隐藏 Dock", description: "在当前屏幕边缘召出便签栏", keys: ["Ctrl", "Alt", "N"] },
@@ -70,6 +150,11 @@ function showToast(message: string) {
   toastTimer = window.setTimeout(() => (toast.value = ""), 2400);
 }
 
+function closeSettings() {
+  if (props.embedded) emit("close");
+  else void router.push({ name: "library" });
+}
+
 function chooseSection(id: SectionId) {
   activeSection.value = id;
   recordingShortcut.value = null;
@@ -77,10 +162,8 @@ function chooseSection(id: SectionId) {
 
 async function openDockWindow() {
   try {
-    const { getAllWebviewWindows } = await import("@tauri-apps/api/webviewWindow");
-    const dock = (await getAllWebviewWindows()).find((window) => window.label === "dock");
-    await dock?.show();
-    showToast("便签栏已显示");
+    const visible = await appService.toggleDockWindow();
+    showToast(visible ? "便签栏已显示" : "便签栏已隐藏");
   } catch {
     showToast("浏览器预览中可通过 /#/dock 查看便签栏");
   }
@@ -102,15 +185,18 @@ function resetShortcuts() {
   showToast("已恢复 Windows 默认快捷键");
 }
 
-onMounted(() => app.initialize());
+onMounted(async () => {
+  await Promise.all([app.initialize(), loadSettings(), updateDockRecommendation()]);
+});
 </script>
 
 <template>
-  <main class="settings-app">
+  <main class="settings-app" :class="{ embedded }">
+    <button v-if="embedded" class="settings-modal-close" type="button" aria-label="关闭设置" @click="closeSettings">×</button>
     <aside class="sidebar" aria-label="设置分类">
       <div class="brand">
         <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
-        <div><strong>Noty</strong><small>贴在手边</small></div>
+        <div><strong>Flank</strong><small>贴在手边</small></div>
       </div>
 
       <nav class="settings-nav">
@@ -134,7 +220,7 @@ onMounted(() => app.initialize());
       </nav>
 
       <div class="sidebar-footer">
-        <button type="button" class="library-link" @click="showToast('资料库将在下一阶段接入')">
+        <button type="button" class="library-link" @click="closeSettings">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h6v14H4zM14 5h6v14h-6z"/></svg>
           <span>打开资料库</span><kbd>Ctrl Alt L</kbd>
         </button>
@@ -163,26 +249,26 @@ onMounted(() => app.initialize());
       <div class="content-scroll">
         <div v-if="activeSection === 'general'" class="settings-page">
           <section class="settings-group">
-            <div class="group-heading"><div><h2>外观与语言</h2><p>选择 Noty 界面的显示方式。</p></div></div>
+            <div class="group-heading"><div><h2>外观与语言</h2><p>选择 Flank 界面的显示方式。</p></div></div>
             <div class="setting-row">
               <div class="setting-copy"><b>界面语言</b><span>更改后会即时应用到所有窗口</span></div>
               <select v-model="settings.language" aria-label="界面语言"><option value="zh-CN">简体中文</option><option value="en-US">English</option><option value="ja-JP">日本語</option></select>
             </div>
             <div class="setting-row">
-              <div class="setting-copy"><b>颜色主题</b><span>Noty 会跟随系统浅色或深色模式</span></div>
+              <div class="setting-copy"><b>颜色主题</b><span>Flank 会跟随系统浅色或深色模式</span></div>
               <div class="segmented"><button class="selected" type="button">跟随系统</button><button type="button" disabled>浅色</button><button type="button" disabled>深色</button></div>
             </div>
           </section>
 
           <section class="settings-group">
-            <div class="group-heading"><div><h2>启动与关闭</h2><p>控制 Noty 在系统中的运行方式。</p></div></div>
+            <div class="group-heading"><div><h2>启动与关闭</h2><p>控制 Flank 在系统中的运行方式。</p></div></div>
             <label class="setting-row clickable">
-              <div class="setting-copy"><b>登录时启动 Noty</b><span>静默驻留系统托盘，不主动打开窗口</span></div>
+              <div class="setting-copy"><b>登录时启动 Flank</b><span>静默驻留系统托盘或菜单栏，不主动打开窗口</span></div>
               <input v-model="settings.launchAtLogin" class="switch-input" type="checkbox"><span class="switch" aria-hidden="true"></span>
             </label>
             <div class="setting-row">
-              <div class="setting-copy"><b>关闭主窗口时</b><span>同时关闭便签栏并退出 Noty</span></div>
-              <div class="segmented"><button class="selected" type="button">退出 Noty</button></div>
+              <div class="setting-copy"><b>关闭主窗口时</b><span>{{ settings.closeBehavior === 'background' ? '隐藏窗口，Flank 继续在后台运行' : '关闭便签栏并退出 Flank' }}</span></div>
+              <div class="segmented"><button :class="{ selected: settings.closeBehavior === 'background' }" type="button" @click="updateCloseBehavior('background')">后台运行</button><button :class="{ selected: settings.closeBehavior === 'quit' }" type="button" @click="updateCloseBehavior('quit')">退出 Flank</button></div>
             </div>
           </section>
 
@@ -205,7 +291,7 @@ onMounted(() => app.initialize());
               </button>
             </div>
           </section>
-          <div class="notice"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><p><b>冲突会被即时拦截</b><span>若系统或其他应用已占用组合键，Noty 会保留原快捷键并说明原因。</span></p></div>
+          <div class="notice"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><p><b>冲突会被即时拦截</b><span>若系统或其他应用已占用组合键，Flank 会保留原快捷键并说明原因。</span></p></div>
         </div>
 
         <div v-else-if="activeSection === 'dock'" class="settings-page dock-page">
@@ -216,6 +302,11 @@ onMounted(() => app.initialize());
             </div>
           </section>
           <section class="settings-group">
+            <label class="setting-row clickable"><div class="setting-copy"><b>启用 Dock</b><span>关闭后仍可通过系统托盘、菜单栏或主窗口重新启用</span></div><input v-model="settings.dockEnabled" class="switch-input" type="checkbox"><span class="switch"></span></label>
+            <div class="setting-row align-start">
+              <div class="setting-copy"><b>每次展示数量</b><span>当前显示器推荐 {{ recommendedDockCount }} 个 · 舒适范围 {{ recommendedDockRange }} 个<br><em v-if="dockCountWarning" class="setting-warning">设置已保留，实际数量会按屏幕安全空间调整</em></span></div>
+              <div class="dock-count-control"><div class="segmented"><button v-for="count in [5, 7, 9, 12]" :key="count" :class="{ selected: settings.dockVisibleCount === count }" type="button" @click="settings.dockVisibleCount = count">{{ count }}</button></div><label>自定义 <input v-model.number="settings.dockVisibleCount" type="number" min="5" max="12" step="1" @change="clampDockCount"></label></div>
+            </div>
             <div class="setting-row">
               <div class="setting-copy"><b>屏幕边缘</b><span>拖动便签栏后也会自动更新</span></div>
               <div class="segmented"><button :class="{ selected: settings.dockSide === 'left' }" type="button" @click="settings.dockSide = 'left'">左侧</button><button :class="{ selected: settings.dockSide === 'right' }" type="button" @click="settings.dockSide = 'right'">右侧</button></div>
@@ -247,21 +338,21 @@ onMounted(() => app.initialize());
           </section>
           <section class="settings-group color-settings">
             <div class="group-heading"><div><h2>新便签颜色</h2><p>新建时可继续在编辑器中选择颜色。</p></div></div>
-            <label class="color-option"><input v-model="settings.defaultColor" value="random" type="radio"><span class="color-random"><i v-for="color in colors" :key="color.id" :style="{ background: color.hex }"></i></span><div><b>每次随机选择</b><small>在 6 种 Noty 颜色中随机选取</small></div><em>推荐</em></label>
+            <label class="color-option"><input v-model="settings.defaultColor" value="random" type="radio"><span class="color-random"><i v-for="color in colors" :key="color.id" :style="{ background: color.hex }"></i></span><div><b>每次随机选择</b><small>在 6 种 Flank 颜色中随机选取</small></div><em>推荐</em></label>
             <div class="color-grid"><label v-for="color in colors" :key="color.id" :class="{ selected: settings.defaultColor === color.id }"><input v-model="settings.defaultColor" :value="color.id" type="radio"><span :style="{ '--note-color': color.hex }"></span><b>{{ color.name }}</b></label></div>
           </section>
         </div>
 
         <div v-else-if="activeSection === 'privacy'" class="settings-page">
-          <div class="privacy-hero"><div class="shield"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.7 2.9 8.2 7 10 4.1-1.8 7-5.3 7-10V6Z"/><path d="m9 12 2 2 4-5"/></svg></div><div><span>LOCAL-FIRST</span><h2>你的便签，默认只属于你。</h2><p>正文加密保存在本机。Noty 无账号、无产品遥测，也不会上传你的便签内容。</p></div></div>
+          <div class="privacy-hero"><div class="shield"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.7 2.9 8.2 7 10 4.1-1.8 7-5.3 7-10V6Z"/><path d="m9 12 2 2 4-5"/></svg></div><div><span>LOCAL-FIRST</span><h2>你的便签，默认只属于你。</h2><p>正文加密保存在本机。Flank 无账号、无产品遥测，也不会上传你的便签内容。</p></div></div>
           <section class="settings-group">
-            <div class="setting-row"><div class="setting-copy path-copy"><b>数据位置</b><span>%APPDATA%\Noty\data</span></div><button class="secondary-button" type="button" @click="showToast('数据目录将在 Tauri 接口接入后打开')">打开文件夹</button></div>
+            <div class="setting-row"><div class="setting-copy path-copy"><b>数据位置</b><span>%APPDATA%\Flank\data</span></div><button class="secondary-button" type="button" @click="showToast('数据目录将在 Tauri 接口接入后打开')">打开文件夹</button></div>
             <div class="privacy-facts"><div><i class="green"></i><p><b>正文</b><span>使用设备密钥加密</span></p></div><div><i class="amber"></i><p><b>标题与元数据</b><span>为检索与排序明文保存</span></p></div><div><i class="blue"></i><p><b>网络</b><span>仅用于可关闭的更新检查</span></p></div></div>
           </section>
           <section class="action-grid">
             <button type="button" @click="showToast('选择要导入的 .stickies、Markdown 或 TXT 文件')"><span class="action-symbol">↘</span><b>导入便签</b><small>.stickies v2、Markdown、TXT</small></button>
             <button type="button" @click="showToast('导出前将提示明文文件风险')"><span class="action-symbol">↗</span><b>导出便签</b><small>兼容文件为明文格式</small></button>
-            <button type="button" @click="showToast('完整备份将使用独立密码加密')"><span class="action-symbol">◇</span><b>创建完整备份</b><small>加密的 .notybackup 文件</small></button>
+            <button type="button" @click="showToast('完整备份将使用独立密码加密')"><span class="action-symbol">◇</span><b>创建完整备份</b><small>加密的 .flankbackup 文件</small></button>
             <button type="button" @click="showToast('诊断包不会包含便签内容')"><span class="action-symbol">···</span><b>生成诊断包</b><small>默认移除内容与个人路径</small></button>
           </section>
           <section class="danger-zone"><div><b>删除所有本地数据</b><span>删除数据库、密钥、备份、日志与启动项。此操作不可撤销。</span></div><button type="button" @click="showToast('需要二次确认后才能删除')">删除数据…</button></section>
@@ -270,7 +361,7 @@ onMounted(() => app.initialize());
         <div v-else class="settings-page">
           <section class="update-hero">
             <div class="app-icon"><span></span><span></span><span></span></div>
-            <div><p>NOTY DESKTOP</p><h2>当前已是最新版本</h2><span>版本 {{ app.info?.version ?? '0.1.0' }} · Windows x64</span></div>
+            <div><p>FLANK DESKTOP</p><h2>当前已是最新版本</h2><span>版本 {{ app.info?.version ?? '0.1.0' }} · Windows x64</span></div>
             <div class="update-check"><i></i>已是最新</div>
           </section>
           <section class="settings-group">
@@ -278,7 +369,7 @@ onMounted(() => app.initialize());
             <div class="setting-row"><div class="setting-copy"><b>立即检查</b><span>更新不会在你输入时强制重启应用</span></div><button class="secondary-button" type="button" @click="showToast('正在检查更新…')">检查更新</button></div>
             <div class="setting-row"><div class="setting-copy"><b>发布说明</b><span>查看当前版本的改进和已知问题</span></div><button class="text-button" type="button" @click="showToast('发布说明将在浏览器中打开')">查看发布说明 ↗</button></div>
           </section>
-          <div class="notice"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.7 2.9 8.2 7 10 4.1-1.8 7-5.3 7-10V6Z"/><path d="m9 12 2 2 4-5"/></svg><p><b>更新包经过签名验证</b><span>Noty 只安装同一发布者签名且版本递增的有效更新包。</span></p></div>
+          <div class="notice"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.7 2.9 8.2 7 10 4.1-1.8 7-5.3 7-10V6Z"/><path d="m9 12 2 2 4-5"/></svg><p><b>更新包经过签名验证</b><span>Flank 只安装同一发布者签名且版本递增的有效更新包。</span></p></div>
         </div>
       </div>
     </section>

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-04T16:23:23.7884682+08:00",
+  "source": {"method": "Pencil MCP", "file": "designs/noty-win.pen", "rootNodeIds": ["oyHRV", "X6GgND", "Be4Dd", "gaH7q"]},
+  "screens": [
+    {"key": "notes-home", "nodeId": "oyHRV", "name": "Screen / Notes Home", "bounds": {"x": 0, "y": 450, "width": 1440, "height": 900}},
+    {"key": "archive", "nodeId": "X6GgND", "name": "Screen / Archive", "bounds": {"x": 1500, "y": 450, "width": 1440, "height": 900}},
+    {"key": "recently-deleted", "nodeId": "Be4Dd", "name": "Screen / Recently Deleted", "bounds": {"x": 3000, "y": 450, "width": 1440, "height": 900}},
+    {"key": "settings-general", "nodeId": "gaH7q", "name": "Overlay / Settings General", "bounds": {"x": 4500, "y": 450, "width": 1440, "height": 900}}
+  ],
+  "variables": {"count": 20, "source": "Pencil GetVariables"},
+  "components": [{"key": "library-sidebar", "nodeId": "gTnTE"}, {"key": "search-field", "nodeId": "U3QJu2"}, {"key": "window-controls", "nodeId": "rIU7R"}],
+  "instances": [{"nodeId": "Xfvgu", "ref": "gTnTE"}, {"nodeId": "ET1yt", "ref": "U3QJu2"}, {"nodeId": "A5dif", "ref": "gTnTE"}, {"nodeId": "N1Dxb", "ref": "rIU7R"}, {"nodeId": "tf0Me", "ref": "rIU7R"}, {"nodeId": "dW5ln", "ref": "rIU7R"}, {"nodeId": "MKhgE", "ref": "rIU7R"}],
+  "assets": [{"key": "noty-logo", "nodes": ["S8NFX", "Q42S4o"], "source": "20260904-151355.png"}, {"key": "lucide-icons", "library": "lucide", "count": 26}],
+  "validation": {"placeholderRoots": 0, "unresolvedRefs": 0, "missingAssets": 0, "unintendedClipping": 0}
+}

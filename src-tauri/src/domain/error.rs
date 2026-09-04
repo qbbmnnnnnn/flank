@@ -12,10 +12,26 @@ pub struct AppError {
 
 impl From<DatabaseError> for AppError {
     fn from(error: DatabaseError) -> Self {
+        let (code, retryable) = match &error {
+            DatabaseError::NotFound => ("note_not_found", false),
+            DatabaseError::RevisionConflict { .. } => ("revision_conflict", true),
+            DatabaseError::InvalidState => ("invalid_note_state", false),
+            _ => ("database_error", true),
+        };
         Self {
-            code: "database_error",
+            code,
             message: error.to_string(),
-            retryable: true,
+            retryable,
+        }
+    }
+}
+
+impl AppError {
+    pub fn validation(message: impl Into<String>) -> Self {
+        Self {
+            code: "validation_error",
+            message: message.into(),
+            retryable: false,
         }
     }
 }

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "status": "accepted",
+  "source": ".pi/skills/ui-design/assets/style-selector/fonts/manifest.js",
+  "roles": {
+    "headings": {"latin": {"family": "Anton", "penWeights": [400], "developmentWeights": [400], "files": ["files/anton-regular.ttf"], "license": "licenses/anton/OFL.txt"}, "cjk": {"family": "ZCOOL QingKe HuangYou", "penWeights": [400], "developmentWeights": [400], "files": ["files/zcool-qingke-huangyou-regular.ttf"], "license": "licenses/zcoolqingkehuangyou/OFL.txt"}},
+    "body": {"latin": {"family": "Geist", "penWeights": [400], "developmentWeights": [400,500,600], "files": ["files/geist-variable.ttf"], "license": "licenses/geist/OFL.txt"}, "cjk": {"family": "ZCOOL QingKe HuangYou", "penWeights": [400], "developmentWeights": [400], "files": ["files/zcool-qingke-huangyou-regular.ttf"], "license": "licenses/zcoolqingkehuangyou/OFL.txt"}},
+    "captions": {"latin": {"family": "IBM Plex Mono", "penWeights": [400,500,600], "developmentWeights": [400,500,600], "files": ["files/ibm-plex-mono-regular.ttf", "files/ibm-plex-mono-medium.ttf", "files/ibm-plex-mono-semibold.ttf"], "license": "licenses/ibmplexmono/OFL.txt"}, "cjk": {"family": "ZCOOL QingKe HuangYou", "penWeights": [400], "developmentWeights": [400], "files": ["files/zcool-qingke-huangyou-regular.ttf"], "license": "licenses/zcoolqingkehuangyou/OFL.txt"}},
+    "data": {"latin": {"family": "IBM Plex Mono", "penWeights": [400,500,600], "developmentWeights": [400,500,600], "files": ["files/ibm-plex-mono-regular.ttf", "files/ibm-plex-mono-medium.ttf", "files/ibm-plex-mono-semibold.ttf"], "license": "licenses/ibmplexmono/OFL.txt"}, "cjk": {"family": "ZCOOL QingKe HuangYou", "penWeights": [400], "developmentWeights": [400], "files": ["files/zcool-qingke-huangyou-regular.ttf"], "license": "licenses/zcoolqingkehuangyou/OFL.txt"}}
+  },
+  "systemRoles": {},
+  "typographyGate": {"status": "passed", "pencilNodeId": "IEuI6", "testedFamilies": ["Anton", "Geist", "IBM Plex Mono", "ZCOOL QingKe HuangYou"], "testedWeights": [400,500,600], "evidence": ["batches/topic-noty-web-app-logo-20260904-151355-png/evidence/screenshots/final-v2/IEuI6.png"], "notes": ["Chinese UI uses the user-requested ZCOOL QingKe HuangYou at verified Pencil weight 400."]}
+}

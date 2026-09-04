@@ -1,7 +1,11 @@
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{Emitter, Manager, State};
+use tauri_plugin_autostart::ManagerExt;
 
-use crate::{app::AppState, domain::error::AppError};
+use crate::{
+    app::{AppSettings, AppState},
+    domain::error::AppError,
+};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -16,10 +20,89 @@ pub async fn get_app_info(state: State<'_, AppState>) -> Result<AppInfo, AppErro
     state.database.health_check().await?;
 
     Ok(AppInfo {
-        name: "Noty",
+        name: "Flank",
         version: env!("CARGO_PKG_VERSION"),
         database_ready: true,
     })
+}
+
+#[tauri::command]
+pub async fn get_settings(state: State<'_, AppState>) -> Result<AppSettings, AppError> {
+    Ok(state
+        .settings
+        .read()
+        .expect("settings lock poisoned")
+        .clone())
+}
+
+#[tauri::command]
+pub async fn save_settings(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    settings: AppSettings,
+) -> Result<AppSettings, AppError> {
+    let value = serde_json::to_string(&settings).expect("AppSettings must serialize");
+    state.database.save_setting("app", &value).await?;
+
+    if settings.launch_at_login {
+        app.autolaunch().enable().map_err(|error| AppError {
+            code: "autostart_error",
+            message: error.to_string(),
+            retryable: true,
+        })?;
+    } else {
+        app.autolaunch().disable().map_err(|error| AppError {
+            code: "autostart_error",
+            message: error.to_string(),
+            retryable: true,
+        })?;
+    }
+
+    *state.settings.write().expect("settings lock poisoned") = settings.clone();
+    let _ = app.emit("settings-updated", &settings);
+    if let Some(dock) = app.get_webview_window("dock") {
+        if settings.dock_enabled {
+            dock.show().map_err(|error| AppError {
+                code: "window_error",
+                message: error.to_string(),
+                retryable: true,
+            })?;
+        } else {
+            let _ = dock.hide();
+        }
+    }
+    Ok(settings)
+}
+
+#[tauri::command]
+pub fn show_main_window(app: tauri::AppHandle, route: Option<String>) -> Result<(), String> {
+    if let Some(route) = route {
+        app.emit_to("main", "main:navigate", route)
+            .map_err(|error| error.to_string())?;
+    }
+    let main = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main window is unavailable".to_string())?;
+    if main.is_minimized().map_err(|error| error.to_string())? {
+        main.unminimize().map_err(|error| error.to_string())?;
+    }
+    main.show().map_err(|error| error.to_string())?;
+    main.set_focus().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn toggle_dock_window(app: tauri::AppHandle) -> Result<bool, String> {
+    let dock = app
+        .get_webview_window("dock")
+        .ok_or_else(|| "dock window is unavailable".to_string())?;
+    let visible = dock.is_visible().map_err(|error| error.to_string())?;
+    if visible {
+        dock.hide().map_err(|error| error.to_string())?;
+        Ok(false)
+    } else {
+        dock.show().map_err(|error| error.to_string())?;
+        Ok(true)
+    }
 }
 
 #[derive(Deserialize)]
@@ -140,18 +223,20 @@ pub fn show_dock_toast(
     let toast_size = toast.outer_size().map_err(|error| error.to_string())?;
     let scale_factor = monitor.scale_factor();
     let x = monitor_position.x + (monitor_size.width.saturating_sub(toast_size.width) / 2) as i32;
-    let y = monitor_position.y
-        + monitor_size.height.saturating_sub(toast_size.height) as i32
+    let y = monitor_position.y + monitor_size.height.saturating_sub(toast_size.height) as i32
         - (28.0 * scale_factor).round() as i32;
 
     toast
         .set_position(tauri::PhysicalPosition::new(x, y))
         .map_err(|error| error.to_string())?;
-    toast.set_ignore_cursor_events(true).map_err(|error| error.to_string())?;
+    toast
+        .set_ignore_cursor_events(true)
+        .map_err(|error| error.to_string())?;
     toast.show().map_err(|error| error.to_string())?;
-    toast.emit("dock-toast", message).map_err(|error| error.to_string())
+    toast
+        .emit("dock-toast", message)
+        .map_err(|error| error.to_string())
 }
-
 
 #[cfg(target_os = "windows")]
 fn raise_window_without_focus(window: &tauri::WebviewWindow) -> Result<(), String> {
@@ -238,7 +323,12 @@ fn enforce_frameless_panel(panel: &tauri::WebviewWindow) -> Result<(), String> {
     unsafe {
         let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
         let frameless_style = style
-            & !(WS_BORDER | WS_DLGFRAME | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX);
+            & !(WS_BORDER
+                | WS_DLGFRAME
+                | WS_THICKFRAME
+                | WS_SYSMENU
+                | WS_MINIMIZEBOX
+                | WS_MAXIMIZEBOX);
         if frameless_style != style {
             SetWindowLongPtrW(hwnd, GWL_STYLE, frameless_style);
             SetWindowPos(

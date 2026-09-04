@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Noty",
+  "productName": "Flank",
   "version": "0.1.0",
-  "identifier": "com.noty.desktop",
+  "identifier": "com.flank.desktop",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Noty 设置",
+        "title": "Flank",
         "width": 1080,
         "height": 720,
         "minWidth": 640,
@@ -22,7 +22,7 @@
       },
       {
         "label": "dock",
-        "title": "Noty Dock",
+        "title": "Flank Dock",
         "url": "index.html#/dock",
         "width": 104,
         "height": 720,
@@ -39,7 +39,7 @@
       },
       {
         "label": "dock-panel",
-        "title": "Noty Panel",
+        "title": "Flank Panel",
         "url": "index.html#/dock-panel",
         "width": 432,
         "height": 720,
@@ -54,7 +54,7 @@
       },
       {
         "label": "dock-toast",
-        "title": "Noty Toast",
+        "title": "Flank Toast",
         "url": "index.html#/dock-toast",
         "width": 320,
         "height": 52,

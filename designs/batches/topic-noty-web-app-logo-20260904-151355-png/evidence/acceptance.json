@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "batchId": "topic-noty-web-app-logo-20260904-151355-png",
+  "status": "pending",
+  "reviewedAt": "2026-09-04T16:11:58.1693781+08:00",
+  "reviewer": "pi-ui-design",
+  "checks": [
+    {"id":"source.pen","severity":"blocker","status":"passed","evidence":["Pencil roots oyHRV, X6GgND, Be4Dd, gaH7q reachable"],"resolution":""},
+    {"id":"assets.provenance","severity":"blocker","status":"passed","evidence":["contracts/asset-manifest.json","logo nodes S8NFX and Q42S4o"],"resolution":""},
+    {"id":"components.instances","severity":"warning","status":"passed","evidence":["Sidebar refs Xfvgu/A5dif and Search ref ET1yt resolve"],"resolution":""},
+    {"id":"typography.contract","severity":"blocker","status":"passed","evidence":["Typography Gate IEuI6","evidence/screenshots/final-v2/IEuI6.png"],"resolution":""},
+    {"id":"style.fidelity","severity":"warning","status":"passed","evidence":["Soft Bento cards, Electric Cobalt selection, offset Soft Lift layers, pastel note surfaces, ZCOOL QingKe HuangYou Chinese typography, and Lucide icons"],"resolution":""},
+    {"id":"states.coverage","severity":"blocker","status":"passed","evidence":["state-matrix.json maps all four required default states"],"resolution":""},
+    {"id":"evidence.screenshots","severity":"blocker","status":"passed","evidence":["evidence/screenshots/window-controls-v2/oyHRV.png","evidence/screenshots/window-controls-v2/X6GgND.png","evidence/screenshots/window-controls-v2/Be4Dd.png","evidence/screenshots/window-controls-v2/gaH7q.png"],"resolution":""},
+    {"id":"snapshot.traceability","severity":"warning","status":"passed","evidence":["design-snapshot.json"],"resolution":""},
+    {"id":"user.acceptance","severity":"blocker","status":"pending","evidence":[],"resolution":"Awaiting explicit design acceptance after review."}
+  ],
+  "acceptedRisks": [],
+  "userAcceptance": {"status":"pending","acceptedBy":"","acceptedAt":""}
+}

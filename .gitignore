@@ -147,3 +147,4 @@ out/
 # 如需随仓库一起提交，删除下面一行即可
 /.research-noty/
 .Artifacts/*
+.pi/*

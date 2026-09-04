@@ -1,4 +1,4 @@
-# Noty for Windows 产品需求文档（PRD）
+# Flank for Windows 产品需求文档（PRD）
 
 > 文档状态：Draft v1.0  
 > 调研日期：2026-09-02  
@@ -12,7 +12,7 @@
 
 ## 1. 文档摘要
 
-Noty 是一款以“屏幕边缘便签组”为核心形态的 macOS 本地便签应用。它通过 `Rest → Fan → Expanded` 三态交互，将常用便签收纳在屏幕边缘；同时提供 Quick Capture、任务、轻量 Markdown、归档搜索、导入导出和本地正文加密。
+Flank 是一款以“屏幕边缘便签组”为核心形态的 macOS 本地便签应用。它通过 `Rest → Fan → Expanded` 三态交互，将常用便签收纳在屏幕边缘；同时提供 Quick Capture、任务、轻量 Markdown、归档搜索、导入导出和本地正文加密。
 
 Windows 版不应被定义为 Swift 源码的逐行移植，也不应退化为普通托盘记事本。项目目标是在 Windows 上重建以下核心价值：
 
@@ -24,7 +24,7 @@ Windows 版不应被定义为 Swift 源码的逐行移植，也不应退化为�
 
 ### 1.1 MVP 产品定义
 
-> Noty for Windows 是一款驻留系统托盘、可通过快捷键和屏幕边缘快速召出的本地加密便签工具。用户可在不中断当前工作的情况下捕获内容，并通过边缘 Deck 浏览、编辑、固定、排序、归档和搜索便签。
+> Flank for Windows 是一款驻留系统托盘、可通过快捷键和屏幕边缘快速召出的本地加密便签工具。用户可在不中断当前工作的情况下捕获内容，并通过边缘 Deck 浏览、编辑、固定、排序、归档和搜索便签。
 
 ### 1.2 MVP 必须交付
 
@@ -65,7 +65,7 @@ Windows 版不应被定义为 Swift 源码的逐行移植，也不应退化为�
 - 输入停止 250ms 后自动保存，关闭前强制保存；
 - 正文以 AES-GCM 加密，标题、颜色、时间、归档、顺序、固定和文字方向等元数据明文；
 - 数据位于本地 SQLite，无账号、分析、遥测和笔记服务器；
-- `.stickies` 是 Noty 自定义 JSON，不是 Apple Stickies 文件格式；
+- `.stickies` 是 Flank 自定义 JSON，不是 Apple Stickies 文件格式；
 - 仓库采用 MIT License，迁移/修改/分发须保留版权和许可声明；Sparkle 亦为 MIT；
 - 研究时仓库约 254 stars、42 forks、5 个开放 issue；已有公开 Windows 请求 [#17](https://github.com/aimen08/noty/issues/17)，说明存在方向性需求，但不能代替用户规模验证。
 
@@ -86,14 +86,14 @@ Windows 版不应被定义为 Swift 源码的逐行移植，也不应退化为�
 
 ### 2.3 Windows 竞品基线
 
-| 产品 | 已验证的优势 | Noty 的差异化机会 |
+| 产品 | 已验证的优势 | Flank 的差异化机会 |
 |---|---|---|
 | Microsoft Sticky Notes | 系统信任、列表搜索、跨微软账户设备 | 不支持始终置顶；缺少边缘 Deck 与低打扰瞬时召出 |
-| Notezilla | 托盘、全局热键、提醒、窗口贴附、同步 | Noty 保持更轻、更少设置、默认离线与正文加密 |
-| Simple Sticky Notes | 轻量托盘、多便签、提醒、多屏持续优化 | Noty 用 Deck、快捷捕获和隐私承诺竞争 |
-| Stickies (Zhorn) | 稳定、备份、位置恢复、提醒与自动化 | Noty 聚焦现代交互与低窗口负担 |
+| Notezilla | 托盘、全局热键、提醒、窗口贴附、同步 | Flank 保持更轻、更少设置、默认离线与正文加密 |
+| Simple Sticky Notes | 轻量托盘、多便签、提醒、多屏持续优化 | Flank 用 Deck、快捷捕获和隐私承诺竞争 |
+| Stickies (Zhorn) | 稳定、备份、位置恢复、提醒与自动化 | Flank 聚焦现代交互与低窗口负担 |
 
-**结论：** 托盘、快捷键、跨重启恢复和多便签管理是 Windows 基线；边缘 Deck、本地加密、快速收纳是 Noty 的主差异化。
+**结论：** 托盘、快捷键、跨重启恢复和多便签管理是 Windows 基线；边缘 Deck、本地加密、快速收纳是 Flank 的主差异化。
 
 ---
 
@@ -101,7 +101,7 @@ Windows 版不应被定义为 Swift 源码的逐行移植，也不应退化为�
 
 ### 3.1 业务目标
 
-1. 在 Windows 上建立可持续迭代的 Noty 原生桌面产品；
+1. 在 Windows 上建立可持续迭代的 Flank 原生桌面产品；
 2. 保留 macOS 版的品牌心智，而不是复制传统桌面黄贴；
 3. 为 Mac 用户提供可解释、可回滚的数据迁移路径；
 4. 将本地隐私、召出速度与稳定性作为首发竞争力；
@@ -147,7 +147,7 @@ Windows 版不应被定义为 Swift 源码的逐行移植，也不应退化为�
 不需要云协作，不愿创建账号或把工作碎片发送到服务器。
 
 **C. Mac → Windows 迁移用户**  
-已经使用 Noty，希望迁移正文、颜色、时间、归档、顺序和文字方向。
+已经使用 Flank，希望迁移正文、颜色、时间、归档、顺序和文字方向。
 
 **D. 多屏工作者**  
 常在不同 DPI 的双屏环境中工作，需要稳定召出、可见区域约束和热插拔恢复。
@@ -178,13 +178,13 @@ Windows 版不应被定义为 Swift 源码的逐行移植，也不应退化为�
 ## 6. 信息架构
 
 ```text
-Noty for Windows
+Flank for Windows
 ├─ System Tray
 │  ├─ 显示/隐藏 Deck
 │  ├─ 新建便签 / Quick Capture
 │  ├─ All Notes / Archive
 │  ├─ 开机启动 / 设置
-│  └─ 退出 Noty
+│  └─ 退出 Flank
 ├─ Edge Deck
 │  ├─ Hidden
 │  ├─ Rest：Pill + 颜色短条
@@ -261,13 +261,13 @@ Noty for Windows
 
 - 启动后注册稳定 GUID 的托盘图标；
 - 左键单击：显示/隐藏 Deck；
-- 右键菜单：`新建便签`、`Quick Capture`、`显示/隐藏 Deck`、`All Notes`、`Archive`、`开机启动`、`设置`、`退出 Noty`；
+- 右键菜单：`新建便签`、`Quick Capture`、`显示/隐藏 Deck`、`All Notes`、`Archive`、`开机启动`、`设置`、`退出 Flank`；
 - Explorer/任务栏重启后自动恢复图标；
 - 托盘图标被系统收进溢出区时，全局快捷键仍有效。
 
 #### FR-PROC-001 单实例（P0）
 
-- 系统同一用户会话中只允许一个 Noty 实例和一个数据库写入者；
+- 系统同一用户会话中只允许一个 Flank 实例和一个数据库写入者；
 - 第二次启动把激活参数转交既有实例；
 - 普通启动显示 Deck；协议/文件激活执行对应动作；
 - 不产生第二个托盘图标。
@@ -359,7 +359,7 @@ Expanded
 
 #### FR-CAP-001 快速捕获（P0）
 
-- 从全局快捷键、托盘或 `noty://capture` 打开；
+- 从全局快捷键、托盘或 `flank://capture` 打开；
 - 出现在鼠标所在显示器中央稍上方；
 - 打开时可输入，但不把原应用最小化或重排；
 - `Enter` 保存；`Shift+Enter` 换行；`Esc` 或失焦取消；重复快捷键关闭；
@@ -464,7 +464,7 @@ P1：
 官方路径：
 
 ```text
-Mac Noty 导出 .stickies
+Mac Flank 导出 .stickies
 → Windows 选择文件
 → 解析与校验
 → 显示导入摘要及兼容性警告
@@ -485,7 +485,7 @@ Mac Noty 导出 .stickies
 #### FR-MIG-002 格式策略（P0）
 
 1. **Mac 兼容交换格式**：`.stickies v2`，明文 JSON；保证当前上游可理解字段，不承诺固定状态；
-2. **Windows 完整备份格式**：建议新增 `.notybackup`，版本化、默认加密，包含 `pinned`、设置和 schema 信息；
+2. **Windows 完整备份格式**：建议新增 `.flankbackup`，版本化、默认加密，包含 `pinned`、设置和 schema 信息；
 3. 不建议直接修改上游 v2 语义。若要建立 `.stickies v3`，须先与上游协作并补 Mac/Windows 双向 golden fixture。
 
 #### FR-EXP-001 导出（P0）
@@ -511,12 +511,12 @@ Mac Noty 导出 .stickies
 
 ### 8.11 URL Scheme 自动化
 
-#### FR-URL-001 `noty://`（P1，若首发延期须列入差异说明）
+#### FR-URL-001 `flank://`（P1，若首发延期须列入差异说明）
 
-- `noty://new?text=...`
-- `noty://capture`
-- `noty://all`
-- `noty://settings`
+- `flank://new?text=...`
+- `flank://capture`
+- `flank://all`
+- `flank://settings`
 
 安全要求：仅将 `text` 作为内容，不执行命令；限制 URL 长度；非法编码安全拒绝；仅允许白名单 action；不得自动打开正文中的任意 scheme。
 
@@ -758,17 +758,17 @@ WinUI 3 可作为对照原型，但不能仅因“更新”而选择。框架最
 ### 13.2 模块建议
 
 ```text
-Noty.Domain
+Flank.Domain
   Note, NoteColor, Tasks, SearchSemantics, DeckState
-Noty.Storage
+Flank.Storage
   SQLite, SchemaMigration, AES-GCM, DPAPI, Backup
-Noty.Transfer
+Flank.Transfer
   StickiesV2, Markdown, Text, ImportReport
-Noty.Desktop
+Flank.Desktop
   Tray, Hotkeys, Activation, Startup, Update
-Noty.UI
+Flank.UI
   Deck, Capture, Editor, Library, Settings, Onboarding
-Noty.Tests
+Flank.Tests
   GoldenFixtures, Storage, Migration, Editor, WindowMatrix
 ```
 
@@ -863,11 +863,11 @@ Noty.Tests
 1. 是否接受 MVP 使用“单一 Deck 跟随召出屏幕”，而不是复刻 Mac 每屏一个 Deck？
 2. 热区是否采用“引导中建议开启、用户确认”的策略？
 3. 是否接受 Markdown 原文/基础样式首发，而 marker 隐藏视编辑器风险延期？
-4. 是否将 `noty://` 放入 MVP，还是明确列为 1.1？
+4. 是否将 `flank://` 放入 MVP，还是明确列为 1.1？
 5. 是否坚持 Windows 10 22H2 支持；若不支持，可显著缩小测试矩阵；
 6. 是否采用默认零遥测；若需要量化漏斗，允许收集哪些纯事件数据？
 7. `.stickies v2` 缺失 `pinned` 是否接受明确提示，还是先推动上游定义 v3？
-8. 正式发布能否使用 Noty 名称、图标和现有视觉资产；是否已获得商标/品牌许可确认？
+8. 正式发布能否使用 Flank 名称、图标和现有视觉资产；是否已获得商标/品牌许可确认？
 9. 免费、付费、开源分发及后续商业化策略是什么？
 
 ---
@@ -876,7 +876,7 @@ Noty.Tests
 
 ### 17.1 上游一手资料
 
-- [Noty repository](https://github.com/aimen08/noty)
+- [Flank repository](https://github.com/aimen08/noty)
 - [README @ locked commit](https://github.com/aimen08/noty/blob/200e9cb55065ce52c12d04031aa022e978934bdb/README.md)
 - [Core model and encryption](https://github.com/aimen08/noty/blob/200e9cb55065ce52c12d04031aa022e978934bdb/Sources/Core.swift)
 - [SQLite store](https://github.com/aimen08/noty/blob/200e9cb55065ce52c12d04031aa022e978934bdb/Sources/Store.swift)

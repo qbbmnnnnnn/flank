@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-04T16:11:58.1693781+08:00",
+  "source": {"method": "Pencil MCP", "file": "designs/noty-win.pen"},
+  "components": {
+    "library-sidebar": {"nodeId": "gTnTE", "name": "Sidebar", "status": "active", "introducedByBatch": "topic-noty-web-app-logo-20260904-151355-png", "slots": [], "variants": ["notes-active", "archive-active", "trash-active"]},
+    "search-field": {"nodeId": "U3QJu2", "name": "Search Field", "status": "active", "introducedByBatch": "topic-noty-web-app-logo-20260904-151355-png", "slots": [], "variants": ["default"]},
+    "window-controls": {"nodeId": "rIU7R", "name": "Component / Window Controls", "status": "active", "introducedByBatch": "topic-noty-web-app-logo-20260904-151355-png", "slots": [], "variants": ["default"], "icons": ["lucide/minus", "lucide/square", "lucide/x"]}
+  }
+}

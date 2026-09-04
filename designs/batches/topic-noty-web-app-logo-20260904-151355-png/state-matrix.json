@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "batchId": "topic-noty-web-app-logo-20260904-151355-png",
+  "surfaces": {
+    "notes-home": {"default": {"classification": "required", "designNodeId": "oyHRV", "fixtureRequired": false}, "loading": {"classification": "not-applicable", "reason": "Topic requests static local-first main state only."}, "empty": {"classification": "not-applicable", "reason": "No empty state requested."}, "error": {"classification": "not-applicable", "reason": "No data integration in design scope."}},
+    "archive": {"default": {"classification": "required", "designNodeId": "X6GgND", "fixtureRequired": false}, "empty": {"classification": "not-applicable", "reason": "No empty state requested."}, "error": {"classification": "not-applicable", "reason": "No data integration in design scope."}},
+    "recently-deleted": {"default": {"classification": "required", "designNodeId": "Be4Dd", "fixtureRequired": false}, "empty": {"classification": "not-applicable", "reason": "No empty state requested."}, "error": {"classification": "not-applicable", "reason": "No data integration in design scope."}},
+    "settings-general": {"default": {"classification": "required", "designNodeId": "gaH7q", "fixtureRequired": false}, "disabled": {"classification": "not-applicable", "reason": "No disabled controls specified."}, "permission": {"classification": "not-applicable", "reason": "No permission states specified."}}
+  }
+}

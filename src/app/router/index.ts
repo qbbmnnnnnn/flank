@@ -5,6 +5,11 @@ export const router = createRouter({
   routes: [
     {
       path: "/",
+      name: "library",
+      component: () => import("../../features/library/LibraryView.vue"),
+    },
+    {
+      path: "/settings",
       name: "settings",
       component: () => import("../../features/settings/SettingsView.vue"),
     },

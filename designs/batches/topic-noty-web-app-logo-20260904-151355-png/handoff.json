@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "status": "draft",
+  "acceptedAt": null,
+  "batch": {"id": "topic-noty-web-app-logo-20260904-151355-png", "prdFile": ""},
+  "input": {"kind": "topic", "topic": "重新设计 Noty 桌面 Web App 主窗口：主页聚焦便签展示，并提供归档与最近删除视图；详细设置从左下角设置入口打开。仅提取参考截图的信息架构与功能重点，不沿用其视觉设计。品牌 Logo 使用项目根目录 20260904-151355.png。"},
+  "foundationRef": {"file": "../../ui-foundation.json", "version": 1},
+  "designSource": {"file": "designs/noty-win.pen", "rootNodeIds": ["oyHRV", "X6GgND", "Be4Dd", "gaH7q"], "snapshot": "design-snapshot.json"},
+  "guides": {"inherited": ["Web App", "Design System"], "batchSupplemental": []},
+  "contracts": {"font": "../../contracts/font-contract.json", "tokens": "../../contracts/tokens.json", "components": "../../contracts/component-registry.json", "assets": "../../contracts/asset-manifest.json", "stateMatrix": "state-matrix.json", "interactionIntents": "interaction-intents.json"},
+  "screens": [
+    {"key": "notes-home", "nodeId": "oyHRV", "states": ["default"]},
+    {"key": "archive", "nodeId": "X6GgND", "states": ["default"]},
+    {"key": "recently-deleted", "nodeId": "Be4Dd", "states": ["default"]},
+    {"key": "settings-general", "nodeId": "gaH7q", "states": ["default"]}
+  ],
+  "componentChanges": {"reused": [], "added": ["library-sidebar", "search-field", "window-controls"], "extended": []},
+  "fixtures": {},
+  "evidence": {"validation": "evidence/validation.json", "acceptance": "evidence/acceptance.json", "screenshots": ["evidence/screenshots/window-controls-v2/oyHRV.png", "evidence/screenshots/window-controls-v2/X6GgND.png", "evidence/screenshots/window-controls-v2/Be4Dd.png", "evidence/screenshots/window-controls-v2/gaH7q.png"]},
+  "deferred": []
+}

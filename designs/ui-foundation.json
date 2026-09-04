@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "project": {"id": "noty-win", "name": "Noty"},
+  "foundation": {"status": "draft", "version": 1, "establishedByBatch": "topic-noty-web-app-logo-20260904-151355-png", "acceptedAt": null},
+  "designSource": {"type": "pencil", "file": "designs/noty-win.pen", "typographyGateNodeId": "IEuI6"},
+  "guides": {"primary": "Web App", "persistentSupplemental": ["Design System"]},
+  "style": {
+    "name": "Soft Bento",
+    "params": {"colorPalette": "Electric Cobalt", "roundness": "Basic Roundness", "headings": "Anton", "body": "Geist", "captions": "IBM Plex Mono", "elevation": "Soft Lift", "data": "IBM Plex Mono"},
+    "extensions": {"cjkFont": "ZCOOL QingKe HuangYou"},
+    "promptSnapshot": "contracts/style-prompt.md"
+  },
+  "fontContract": "contracts/font-contract.json",
+  "target": {"device": "desktop-web-app", "canvas": {"width": 1440, "heightBehavior": "fixed-900-review"}, "responsiveRange": []},
+  "visualBaseline": {
+    "composition": ["264px persistent library sidebar", "wide content workspace", "bento note cards", "centered settings modal"],
+    "hierarchy": ["task title and primary action", "search and filtering", "pinned notes", "recent notes"],
+    "density": "comfortable desktop productivity",
+    "surfaceAndShape": ["white and mist surfaces", "16-28px rounded containers", "offset soft-lift shadow layers"],
+    "colorUsage": ["Electric Cobalt for primary actions and selection", "pastel note colors for content grouping", "rose only for destructive actions"],
+    "imageryAndIcons": ["supplied Noty logo", "minimal geometric interface marks"],
+    "prohibitedDrift": ["do not reproduce supplied reference styling", "avoid dense enterprise chrome", "avoid gradients competing with the logo"]
+  },
+  "changeControl": {"requiresExplicitApproval": ["guides.primary", "guides.persistentSupplemental", "style", "fontContract", "target"]}
+}

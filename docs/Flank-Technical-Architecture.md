@@ -1,7 +1,7 @@
-# Noty Desktop 技术架构方案
+# Flank Desktop 技术架构方案
 
 > 状态：Architecture Decision v1.0  
-> 对应 PRD：`docs/Noty-Desktop-PRD-Final.md`  
+> 对应 PRD：`docs/Flank-Desktop-PRD-Final.md`  
 > 技术栈：Tauri 2 + Vue 3 + TypeScript + Rust + SQLite  
 > 未来服务端：API Service + PostgreSQL
 

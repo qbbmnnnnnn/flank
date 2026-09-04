@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "batchId": "topic-noty-web-app-logo-20260904-151355-png",
+  "intents": [
+    {"id": "create-note", "source": "notes-home.primary-action", "action": "创建新便签", "destination": "note editor overlay", "accessibilityIntent": "keyboard reachable and clearly labeled", "motionIntent": "preserve library context"},
+    {"id": "search-notes", "source": "search-field", "action": "搜索标题、正文或标签", "destination": "filtered current surface", "accessibilityIntent": "search landmark with visible shortcut"},
+    {"id": "open-archive", "source": "sidebar.archive", "action": "查看已归档", "destination": "archive.default", "accessibilityIntent": "current location is visually indicated"},
+    {"id": "restore-archive", "source": "archive.restore-action", "action": "恢复便签", "destination": "notes-home.default", "accessibilityIntent": "action includes note context"},
+    {"id": "open-trash", "source": "sidebar.recently-deleted", "action": "查看最近删除", "destination": "recently-deleted.default", "accessibilityIntent": "destructive area uses color and text"},
+    {"id": "restore-trash", "source": "recently-deleted.restore-action", "action": "恢复便签", "destination": "notes-home.default", "accessibilityIntent": "non-destructive action precedes delete"},
+    {"id": "delete-forever", "source": "recently-deleted.delete-forever-action", "action": "永久删除", "destination": "confirmation overlay", "accessibilityIntent": "requires explicit confirmation"},
+    {"id": "open-settings", "source": "sidebar.settings", "action": "打开详细设置", "destination": "settings-general.default", "accessibilityIntent": "left-bottom entry remains consistently reachable", "motionIntent": "open as centered overlay without losing library context"},
+    {"id": "close-settings", "source": "settings.close-or-back", "action": "关闭设置", "destination": "previous library surface", "accessibilityIntent": "supports close button and Escape"},
+    {"id": "window-controls", "source": "window.top-right", "action": "最小化、最大化或关闭应用窗口", "destination": "native window state", "accessibilityIntent": "three consistently ordered controls use Lucide icons and native labels"}
+  ]
+}

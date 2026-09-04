@@ -1,12 +1,21 @@
 // Lightweight cross-webview contract between the Dock rail and the Dock panel.
-// Data currently lives in the rail's in-memory mock; the same events will later
-// be backed by SQLite without changing either view's call sites.
+// Notes use the same persisted record shape as the main library.
 
-export interface Note {
-  id: string;
-  title: string;
-  body: string;
-  color: string;
+import type { NoteColor, NoteRecord } from "../../contracts/note";
+
+export type Note = NoteRecord;
+
+const NOTE_COLORS: Record<NoteColor, string> = {
+  lemon: "#FFE57A",
+  peach: "#FFB8A7",
+  rose: "#F5B8CD",
+  lilac: "#D8C1FF",
+  sky: "#AED6FF",
+  mint: "#A9E5D1",
+};
+
+export function noteColorCss(color: NoteColor): string {
+  return NOTE_COLORS[color];
 }
 
 export type AnchorSide = "left" | "right";

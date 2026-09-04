@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-09-04T16:11:58.1693781+08:00",
+  "assets": {
+    "noty-logo": {"type": "image", "source": {"kind": "local-file", "value": "20260904-151355.png"}, "provenance": "User-supplied project asset", "license": "user-provided", "consumers": ["S8NFX", "Q42S4o"]},
+    "font-anton": {"type": "font", "source": {"kind": "bundled-google-font", "value": "files/anton-regular.ttf"}, "license": "SIL Open Font License 1.1", "consumers": ["headings"]},
+    "font-geist": {"type": "font", "source": {"kind": "bundled-google-font", "value": "files/geist-variable.ttf"}, "license": "SIL Open Font License 1.1", "consumers": ["body"]},
+    "font-ibm-plex-mono": {"type": "font", "source": {"kind": "bundled-google-font", "value": "files/ibm-plex-mono-regular.ttf"}, "license": "SIL Open Font License 1.1", "consumers": ["captions", "data"]},
+    "font-zcool-qingke-huangyou": {"type": "font", "source": {"kind": "bundled-google-font", "value": "files/zcool-qingke-huangyou-regular.ttf"}, "license": "SIL Open Font License 1.1", "consumers": ["CJK headings", "CJK body"]},
+    "icons-lucide": {"type": "library-icon", "source": {"kind": "icon-library", "value": "Lucide"}, "license": "ISC License", "consumers": ["navigation", "search", "note actions", "settings", "status actions"]}
+  }
+}

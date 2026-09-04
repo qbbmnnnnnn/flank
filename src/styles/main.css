@@ -31,7 +31,7 @@ button { color: inherit; }
 .brand-mark span, .app-icon span { position: absolute; inset: 5px 4px 3px 8px; border-radius: 8px 2px 8px 8px; background: #ffe57a; box-shadow: 0 5px 12px rgba(111, 84, 12, .14), inset 0 1px rgba(255,255,255,.75); transform: rotate(-5deg); }
 .brand-mark span:nth-child(2), .app-icon span:nth-child(2) { inset: 3px 7px 5px 5px; background: #ffb8a7; transform: rotate(5deg); }
 .brand-mark span:nth-child(3), .app-icon span:nth-child(3) { inset: 5px; display: grid; place-items: center; background: #ffe57a; transform: none; }
-.brand-mark span:nth-child(3)::after, .app-icon span:nth-child(3)::after { content: "N"; color: #554819; font-size: 16px; font-weight: 850; }
+.brand-mark span:nth-child(3)::after, .app-icon span:nth-child(3)::after { content: "F"; color: #554819; font-size: 16px; font-weight: 850; }
 .brand strong { display: block; font-size: 17px; letter-spacing: -.025em; }
 .brand small { display: block; margin-top: 2px; color: #9b969f; font-size: 10px; letter-spacing: .06em; }
 .settings-nav { margin-top: 25px; display: grid; gap: 3px; }
@@ -136,6 +136,10 @@ select:focus { border-color: #8174d4; box-shadow: 0 0 0 3px rgba(101,88,200,.1);
 .side-left .mini-dock span { margin-left: 4px; }
 .range { width: 190px; accent-color: var(--accent); cursor: pointer; }
 .range.short { width: 145px; }
+.dock-count-control { display: grid; justify-items: end; gap: 9px; }
+.dock-count-control label { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 9px; }
+.dock-count-control input { width: 58px; height: 30px; padding: 0 6px; border: 1px solid #ddd9d4; border-radius: 8px; background: #fbfaf8; text-align: center; }
+.setting-warning { color: #b27632; font-size: 9px; font-style: normal; }
 .color-settings { padding-bottom: 20px; }
 .color-option { min-height: 68px; margin: 18px 20px 14px; padding: 12px 14px; display: grid; grid-template-columns: 54px 1fr auto; align-items: center; gap: 12px; border: 1px solid #d9d4ee; border-radius: 12px; background: #faf8ff; cursor: pointer; }
 .color-random { height: 34px; position: relative; }

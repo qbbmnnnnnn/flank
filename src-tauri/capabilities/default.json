@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default capability for the Noty settings and Dock windows",
+  "description": "Default capability for the Flank main and Dock windows",
   "windows": ["main", "dock", "dock-panel", "dock-toast"],
   "permissions": [
     "core:default",

@@ -2,10 +2,14 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
 import { gsap } from "gsap";
 
+import type { NoteColor } from "../../contracts/note";
+import { noteService } from "../../services/noteService";
 import {
   DOCK_BRIDGE,
   emitToDock,
+  isTauriRuntime,
   listenOnWebview,
+  noteColorCss,
   type AnchorSide,
   type DockPanelOpenPayload,
   type Note,
@@ -31,11 +35,11 @@ const activeNote = ref<Note | null>(null);
 const draftTarget = ref<Note | null>(null);
 const draftTitle = ref("");
 const draftBody = ref("");
-const draftColor = ref("#FFE57A");
+const draftColor = ref<NoteColor>("lemon");
 const isNew = ref(false);
-const saveState = ref<"idle" | "typing" | "saving" | "saved">("idle");
+const saveState = ref<"idle" | "typing" | "saving" | "saved" | "error">("idle");
 
-const palette = ["#FFE57A", "#FFB8A7", "#F5B8CD", "#D8C1FF", "#AED6FF", "#A9E5D1"];
+const palette: NoteColor[] = ["lemon", "peach", "rose", "lilac", "sky", "mint"]; 
 
 let saveTimer: number | undefined;
 let saveStateTimer: number | undefined;
@@ -43,9 +47,11 @@ let panelAnimation: gsap.core.Timeline | undefined;
 let unlistenOpen: (() => void) | undefined;
 let unlistenClose: (() => void) | undefined;
 let unlistenFocus: (() => void) | undefined;
+let unlistenNotesChanged: (() => void) | undefined;
+let saveQueue: Promise<Note | null> = Promise.resolve(null);
 
 const previewLines = computed<PreviewLine[]>(() => parseMarkdown(activeNote.value?.body ?? ""));
-const paper = computed(() => (mode.value === "edit" ? draftColor.value : activeNote.value?.color ?? "#FFE57A"));
+const paper = computed(() => noteColorCss(mode.value === "edit" ? draftColor.value : activeNote.value?.color ?? "lemon"));
 
 function isReducedMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -145,13 +151,16 @@ async function handleOpen(payload: DockPanelOpenPayload) {
   const wasClosed = !open.value;
 
   if (payload.isNew) {
-    if (mode.value === "edit") flushSave();
+    if (mode.value === "edit") {
+      await flushSave();
+      if (saveState.value === "error") return;
+    }
     activeNote.value = null;
     draftTarget.value = null;
     isNew.value = true;
     draftTitle.value = "";
     draftBody.value = "";
-    draftColor.value = palette[Math.floor(Math.random() * palette.length)];
+    draftColor.value = palette[Math.floor(Math.random() * palette.length)] ?? "lemon";
     setSaveState("idle");
     mode.value = "edit";
     open.value = true;
@@ -182,7 +191,10 @@ async function handleOpen(payload: DockPanelOpenPayload) {
   }
 
   const isSwitch = open.value && activeNote.value !== null && activeNote.value.id !== note.id;
-  if (mode.value === "edit") flushSave();
+  if (mode.value === "edit") {
+    await flushSave();
+    if (saveState.value === "error") return;
+  }
 
   if (isSwitch) await animateOutCurrent();
 
@@ -199,7 +211,10 @@ async function handleOpen(payload: DockPanelOpenPayload) {
 
 async function handleClose() {
   if (!open.value) return;
-  if (mode.value === "edit") flushSave();
+  if (mode.value === "edit") {
+    await flushSave();
+    if (saveState.value === "error") return;
+  }
   await preparePanelAnimation();
   await playPanelExit();
   open.value = false;
@@ -221,7 +236,7 @@ function scheduleSave() {
   syncDraftBody();
   setSaveState("typing");
   window.clearTimeout(saveTimer);
-  saveTimer = window.setTimeout(() => flushSave(), 900);
+  saveTimer = window.setTimeout(() => void flushSave(), 900);
 }
 
 function derivedTitle(body: string) {
@@ -229,7 +244,7 @@ function derivedTitle(body: string) {
   return line.replace(/^\s*(?:#{1,6}|[-*>]|☐|☑)\s*/, "").replace(/[*_`~]/g, "").slice(0, 28);
 }
 
-function flushSave() {
+async function persistDraft(): Promise<Note | null> {
   window.clearTimeout(saveTimer);
   syncDraftBody();
   const body = draftBody.value.replace(/^\n+|\n+$/g, "");
@@ -240,21 +255,34 @@ function flushSave() {
 
   setSaveState("saving");
   const title = draftTitle.value.trim() || derivedTitle(body) || "未命名便签";
-  let target = draftTarget.value;
-  let inserted = false;
-  if (!target) {
-    target = { id: crypto.randomUUID(), title, body, color: draftColor.value };
-    draftTarget.value = target;
-    inserted = true;
-  } else {
-    target.title = title;
-    target.body = body;
-    if (isNew.value) target.color = draftColor.value;
+  const previous = draftTarget.value;
+  try {
+    let saved: Note;
+    if (isTauriRuntime()) {
+      saved = previous
+        ? await noteService.update({ id: previous.id, title, body, color: draftColor.value, textDirection: previous.textDirection, expectedRevision: previous.revision })
+        : await noteService.create({ title, body, color: draftColor.value, textDirection: "automatic" });
+    } else if (previous) {
+      saved = { ...previous, title, body, color: draftColor.value, updatedAtMs: Date.now(), revision: previous.revision + 1 };
+    } else {
+      const now = Date.now();
+      saved = { id: crypto.randomUUID(), title, body, color: draftColor.value, createdAtMs: now, updatedAtMs: now, archivedAtMs: null, deletedAtMs: null, sortKey: String(now), textDirection: "automatic", revision: 1 };
+    }
+    draftTarget.value = saved;
+    activeNote.value = saved;
+    isNew.value = false;
+    setSaveState("saved");
+    await emitToDock(DOCK_BRIDGE.save, { note: saved, isNew: previous === null });
+    return saved;
+  } catch {
+    setSaveState("error");
+    return null;
   }
-  activeNote.value = target;
-  setSaveState("saved");
-  void emitToDock(DOCK_BRIDGE.save, { note: target, isNew: inserted });
-  return target;
+}
+
+function flushSave(): Promise<Note | null> {
+  saveQueue = saveQueue.then(persistDraft, persistDraft);
+  return saveQueue;
 }
 
 function editNote() {
@@ -273,7 +301,8 @@ function editNote() {
 }
 
 async function finishEditing() {
-  const saved = flushSave();
+  const saved = await flushSave();
+  if (saveState.value === "error") return;
   if (!saved) {
     mode.value = "closed";
     open.value = false;
@@ -552,7 +581,7 @@ function onWindowKeydown(event: KeyboardEvent) {
   if (event.key === "Escape") requestClose();
   if (mode.value === "edit" && event.ctrlKey && event.key === "Enter") {
     event.preventDefault();
-    flushSave();
+    void flushSave();
   }
 }
 
@@ -587,15 +616,24 @@ function parseMarkdown(body: string): PreviewLine[] {
   });
 }
 
-function toggleTask(index: number) {
+async function toggleTask(index: number) {
   if (!activeNote.value) return;
   const lines = activeNote.value.body.split("\n");
   if (/^\s*☐/.test(lines[index])) lines[index] = lines[index].replace("☐", "☑");
   else if (/^\s*☑/.test(lines[index])) lines[index] = lines[index].replace("☑", "☐");
   else if (/^\s*-\s*\[\s\]/.test(lines[index])) lines[index] = lines[index].replace(/\[\s\]/, "[x]");
   else lines[index] = lines[index].replace(/\[[xX]\]/, "[ ]");
-  activeNote.value.body = lines.join("\n");
-  void emitToDock(DOCK_BRIDGE.save, { note: activeNote.value, isNew: false });
+  const current = activeNote.value;
+  const body = lines.join("\n");
+  try {
+    const saved = isTauriRuntime()
+      ? await noteService.update({ id: current.id, title: current.title, body, color: current.color, textDirection: current.textDirection, expectedRevision: current.revision })
+      : { ...current, body, updatedAtMs: Date.now(), revision: current.revision + 1 };
+    activeNote.value = saved;
+    await emitToDock(DOCK_BRIDGE.save, { note: saved, isNew: false });
+  } catch {
+    setSaveState("error");
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -611,6 +649,14 @@ onMounted(async () => {
   window.addEventListener("keydown", onWindowKeydown);
 
   try {
+    const { listen } = await import("@tauri-apps/api/event");
+    unlistenNotesChanged = await listen("notes:changed", async () => {
+      if (!open.value || !activeNote.value || mode.value === "edit") return;
+      const persisted = await noteService.list({ scope: "active", query: "" });
+      const current = persisted.find((note) => note.id === activeNote.value?.id);
+      if (current) activeNote.value = current;
+      else requestClose();
+    });
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
     const panelWindow = getCurrentWindow();
     unlistenFocus = await panelWindow.onFocusChanged(({ payload: focused }) => {
@@ -631,6 +677,7 @@ onUnmounted(() => {
   unlistenOpen?.();
   unlistenClose?.();
   unlistenFocus?.();
+  unlistenNotesChanged?.();
   window.removeEventListener("keydown", onWindowKeydown);
   panelAnimation?.kill();
   if (root.value) gsap.killTweensOf(root.value.querySelectorAll("*"));
@@ -651,7 +698,7 @@ onUnmounted(() => {
         <div class="preview-body">
           <template v-for="line in previewLines" :key="line.index">
             <component :is="`h${line.level}`" v-if="line.kind === 'heading'" v-html="line.html" />
-            <div v-else-if="line.kind === 'task'" class="preview-task" :class="{ done: line.checked }"><button type="button" :aria-label="line.checked ? '标记未完成' : '标记完成'" @click="toggleTask(line.index)">{{ line.checked ? "✓" : "" }}</button><span v-html="line.html"></span></div>
+            <div v-else-if="line.kind === 'task'" class="preview-task" :class="{ done: line.checked }"><button type="button" :aria-label="line.checked ? '标记未完成' : '标记完成'" @click="void toggleTask(line.index)">{{ line.checked ? "✓" : "" }}</button><span v-html="line.html"></span></div>
             <div v-else-if="line.kind === 'list'" class="preview-list"><i></i><span v-html="line.html"></span></div>
             <blockquote v-else-if="line.kind === 'quote'" v-html="line.html" />
             <p v-else v-html="line.html || '&nbsp;'" />
@@ -660,8 +707,8 @@ onUnmounted(() => {
       </template>
       <template v-else>
         <header class="editor-header">
-          <div><b>{{ isNew ? "新便签" : "编辑便签" }}</b><span class="save-state" :class="saveState"><i></i>{{ saveState === "saving" ? "自动保存中…" : saveState === "saved" ? "已自动保存" : "自动保存" }}</span></div>
-          <div v-if="isNew" class="palette"><button v-for="color in palette" :key="color" type="button" :class="{ selected: draftColor === color }" :style="{ background: color }" :aria-label="`选择颜色 ${color}`" @click="draftColor = color; scheduleSave()"></button></div>
+          <div><b>{{ isNew ? "新便签" : "编辑便签" }}</b><span class="save-state" :class="saveState"><i></i>{{ saveState === "saving" ? "自动保存中…" : saveState === "saved" ? "已自动保存" : saveState === "error" ? "保存失败" : "自动保存" }}</span></div>
+          <div v-if="isNew" class="palette"><button v-for="color in palette" :key="color" type="button" :class="{ selected: draftColor === color }" :style="{ background: noteColorCss(color) }" :aria-label="`选择颜色 ${color}`" @click="draftColor = color; scheduleSave()"></button></div>
         </header>
         <input v-model="draftTitle" class="editor-title" maxlength="28" placeholder="标题" @input="scheduleSave" @keydown.enter.prevent="focusBodyFromTitle">
         <div class="editor-body-shell">
@@ -689,7 +736,7 @@ onUnmounted(() => {
 .panel-header{position:relative;z-index:1;height:64px;padding:0 15px 0 19px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(70,55,30,.11)}.panel-header h1{min-width:0;margin:0;overflow:hidden;color:#29262b;font-size:22px;line-height:1.2;letter-spacing:-.025em;text-overflow:ellipsis;white-space:nowrap}.panel-actions{display:flex;gap:6px}.panel-actions button,.panel-close{width:30px;height:30px;padding:0;display:grid;place-items:center;border:0;border-radius:50%;color:rgba(40,35,31,.58);background:rgba(255,255,255,.22);cursor:pointer;transition:background .18s ease,transform .18s ease}.panel-actions button:hover,.panel-close:hover{background:rgba(255,255,255,.42);transform:scale(1.06)}.panel-actions svg,.panel-close svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .preview-body{position:relative;z-index:1;height:calc(100% - 64px);padding:18px 22px 30px;overflow-y:auto;font-size:17px;line-height:1.85;scrollbar-width:thin;scrollbar-color:rgba(70,55,30,.22) transparent}.preview-body p{min-height:1.7em;margin:2px 0}.preview-body h1,.preview-body h2,.preview-body h3{margin:19px 0 8px;line-height:1.3}.preview-body h1{font-size:23px}.preview-body h2{font-size:20px}.preview-body h3{font-size:17px}.preview-body :deep(code){padding:2px 5px;border-radius:5px;background:rgba(255,255,255,.28);font-family:"Cascadia Code",Consolas,monospace;font-size:.9em}.preview-body :deep(a){color:#315f9f;text-decoration-thickness:1px;text-underline-offset:2px}.preview-body blockquote{margin:8px 0;padding-left:12px;border-left:3px solid rgba(54,48,53,.3);color:rgba(54,48,53,.72)}
 .preview-task,.preview-list{display:flex;align-items:flex-start;gap:9px;margin:5px 0}.preview-task button{width:19px;height:19px;flex:0 0 auto;margin-top:6px;padding:0;display:grid;place-items:center;border:1.6px solid rgba(54,48,53,.48);border-radius:6px;color:#fff;background:rgba(255,255,255,.2);cursor:pointer;font-size:13px}.preview-task.done button{border-color:#3d985c;background:#4cab69}.preview-task.done span{opacity:.55;text-decoration:line-through}.preview-list i{width:5px;height:5px;flex:0 0 auto;margin:10px 5px 0 6px;border-radius:50%;background:currentColor;opacity:.58}
-.editor-header{position:relative;z-index:1;height:56px;padding:0 14px 0 19px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid rgba(70,55,30,.11)}.editor-header>div:first-child{display:flex;align-items:center;gap:9px;white-space:nowrap}.editor-header b{font-size:13px}.save-state{display:inline-flex;align-items:center;gap:6px;color:rgba(45,39,34,.58);font-size:11px;font-weight:650;transition:opacity .18s ease}.save-state.idle,.save-state.typing{opacity:0}.save-state i{width:6px;height:6px;border-radius:50%;background:rgba(45,39,34,.28)}.save-state.saving i{background:#4e7fc9;animation:panel-pulse .7s ease-in-out infinite alternate}.save-state.saved i{background:#3e9b5d}.palette{margin-left:auto;display:flex;gap:7px}.palette button{width:18px;height:18px;padding:0;border:2px solid rgba(255,255,255,.62);border-radius:50%;box-shadow:none;cursor:pointer;transition:transform .16s ease}.palette button:hover{transform:scale(1.16)}.palette button.selected{border-color:rgba(43,38,35,.7);transform:scale(.88)}
+.editor-header{position:relative;z-index:1;height:56px;padding:0 14px 0 19px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid rgba(70,55,30,.11)}.editor-header>div:first-child{display:flex;align-items:center;gap:9px;white-space:nowrap}.editor-header b{font-size:13px}.save-state{display:inline-flex;align-items:center;gap:6px;color:rgba(45,39,34,.58);font-size:11px;font-weight:650;transition:opacity .18s ease}.save-state.idle,.save-state.typing{opacity:0}.save-state i{width:6px;height:6px;border-radius:50%;background:rgba(45,39,34,.28)}.save-state.saving i{background:#4e7fc9;animation:panel-pulse .7s ease-in-out infinite alternate}.save-state.saved i{background:#3e9b5d}.save-state.error{color:#a33f3f}.save-state.error i{background:#d34f4f}.palette{margin-left:auto;display:flex;gap:7px}.palette button{width:18px;height:18px;padding:0;border:2px solid rgba(255,255,255,.62);border-radius:50%;box-shadow:none;cursor:pointer;transition:transform .16s ease}.palette button:hover{transform:scale(1.16)}.palette button.selected{border-color:rgba(43,38,35,.7);transform:scale(.88)}
 .editor-title{position:relative;z-index:1;width:100%;height:78px;padding:20px 22px 10px;border:0;outline:0;color:#29262b;background:transparent;font-size:27px;font-weight:700;line-height:1.2;letter-spacing:-.035em}.editor-title::placeholder{color:rgba(45,39,34,.4)}.editor-body-shell{position:relative;z-index:1;height:calc(100% - 188px);min-height:0}.editor-title,.editor-body{user-select:text;-webkit-user-select:text}.editor-body{position:absolute;inset:0;padding:10px 22px 20px;overflow-y:auto;outline:0;font-size:17px;line-height:1.85;scrollbar-width:thin;scrollbar-color:rgba(70,55,30,.28) transparent}.editor-body.is-empty::before{content:attr(data-placeholder);position:absolute;left:22px;top:10px;color:rgba(45,39,34,.4);pointer-events:none}.editor-body :deep(.editor-line){min-height:31.45px;display:block;overflow-wrap:anywhere;white-space:pre-wrap}.editor-body :deep(.editor-line.is-task){display:grid;grid-template-columns:19px minmax(0,1fr);align-items:start;gap:9px}.editor-body :deep(.editor-line-copy){min-width:0;outline:0;overflow-wrap:anywhere;white-space:pre-wrap}.editor-body :deep(.editor-task-box){width:19px;height:19px;margin-top:6px;padding:0;display:grid;place-items:center;border:1.6px solid rgba(54,48,53,.5);border-radius:6px;color:#fff;background:transparent;cursor:pointer}.editor-body :deep(.editor-task-box.is-checked){border-color:#3d985c;background:#4cab69}.editor-body :deep(.editor-task-box.is-checked::after){content:"✓";font-size:13px;font-weight:800;line-height:1}
 .format-bar{position:absolute;z-index:2;left:0;right:0;bottom:0;height:54px;padding:0 18px;display:flex;align-items:center;gap:5px;border-top:1px solid rgba(70,55,30,.1);background:rgba(255,255,255,.12)}.format-bar button{width:32px;height:32px;padding:0;display:grid;place-items:center;border:0;border-radius:8px;color:rgba(43,38,42,.66);background:transparent;cursor:pointer;font-weight:750}.format-bar button:hover{color:#29242a;background:rgba(255,255,255,.36)}.format-bar svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.format-bar>i{width:1px;height:20px;margin:0 3px;background:rgba(70,55,30,.13)}.format-bar>span{margin-left:auto;color:rgba(45,39,34,.5);font-size:10px;white-space:nowrap}
 @keyframes panel-pulse{to{opacity:.35;transform:scale(.72)}}

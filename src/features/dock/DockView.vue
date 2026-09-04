@@ -2,10 +2,15 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { gsap } from "gsap";
 
+import type { AppSettings } from "../../contracts/app";
+import { appService } from "../../services/appService";
+import { noteService } from "../../services/noteService";
 import {
   DOCK_BRIDGE,
   emitToPanel,
+  isTauriRuntime,
   listenOnWebview,
+  noteColorCss,
   type DockPanelSavePayload,
   type Note,
 } from "./bridge";
@@ -14,13 +19,19 @@ const root = ref<HTMLElement | null>(null);
 const noteList = ref<HTMLElement | null>(null);
 const side = ref<"left" | "right">("right");
 const screenHeight = ref(1080);
-const notes = ref<Note[]>([
-  { id: "idea", title: "今日灵感", color: "#FFE57A", body: "让工具像家具一样安静，像朋友一样及时。\n\n☐ 调整首页留白\n☐ 试试侧边吸附\n☑ 完成窗口原型" },
-  { id: "todo", title: "产品待办", color: "#FFB8A7", body: "## 高优先级\n\n- 纵向 Dock 动效\n- 便签快速唤起\n- 本地自动保存" },
-  { id: "reading", title: "阅读清单", color: "#A9E5D1", body: "这个月想读：\n\n《设计中的设计》\n《毫无意义的工作》\n《制造消费者》" },
-  { id: "meeting", title: "会议速记", color: "#AED6FF", body: "**Design Sync · 14:30**\n\n减少永久可见的控件，用上下文和动效去提示下一步。" },
-  { id: "weekend", title: "周末计划", color: "#D8C1FF", body: "周六去植物园。\n\n带上相机、野餐布，还有那本一直没有读完的书。" },
-]);
+const previewNow = Date.now();
+const previewNotes: Note[] = [
+  ["idea", "今日灵感", "lemon", "让工具像家具一样安静，像朋友一样及时。\n\n☐ 调整首页留白\n☐ 试试侧边吸附\n☑ 完成窗口原型"],
+  ["todo", "产品待办", "peach", "## 高优先级\n\n- 纵向 Dock 动效\n- 便签快速唤起\n- 本地自动保存"],
+  ["reading", "阅读清单", "mint", "这个月想读：\n\n《设计中的设计》\n《毫无意义的工作》\n《制造消费者》"],
+].map(([id, title, color, body], index) => ({
+  id, title, color: color as Note["color"], body,
+  createdAtMs: previewNow - index * 86400000,
+  updatedAtMs: previewNow - index * 3600000,
+  archivedAtMs: null, deletedAtMs: null,
+  sortKey: String(index), textDirection: "automatic", revision: 1,
+}));
+const notes = ref<Note[]>(isTauriRuntime() ? [] : previewNotes);
 
 const dragging = ref(false);
 const controlsVisible = ref(false);
@@ -52,7 +63,43 @@ let suppressBlurUntil = 0;
 const hoverTimers = new Map<string, number>();
 const quickSetters = new Map<HTMLElement, { x: (value: number) => void; scaleX: (value: number) => void; scaleY: (value: number) => void }>();
 
-const compact = computed(() => screenHeight.value <= 720);
+const compact = computed(() => screenHeight.value <= 800);
+const visibleCount = ref(7);
+const listTargetHeight = computed(() => {
+  const count = Math.min(12, Math.max(5, visibleCount.value));
+  const noteHeight = compact.value ? 104 : 126;
+  const step = compact.value ? 91 : 112;
+  return 25 + noteHeight + (count - 1) * step;
+});
+let unlistenSettings: (() => void) | undefined;
+let unlistenNotesChanged: (() => void) | undefined;
+
+async function loadDockNotes() {
+  if (!isTauriRuntime()) return;
+  try {
+    notes.value = await noteService.list({ scope: "active", query: "" });
+    await nextTick();
+    setupQuickSetters();
+    updateScrollEdges();
+  } catch {
+    showLocalToast("无法读取本地便签");
+  }
+}
+
+async function applyDockSettings(settings: AppSettings) {
+  visibleCount.value = settings.dockVisibleCount;
+  side.value = settings.dockSide;
+  const win = await getDockWindow();
+  if (!win) return;
+  try {
+    const { LogicalSize } = await import("@tauri-apps/api/dpi");
+    const targetHeight = Math.min(screenHeight.value - 16, Math.max(420, listTargetHeight.value + 152));
+    await win.setSize(new LogicalSize(104, targetHeight));
+    await snapNativeWindow();
+  } catch {
+    // Window managers can reject a resize while a display is changing.
+  }
+}
 
 function displayTitle(title: string) {
   const chars = Array.from(title);
@@ -192,17 +239,10 @@ async function closePanel() {
 }
 
 function onPanelSave(payload: DockPanelSavePayload) {
-  if (payload.isNew) {
-    notes.value.unshift(payload.note);
-    isNewNotePending.value = false;
-  } else {
-    const target = notes.value.find((item) => item.id === payload.note.id);
-    if (target) {
-      target.title = payload.note.title;
-      target.body = payload.note.body;
-      target.color = payload.note.color;
-    }
-  }
+  const index = notes.value.findIndex((item) => item.id === payload.note.id);
+  if (index === -1) notes.value.unshift(payload.note);
+  else notes.value[index] = payload.note;
+  if (payload.isNew) isNewNotePending.value = false;
   if (panelOpen.value) activeNoteId.value = payload.note.id;
   nextTick(() => {
     setupQuickSetters();
@@ -358,18 +398,30 @@ function onRailLeave() {
 // Note actions
 // ---------------------------------------------------------------------------
 
-function archiveNote(note: Note) {
-  notes.value = notes.value.filter((item) => item.id !== note.id);
-  quickSetters.delete(findTab(note.id) as HTMLElement);
-  if (activeNoteId.value === note.id) void closePanel();
-  showToast(`“${note.title}”已归档`);
+async function archiveNote(note: Note) {
+  try {
+    if (isTauriRuntime()) await noteService.archive({ id: note.id, expectedRevision: note.revision });
+    notes.value = notes.value.filter((item) => item.id !== note.id);
+    quickSetters.delete(findTab(note.id) as HTMLElement);
+    if (activeNoteId.value === note.id) await closePanel();
+    showToast(`“${note.title}”已归档`);
+  } catch {
+    showToast("归档失败，便签可能已在其他窗口修改");
+    await loadDockNotes();
+  }
 }
 
-function deleteNote(note: Note) {
-  notes.value = notes.value.filter((item) => item.id !== note.id);
-  quickSetters.delete(findTab(note.id) as HTMLElement);
-  if (activeNoteId.value === note.id) void closePanel();
-  showToast(`“${note.title}”已移到废纸篓`);
+async function deleteNote(note: Note) {
+  try {
+    if (isTauriRuntime()) await noteService.delete({ id: note.id, expectedRevision: note.revision });
+    notes.value = notes.value.filter((item) => item.id !== note.id);
+    quickSetters.delete(findTab(note.id) as HTMLElement);
+    if (activeNoteId.value === note.id) await closePanel();
+    showToast(`“${note.title}”已移到废纸篓`);
+  } catch {
+    showToast("删除失败，便签可能已在其他窗口修改");
+    await loadDockNotes();
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -580,10 +632,7 @@ async function openSettings() {
   settingsSelected.value = true;
   settingsSelectedTimer = window.setTimeout(() => (settingsSelected.value = false), 650);
   try {
-    const { getAllWebviewWindows } = await import("@tauri-apps/api/webviewWindow");
-    const main = (await getAllWebviewWindows()).find((item) => item.label === "main");
-    await main?.show();
-    await main?.setFocus();
+    await appService.showMainWindow();
   } catch {
     showToast("已打开设置");
   }
@@ -606,6 +655,15 @@ onMounted(async () => {
   document.documentElement.classList.add("dock-document");
   document.body.classList.add("dock-document");
   await updateDisplayMetrics();
+  await loadDockNotes();
+  try {
+    await applyDockSettings(await appService.getSettings());
+    const { listen } = await import("@tauri-apps/api/event");
+    unlistenSettings = await listen<AppSettings>("settings-updated", (event) => void applyDockSettings(event.payload));
+    unlistenNotesChanged = await listen("notes:changed", () => void loadDockNotes());
+  } catch {
+    // Browser preview uses local defaults.
+  }
   setupQuickSetters();
   updateScrollEdges();
   if (noteList.value) {
@@ -626,8 +684,6 @@ onMounted(async () => {
   unlistenPanelBlurred = await listenOnWebview<null>(DOCK_BRIDGE.blurred, onPanelBlurred);
   unlistenPanelRequestClose = await listenOnWebview<null>(DOCK_BRIDGE.requestClose, onPanelRequestClose);
 
-  const dockWindow = await getDockWindow();
-  await dockWindow?.show();
 });
 
 onUnmounted(() => {
@@ -642,6 +698,8 @@ onUnmounted(() => {
   unlistenPanelSave?.();
   unlistenPanelBlurred?.();
   unlistenPanelRequestClose?.();
+  unlistenSettings?.();
+  unlistenNotesChanged?.();
   controlsTimeline?.kill();
   if (root.value) gsap.killTweensOf(root.value.querySelectorAll("*"));
   media?.revert();
@@ -650,7 +708,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main ref="root" class="dock-window" :class="[`dock-${side}`, { dragging, 'screen-compact': compact }]" :style="{ '--screen-height': `${screenHeight}px` }" @keydown="onRootKeydown" @pointerdown="onRootPointerDown">
+  <main ref="root" class="dock-window" :class="[`dock-${side}`, { dragging, 'screen-compact': compact }]" :style="{ '--screen-height': `${screenHeight}px`, '--list-target': `${listTargetHeight}px` }" @keydown="onRootKeydown" @pointerdown="onRootPointerDown">
     <aside class="dock-rail" :class="{ 'controls-visible': controlsVisible }" aria-label="便签栏" @pointermove="onRailMove" @pointerleave="onRailLeave">
       <div class="grab-zone">
         <button class="drag-handle adaptive-control" :class="{ selected: dragging }" data-control="handle" type="button" draggable="false" aria-label="拖动便签栏" :aria-pressed="dragging ? 'true' : 'false'" title="拖动便签栏" @pointerdown.left="beginWindowDrag" @keydown.enter.prevent="toggleSideWithKeyboard" @keydown.space.prevent="toggleSideWithKeyboard"><span><i></i><i></i><i></i><i></i><i></i><i></i></span></button>
@@ -658,7 +716,7 @@ onUnmounted(() => {
       <div class="note-list-shell" :class="{ 'blur-top': canScrollUp, 'blur-bottom': canScrollDown }">
         <div ref="noteList" class="note-list" @scroll="updateScrollEdges" @pointerenter="showControls">
         <div v-for="note in notes" :key="note.id" class="note-tab" :class="{ active: activeNoteId === note.id, actions: actionNote === note.id }" :data-id="note.id" role="button" tabindex="0" draggable="false" :aria-label="`打开${note.title}`" @pointerenter="beginHover(note)" @pointerleave="endHover(note)" @click="openNote(note)" @keydown.enter.prevent="openNote(note)" @keydown.space.prevent="openNote(note)">
-          <span class="paper" :style="{ '--paper': note.color }"><span class="title">{{ displayTitle(note.title) }}</span><span class="quick-actions"><button type="button" title="归档" aria-label="归档" @click.stop="archiveNote(note)"><svg viewBox="0 0 24 24"><path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6"/></svg></button><button type="button" title="删除" aria-label="删除" @click.stop="deleteNote(note)"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></button></span></span>
+          <span class="paper" :style="{ '--paper': noteColorCss(note.color) }"><span class="title">{{ displayTitle(note.title) }}</span><span class="quick-actions"><button type="button" title="归档" aria-label="归档" @click.stop="archiveNote(note)"><svg viewBox="0 0 24 24"><path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6"/></svg></button><button type="button" title="删除" aria-label="删除" @click.stop="deleteNote(note)"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></button></span></span>
         </div>
         </div>
       </div>
@@ -675,7 +733,7 @@ onUnmounted(() => {
 <style scoped>
 .dock-window{--rail:104px;--ease:cubic-bezier(.22,1,.36,1);width:100vw;height:100vh;position:relative;overflow:hidden;color:#29262b;background:transparent;pointer-events:none;user-select:none;-webkit-user-select:none}.dock-window svg,.note-tab,.paper{-webkit-user-drag:none}.note-tab,.drag-handle,.rail-controls>button{pointer-events:auto}.dock-rail{position:absolute;z-index:5;top:50%;right:0;width:var(--rail);height:min(calc(var(--screen-height) - 16px),calc(100vh - 16px));padding:3px 0;display:flex;flex-direction:column;align-items:flex-end;transform:translateY(-50%);perspective:700px;pointer-events:none}.dock-left .dock-rail{left:0;right:auto;align-items:flex-start}
 .grab-zone{width:100%;height:38px;flex:0 0 38px;display:flex;align-items:center;justify-content:flex-end;opacity:0;visibility:hidden;transform:translateY(20px);pointer-events:none}.dock-left .grab-zone{justify-content:flex-start}.controls-visible .grab-zone,.dragging .grab-zone{pointer-events:none}.drag-handle{width:48px;height:32px;margin-right:8px;padding:0;display:grid;place-items:center;border:1px solid rgba(255,255,255,.22);border-radius:11px;color:rgba(255,255,255,.82);background:rgba(24,26,31,.88);box-shadow:0 5px 16px rgba(0,0,0,.2);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);cursor:grab;touch-action:none;transition:color .18s ease,border-color .18s ease,box-shadow .2s var(--ease)}.dock-left .drag-handle{margin:0 0 0 8px}.drag-handle>span{width:18px;display:grid;grid-template-columns:repeat(3,4px);grid-template-rows:repeat(2,4px);justify-content:space-between;gap:3px}.drag-handle i{width:4px;height:4px;border-radius:50%;background:currentColor}.drag-handle:hover{color:#fff}.drag-handle:active,.dragging .drag-handle{cursor:grabbing}
-.note-list-shell{position:relative;width:100%;min-height:0;max-height:min(calc(var(--screen-height) - 228px),calc(100vh - 156px));flex:1 1 auto;overflow:hidden;pointer-events:none}.note-list-shell::before,.note-list-shell::after{content:"";position:absolute;z-index:20;left:0;right:0;height:24px;opacity:0;pointer-events:none;transition:opacity .18s ease;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}.note-list-shell::before{top:0;mask-image:linear-gradient(to bottom,#000,transparent);-webkit-mask-image:linear-gradient(to bottom,#000,transparent)}.note-list-shell::after{bottom:0;mask-image:linear-gradient(to top,#000,transparent);-webkit-mask-image:linear-gradient(to top,#000,transparent)}.note-list-shell.blur-top::before,.note-list-shell.blur-bottom::after{opacity:1}.note-list{width:100%;height:100%;max-height:none;padding:10px 0 15px;pointer-events:none;display:flex;flex-direction:column;align-items:flex-end;gap:2px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scroll-behavior:smooth;scrollbar-width:none}.blur-top:not(.blur-bottom) .note-list{mask-image:linear-gradient(to bottom,transparent 0,#000 22px);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px)}.blur-bottom:not(.blur-top) .note-list{mask-image:linear-gradient(to bottom,#000 calc(100% - 22px),transparent 100%);-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 22px),transparent 100%)}.blur-top.blur-bottom .note-list{mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%)}.note-list::-webkit-scrollbar{display:none}.dock-left .note-list{align-items:flex-start}.note-tab{position:relative;width:88px;height:126px;flex:0 0 126px;margin:0 -48px 0 0;padding:0;border:0;color:#302c2e;background:transparent;cursor:pointer;transform-origin:right center;will-change:transform;rotate:var(--tilt,0deg)}.note-tab+.note-tab{margin-top:-16px}.dock-left .note-tab{margin-right:0;margin-left:-48px;transform-origin:left center}.note-tab:nth-child(1){--tilt:-1.8deg;z-index:1}.note-tab:nth-child(2){--tilt:.9deg;z-index:2}.note-tab:nth-child(3){--tilt:-1.1deg;z-index:3}.note-tab:nth-child(4){--tilt:1.25deg;z-index:4}.note-tab:nth-child(5){--tilt:-1.35deg;z-index:5}.note-tab:nth-child(n+6){--tilt:-1deg}.note-tab.nearest,.note-tab.active,.note-tab:hover{z-index:12}.paper{position:absolute;inset:0;overflow:hidden;display:block;border-radius:18px 0 0 18px;background:var(--paper);box-shadow:none;transition:filter .2s ease}.note-tab:hover .paper{filter:brightness(1.045);box-shadow:none}.dock-left .paper{border-radius:0 18px 18px 0;box-shadow:none}.paper::after{content:"";position:absolute;inset:0;background:linear-gradient(145deg,rgba(255,255,255,.3),transparent 40%,rgba(60,45,30,.05));pointer-events:none}.paper::before{content:"";position:absolute;z-index:2;top:9px;bottom:9px;right:50%;border-right:1px dashed rgba(72,58,43,.2)}.title{position:absolute;z-index:3;left:0;top:9px;bottom:9px;width:38px;display:grid;place-items:center;writing-mode:vertical-rl;text-orientation:upright;color:rgba(47,42,40,.78);font-size:14px;font-weight:800;letter-spacing:.08em;overflow:hidden;text-overflow:ellipsis}.dock-left .title{left:auto;right:0}
+.note-list-shell{position:relative;width:100%;min-height:0;max-height:min(var(--list-target),calc(var(--screen-height) - 228px),calc(100vh - 156px));flex:1 1 auto;overflow:hidden;pointer-events:none}.note-list-shell::before,.note-list-shell::after{content:"";position:absolute;z-index:20;left:0;right:0;height:24px;opacity:0;pointer-events:none;transition:opacity .18s ease;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}.note-list-shell::before{top:0;mask-image:linear-gradient(to bottom,#000,transparent);-webkit-mask-image:linear-gradient(to bottom,#000,transparent)}.note-list-shell::after{bottom:0;mask-image:linear-gradient(to top,#000,transparent);-webkit-mask-image:linear-gradient(to top,#000,transparent)}.note-list-shell.blur-top::before,.note-list-shell.blur-bottom::after{opacity:1}.note-list{width:100%;height:100%;max-height:none;padding:10px 0 15px;pointer-events:none;display:flex;flex-direction:column;align-items:flex-end;gap:2px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scroll-behavior:smooth;scrollbar-width:none}.blur-top:not(.blur-bottom) .note-list{mask-image:linear-gradient(to bottom,transparent 0,#000 22px);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px)}.blur-bottom:not(.blur-top) .note-list{mask-image:linear-gradient(to bottom,#000 calc(100% - 22px),transparent 100%);-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 22px),transparent 100%)}.blur-top.blur-bottom .note-list{mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%)}.note-list::-webkit-scrollbar{display:none}.dock-left .note-list{align-items:flex-start}.note-tab{position:relative;width:88px;height:126px;flex:0 0 126px;margin:0 -48px 0 0;padding:0;border:0;color:#302c2e;background:transparent;cursor:pointer;transform-origin:right center;will-change:transform;rotate:var(--tilt,0deg)}.note-tab+.note-tab{margin-top:-16px}.dock-left .note-tab{margin-right:0;margin-left:-48px;transform-origin:left center}.note-tab:nth-child(1){--tilt:-1.8deg;z-index:1}.note-tab:nth-child(2){--tilt:.9deg;z-index:2}.note-tab:nth-child(3){--tilt:-1.1deg;z-index:3}.note-tab:nth-child(4){--tilt:1.25deg;z-index:4}.note-tab:nth-child(5){--tilt:-1.35deg;z-index:5}.note-tab:nth-child(n+6){--tilt:-1deg}.note-tab.nearest,.note-tab.active,.note-tab:hover{z-index:12}.paper{position:absolute;inset:0;overflow:hidden;display:block;border-radius:18px 0 0 18px;background:var(--paper);box-shadow:none;transition:filter .2s ease}.note-tab:hover .paper{filter:brightness(1.045);box-shadow:none}.dock-left .paper{border-radius:0 18px 18px 0;box-shadow:none}.paper::after{content:"";position:absolute;inset:0;background:linear-gradient(145deg,rgba(255,255,255,.3),transparent 40%,rgba(60,45,30,.05));pointer-events:none}.paper::before{content:"";position:absolute;z-index:2;top:9px;bottom:9px;right:50%;border-right:1px dashed rgba(72,58,43,.2)}.title{position:absolute;z-index:3;left:0;top:9px;bottom:9px;width:38px;display:grid;place-items:center;writing-mode:vertical-rl;text-orientation:upright;color:rgba(47,42,40,.78);font-size:14px;font-weight:800;letter-spacing:.08em;overflow:hidden;text-overflow:ellipsis}.dock-left .title{left:auto;right:0}
 .quick-actions{position:absolute;z-index:4;right:7px;top:0;bottom:0;width:45px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;opacity:0;transform:translateX(7px) scale(.92);pointer-events:none;transition:opacity .16s ease,transform .22s var(--ease)}.dock-left .quick-actions{left:7px;right:auto;transform:translateX(-7px) scale(.92)}.note-tab.actions .quick-actions{opacity:1;transform:none;pointer-events:auto}.quick-actions button{width:31px;height:31px;padding:0;display:grid;place-items:center;border:0;border-radius:10px;color:rgba(52,45,44,.63);background:transparent;cursor:pointer;transition:color .18s ease,background .18s ease,transform .2s var(--ease)}.quick-actions svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.quick-actions button:hover{color:#fff;transform:scale(1.06)}.quick-actions button:hover:first-child{background:#5b92e8;box-shadow:none}.quick-actions button:hover:last-child{background:#ef6262;box-shadow:none}
 .rail-controls{position:relative;z-index:30;width:100%;padding-top:0;display:flex;flex:0 0 auto;flex-direction:column;align-items:flex-end;opacity:0;visibility:hidden;transform:translateX(18px);pointer-events:none}.dock-left .rail-controls{align-items:flex-start;transform:translateX(-18px)}.controls-visible:not(.dragging) .rail-controls{pointer-events:none}.rail-controls .separator{position:absolute;top:-8px;right:0;width:54px;height:1px;margin:0;background:rgba(255,255,255,.18)}.dock-left .rail-controls .separator{right:auto;left:0}.rail-controls>button{position:relative;width:48px;height:48px;margin:0 4px 6px 0;padding:0;display:grid;place-items:center;border:1px solid rgba(255,255,255,.22);border-radius:50%;color:rgba(255,255,255,.82);background:rgba(24,26,31,.88);box-shadow:0 6px 18px rgba(0,0,0,.22);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);cursor:pointer;transition:color .18s ease,border-color .18s ease,box-shadow .2s var(--ease)}.dock-left .rail-controls>button{margin-right:0;margin-left:4px}.rail-controls>button>svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s var(--ease)}.rail-controls>button:hover{color:#fff}.rail-controls>button:hover>svg{transform:scale(1.16)}.rail-controls>button:active>svg{transform:scale(.94)}
 .adaptive-control.selected{color:#fff;border-color:rgba(255,255,255,.72);box-shadow:0 0 0 3px rgba(255,255,255,.14),0 7px 22px rgba(0,0,0,.3),inset 0 0 14px rgba(255,255,255,.1)}.adaptive-control.selected>svg{transform:scale(1.12)}.rail-controls>button[data-control="add"].selected>svg{transform:rotate(45deg) scale(1.06)}.drag-handle.selected>span{filter:drop-shadow(0 0 4px rgba(255,255,255,.75))}

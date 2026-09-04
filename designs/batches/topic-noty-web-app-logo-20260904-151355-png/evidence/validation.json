@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "status": "pending",
+  "validatedAt": "2026-09-04T16:11:58.1693781+08:00",
+  "checks": {"rootNodesReachable": true, "placeholdersCleared": true, "refsResolved": true, "assetsResolved": true, "unintendedClippingAbsent": true, "typographyPassed": true, "screenshotsReviewed": true, "userAcceptedDesign": false},
+  "warnings": ["Pencil standalone screenshot/export MCP endpoints were unavailable; evidence was generated with Pencil execute Export using includeChildren=true."],
+  "acceptedRisks": []
+}
