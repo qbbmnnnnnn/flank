@@ -10,8 +10,6 @@ import {
   type Note,
 } from "./bridge";
 
-type ControlTone = "light" | "dark";
-
 const root = ref<HTMLElement | null>(null);
 const noteList = ref<HTMLElement | null>(null);
 const side = ref<"left" | "right">("right");
@@ -28,7 +26,7 @@ const dragging = ref(false);
 const controlsVisible = ref(false);
 const actionNote = ref<string | null>(null);
 const peekNote = ref<string | null>(null);
-const controlTones = ref<Record<"handle" | "add" | "settings", ControlTone>>({ handle: "light", add: "light", settings: "light" });
+const settingsSelected = ref(false);
 const canScrollUp = ref(false);
 const canScrollDown = ref(false);
 const toast = ref("");
@@ -41,7 +39,7 @@ const isNewNotePending = ref(false);
 let context: gsap.Context | undefined;
 let media: gsap.MatchMedia | undefined;
 let toastTimer: number | undefined;
-let contrastTimer: number | undefined;
+let settingsSelectedTimer: number | undefined;
 let controlsHideTimer: number | undefined;
 let controlsTimeline: gsap.core.Timeline | undefined;
 let noteListObserver: ResizeObserver | undefined;
@@ -58,7 +56,7 @@ const compact = computed(() => screenHeight.value <= 720);
 
 function displayTitle(title: string) {
   const chars = Array.from(title);
-  return chars.length > 6 ? `${chars.slice(0, 5).join("")}…` : title;
+  return chars.length > 5 ? `${chars.slice(0, 5).join("")}…` : title;
 }
 
 function showLocalToast(message: string) {
@@ -183,6 +181,7 @@ async function closePanel() {
   panelOpen.value = false;
   activeNoteId.value = null;
   isNewNotePending.value = false;
+  resetRail();
   panelToken += 1;
   const token = panelToken;
   await emitToPanel(DOCK_BRIDGE.close, null);
@@ -508,10 +507,7 @@ async function beginWindowDrag(event: PointerEvent) {
 
 function showControlsAfterDrag() {
   controlsVisible.value = false;
-  nextTick(() => {
-    showControls();
-    void sampleControlContrast();
-  });
+  nextTick(showControls);
   showToast(side.value === "left" ? "便签栏已吸附到左侧" : "便签栏已吸附到右侧");
 }
 
@@ -574,43 +570,15 @@ async function toggleSideWithKeyboard() {
     }
     side.value = nextSide;
     showToast(nextSide === "left" ? "便签栏已吸附到左侧" : "便签栏已吸附到右侧");
-    void sampleControlContrast();
   } catch {
     showToast("无法移动便签栏，请检查窗口权限");
   }
 }
 
-async function sampleControlContrast() {
-  if (!root.value || dragging.value) return;
-  try {
-    const win = await getDockWindow();
-    if (!win) return;
-    const [{ invoke }, position, scaleFactor] = await Promise.all([
-      import("@tauri-apps/api/core"), win.outerPosition(), win.scaleFactor(),
-    ]);
-    const names = ["handle", "add", "settings"] as const;
-    const points = names.map((name) => {
-      const element = root.value?.querySelector<HTMLElement>(`[data-control="${name}"]`);
-      const rect = element?.getBoundingClientRect();
-      if (!rect) return { x: position.x, y: position.y };
-      const localX = side.value === "right" ? rect.left - 8 : rect.right + 8;
-      return { x: Math.round(position.x + localX * scaleFactor), y: Math.round(position.y + (rect.top + rect.height / 2) * scaleFactor) };
-    });
-    const luminances = await invoke<Array<number | null>>("sample_screen_luminance", { points });
-    const next = { ...controlTones.value };
-    names.forEach((name, index) => {
-      const luminance = luminances[index];
-      if (luminance == null) return;
-      if (luminance > .58) next[name] = "dark";
-      else if (luminance < .45) next[name] = "light";
-    });
-    controlTones.value = next;
-  } catch {
-    // Keep the high-contrast light fallback when native sampling is unavailable.
-  }
-}
-
 async function openSettings() {
+  window.clearTimeout(settingsSelectedTimer);
+  settingsSelected.value = true;
+  settingsSelectedTimer = window.setTimeout(() => (settingsSelected.value = false), 650);
   try {
     const { getAllWebviewWindows } = await import("@tauri-apps/api/webviewWindow");
     const main = (await getAllWebviewWindows()).find((item) => item.label === "main");
@@ -660,17 +628,15 @@ onMounted(async () => {
 
   const dockWindow = await getDockWindow();
   await dockWindow?.show();
-  window.setTimeout(() => void sampleControlContrast(), 500);
-  contrastTimer = window.setInterval(() => void sampleControlContrast(), 1500);
 });
 
 onUnmounted(() => {
   document.documentElement.classList.remove("dock-document");
   document.body.classList.remove("dock-document");
   window.clearTimeout(toastTimer);
+  window.clearTimeout(settingsSelectedTimer);
   window.clearTimeout(controlsHideTimer);
   window.clearTimeout(pendingCloseTimer);
-  window.clearInterval(contrastTimer);
   hoverTimers.forEach((timer) => window.clearTimeout(timer));
   noteListObserver?.disconnect();
   unlistenPanelSave?.();
@@ -687,7 +653,7 @@ onUnmounted(() => {
   <main ref="root" class="dock-window" :class="[`dock-${side}`, { dragging, 'screen-compact': compact }]" :style="{ '--screen-height': `${screenHeight}px` }" @keydown="onRootKeydown" @pointerdown="onRootPointerDown">
     <aside class="dock-rail" :class="{ 'controls-visible': controlsVisible }" aria-label="便签栏" @pointermove="onRailMove" @pointerleave="onRailLeave">
       <div class="grab-zone">
-        <button class="drag-handle adaptive-control" data-control="handle" :data-tone="controlTones.handle" type="button" draggable="false" aria-label="拖动便签栏" :aria-pressed="dragging ? 'true' : 'false'" title="拖动便签栏" @pointerdown.left="beginWindowDrag" @keydown.enter.prevent="toggleSideWithKeyboard" @keydown.space.prevent="toggleSideWithKeyboard"><span><i></i><i></i><i></i><i></i><i></i><i></i></span></button>
+        <button class="drag-handle adaptive-control" :class="{ selected: dragging }" data-control="handle" type="button" draggable="false" aria-label="拖动便签栏" :aria-pressed="dragging ? 'true' : 'false'" title="拖动便签栏" @pointerdown.left="beginWindowDrag" @keydown.enter.prevent="toggleSideWithKeyboard" @keydown.space.prevent="toggleSideWithKeyboard"><span><i></i><i></i><i></i><i></i><i></i><i></i></span></button>
       </div>
       <div class="note-list-shell" :class="{ 'blur-top': canScrollUp, 'blur-bottom': canScrollDown }">
         <div ref="noteList" class="note-list" @scroll="updateScrollEdges" @pointerenter="showControls">
@@ -697,8 +663,8 @@ onUnmounted(() => {
         </div>
       </div>
       <div class="rail-controls"><span class="separator"></span>
-        <button class="adaptive-control" data-control="add" :data-tone="controlTones.add" type="button" aria-label="新建便签" @click="createNote"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
-        <button class="adaptive-control" data-control="settings" :data-tone="controlTones.settings" type="button" aria-label="打开设置" @click="openSettings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.17.38.38.73.6 1 .28.34.67.54 1.1.6H21v4h-.09A1.7 1.7 0 0 0 19.4 15Z"/></svg></button>
+        <button class="adaptive-control" :class="{ selected: isNewNotePending }" data-control="add" type="button" aria-label="新建便签" :aria-pressed="isNewNotePending ? 'true' : 'false'" @click="createNote"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+        <button class="adaptive-control" :class="{ selected: settingsSelected }" data-control="settings" type="button" aria-label="打开设置" @click="openSettings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.17.38.38.73.6 1 .28.34.67.54 1.1.6H21v4h-.09A1.7 1.7 0 0 0 19.4 15Z"/></svg></button>
       </div>
     </aside>
 
@@ -708,12 +674,12 @@ onUnmounted(() => {
 
 <style scoped>
 .dock-window{--rail:104px;--ease:cubic-bezier(.22,1,.36,1);width:100vw;height:100vh;position:relative;overflow:hidden;color:#29262b;background:transparent;pointer-events:none;user-select:none;-webkit-user-select:none}.dock-window svg,.note-tab,.paper{-webkit-user-drag:none}.note-tab,.drag-handle,.rail-controls>button{pointer-events:auto}.dock-rail{position:absolute;z-index:5;top:50%;right:0;width:var(--rail);height:min(calc(var(--screen-height) - 16px),calc(100vh - 16px));padding:3px 0;display:flex;flex-direction:column;align-items:flex-end;transform:translateY(-50%);perspective:700px;pointer-events:none}.dock-left .dock-rail{left:0;right:auto;align-items:flex-start}
-.grab-zone{width:100%;height:38px;flex:0 0 38px;display:flex;align-items:center;justify-content:flex-end;opacity:0;visibility:hidden;transform:translateY(20px);pointer-events:none}.dock-left .grab-zone{justify-content:flex-start}.controls-visible .grab-zone,.dragging .grab-zone{pointer-events:none}.drag-handle{width:48px;height:32px;margin-right:8px;padding:0;display:grid;place-items:center;border:1px solid rgba(255,255,255,.2);border-radius:11px;color:rgba(255,255,255,.72);background:rgba(245,246,250,.2);box-shadow:none;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);cursor:grab;touch-action:none}.dock-left .drag-handle{margin:0 0 0 8px}.drag-handle>span{width:18px;display:grid;grid-template-columns:repeat(3,4px);grid-template-rows:repeat(2,4px);justify-content:space-between;gap:3px}.drag-handle i{width:4px;height:4px;border-radius:50%;background:currentColor}.drag-handle:hover{color:rgba(255,255,255,.96);background:rgba(245,246,250,.28)}.drag-handle:active,.dragging .drag-handle{cursor:grabbing}
-.note-list-shell{position:relative;width:100%;min-height:0;max-height:min(calc(var(--screen-height) - 228px),calc(100vh - 156px));flex:1 1 auto;overflow:hidden;pointer-events:none}.note-list-shell::before,.note-list-shell::after{content:"";position:absolute;z-index:20;left:0;right:0;height:24px;opacity:0;pointer-events:none;transition:opacity .18s ease;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}.note-list-shell::before{top:0;mask-image:linear-gradient(to bottom,#000,transparent);-webkit-mask-image:linear-gradient(to bottom,#000,transparent)}.note-list-shell::after{bottom:0;mask-image:linear-gradient(to top,#000,transparent);-webkit-mask-image:linear-gradient(to top,#000,transparent)}.note-list-shell.blur-top::before,.note-list-shell.blur-bottom::after{opacity:1}.note-list{width:100%;height:100%;max-height:none;padding:10px 0 15px;pointer-events:none;display:flex;flex-direction:column;align-items:flex-end;gap:2px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scroll-behavior:smooth;scrollbar-width:none}.blur-top:not(.blur-bottom) .note-list{mask-image:linear-gradient(to bottom,transparent 0,#000 22px);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px)}.blur-bottom:not(.blur-top) .note-list{mask-image:linear-gradient(to bottom,#000 calc(100% - 22px),transparent 100%);-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 22px),transparent 100%)}.blur-top.blur-bottom .note-list{mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%)}.note-list::-webkit-scrollbar{display:none}.dock-left .note-list{align-items:flex-start}.note-tab{position:relative;width:96px;height:114px;flex:0 0 114px;margin:0 -54px 0 0;padding:0;border:0;color:#302c2e;background:transparent;cursor:pointer;transform-origin:right center;will-change:transform;rotate:var(--tilt,0deg)}.note-tab+.note-tab{margin-top:-9px}.dock-left .note-tab{margin-right:0;margin-left:-54px;transform-origin:left center}.note-tab:nth-child(1){--tilt:-1.8deg;z-index:1}.note-tab:nth-child(2){--tilt:.9deg;z-index:2}.note-tab:nth-child(3){--tilt:-1.1deg;z-index:3}.note-tab:nth-child(4){--tilt:1.25deg;z-index:4}.note-tab:nth-child(5){--tilt:-1.35deg;z-index:5}.note-tab:nth-child(n+6){--tilt:-1deg}.note-tab.nearest,.note-tab.active,.note-tab:hover{z-index:12}.paper{position:absolute;inset:0;overflow:hidden;display:block;border-radius:18px 0 0 18px;background:var(--paper);box-shadow:none;transition:filter .2s ease}.note-tab:hover .paper{filter:brightness(1.045);box-shadow:none}.dock-left .paper{border-radius:0 18px 18px 0;box-shadow:none}.paper::after{content:"";position:absolute;inset:0;background:linear-gradient(145deg,rgba(255,255,255,.3),transparent 40%,rgba(60,45,30,.05));pointer-events:none}.paper::before{content:"";position:absolute;z-index:2;top:9px;bottom:9px;right:50%;border-right:1px dashed rgba(72,58,43,.2)}.title{position:absolute;z-index:3;left:0;top:9px;bottom:9px;width:38px;display:grid;place-items:center;writing-mode:vertical-rl;text-orientation:upright;color:rgba(47,42,40,.78);font-size:14px;font-weight:800;letter-spacing:.08em;overflow:hidden;text-overflow:ellipsis}.dock-left .title{left:auto;right:0}
+.grab-zone{width:100%;height:38px;flex:0 0 38px;display:flex;align-items:center;justify-content:flex-end;opacity:0;visibility:hidden;transform:translateY(20px);pointer-events:none}.dock-left .grab-zone{justify-content:flex-start}.controls-visible .grab-zone,.dragging .grab-zone{pointer-events:none}.drag-handle{width:48px;height:32px;margin-right:8px;padding:0;display:grid;place-items:center;border:1px solid rgba(255,255,255,.22);border-radius:11px;color:rgba(255,255,255,.82);background:rgba(24,26,31,.88);box-shadow:0 5px 16px rgba(0,0,0,.2);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);cursor:grab;touch-action:none;transition:color .18s ease,border-color .18s ease,box-shadow .2s var(--ease)}.dock-left .drag-handle{margin:0 0 0 8px}.drag-handle>span{width:18px;display:grid;grid-template-columns:repeat(3,4px);grid-template-rows:repeat(2,4px);justify-content:space-between;gap:3px}.drag-handle i{width:4px;height:4px;border-radius:50%;background:currentColor}.drag-handle:hover{color:#fff}.drag-handle:active,.dragging .drag-handle{cursor:grabbing}
+.note-list-shell{position:relative;width:100%;min-height:0;max-height:min(calc(var(--screen-height) - 228px),calc(100vh - 156px));flex:1 1 auto;overflow:hidden;pointer-events:none}.note-list-shell::before,.note-list-shell::after{content:"";position:absolute;z-index:20;left:0;right:0;height:24px;opacity:0;pointer-events:none;transition:opacity .18s ease;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}.note-list-shell::before{top:0;mask-image:linear-gradient(to bottom,#000,transparent);-webkit-mask-image:linear-gradient(to bottom,#000,transparent)}.note-list-shell::after{bottom:0;mask-image:linear-gradient(to top,#000,transparent);-webkit-mask-image:linear-gradient(to top,#000,transparent)}.note-list-shell.blur-top::before,.note-list-shell.blur-bottom::after{opacity:1}.note-list{width:100%;height:100%;max-height:none;padding:10px 0 15px;pointer-events:none;display:flex;flex-direction:column;align-items:flex-end;gap:2px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scroll-behavior:smooth;scrollbar-width:none}.blur-top:not(.blur-bottom) .note-list{mask-image:linear-gradient(to bottom,transparent 0,#000 22px);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px)}.blur-bottom:not(.blur-top) .note-list{mask-image:linear-gradient(to bottom,#000 calc(100% - 22px),transparent 100%);-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 22px),transparent 100%)}.blur-top.blur-bottom .note-list{mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%)}.note-list::-webkit-scrollbar{display:none}.dock-left .note-list{align-items:flex-start}.note-tab{position:relative;width:88px;height:126px;flex:0 0 126px;margin:0 -48px 0 0;padding:0;border:0;color:#302c2e;background:transparent;cursor:pointer;transform-origin:right center;will-change:transform;rotate:var(--tilt,0deg)}.note-tab+.note-tab{margin-top:-16px}.dock-left .note-tab{margin-right:0;margin-left:-48px;transform-origin:left center}.note-tab:nth-child(1){--tilt:-1.8deg;z-index:1}.note-tab:nth-child(2){--tilt:.9deg;z-index:2}.note-tab:nth-child(3){--tilt:-1.1deg;z-index:3}.note-tab:nth-child(4){--tilt:1.25deg;z-index:4}.note-tab:nth-child(5){--tilt:-1.35deg;z-index:5}.note-tab:nth-child(n+6){--tilt:-1deg}.note-tab.nearest,.note-tab.active,.note-tab:hover{z-index:12}.paper{position:absolute;inset:0;overflow:hidden;display:block;border-radius:18px 0 0 18px;background:var(--paper);box-shadow:none;transition:filter .2s ease}.note-tab:hover .paper{filter:brightness(1.045);box-shadow:none}.dock-left .paper{border-radius:0 18px 18px 0;box-shadow:none}.paper::after{content:"";position:absolute;inset:0;background:linear-gradient(145deg,rgba(255,255,255,.3),transparent 40%,rgba(60,45,30,.05));pointer-events:none}.paper::before{content:"";position:absolute;z-index:2;top:9px;bottom:9px;right:50%;border-right:1px dashed rgba(72,58,43,.2)}.title{position:absolute;z-index:3;left:0;top:9px;bottom:9px;width:38px;display:grid;place-items:center;writing-mode:vertical-rl;text-orientation:upright;color:rgba(47,42,40,.78);font-size:14px;font-weight:800;letter-spacing:.08em;overflow:hidden;text-overflow:ellipsis}.dock-left .title{left:auto;right:0}
 .quick-actions{position:absolute;z-index:4;right:7px;top:0;bottom:0;width:45px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;opacity:0;transform:translateX(7px) scale(.92);pointer-events:none;transition:opacity .16s ease,transform .22s var(--ease)}.dock-left .quick-actions{left:7px;right:auto;transform:translateX(-7px) scale(.92)}.note-tab.actions .quick-actions{opacity:1;transform:none;pointer-events:auto}.quick-actions button{width:31px;height:31px;padding:0;display:grid;place-items:center;border:0;border-radius:10px;color:rgba(52,45,44,.63);background:transparent;cursor:pointer;transition:color .18s ease,background .18s ease,transform .2s var(--ease)}.quick-actions svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.quick-actions button:hover{color:#fff;transform:scale(1.06)}.quick-actions button:hover:first-child{background:#5b92e8;box-shadow:none}.quick-actions button:hover:last-child{background:#ef6262;box-shadow:none}
-.rail-controls{position:relative;z-index:30;width:100%;padding-top:0;display:flex;flex:0 0 auto;flex-direction:column;align-items:flex-end;opacity:0;visibility:hidden;transform:translateX(18px);pointer-events:none}.dock-left .rail-controls{align-items:flex-start;transform:translateX(-18px)}.controls-visible:not(.dragging) .rail-controls{pointer-events:none}.rail-controls .separator{position:absolute;top:-8px;right:0;width:54px;height:1px;margin:0;background:rgba(255,255,255,.18)}.dock-left .rail-controls .separator{right:auto;left:0}.rail-controls>button{position:relative;width:48px;height:48px;margin:0 4px 6px 0;padding:0;display:grid;place-items:center;border:1px solid rgba(255,255,255,.2);border-radius:50%;color:rgba(255,255,255,.72);background:rgba(245,246,250,.2);box-shadow:none;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);cursor:pointer}.dock-left .rail-controls>button{margin-right:0;margin-left:4px}.rail-controls>button>svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s var(--ease)}.rail-controls>button:hover{color:rgba(255,255,255,.96);background:rgba(245,246,250,.28)}.rail-controls>button:hover>svg{transform:scale(1.16)}.rail-controls>button:active>svg{transform:scale(.94)}
-.adaptive-control[data-tone="dark"]{color:rgba(255,255,255,.9)!important;border-color:rgba(255,255,255,.2)!important;background:rgba(28,30,35,.72)!important;box-shadow:none}.adaptive-control[data-tone="dark"]:hover{color:#fff!important;background:rgba(18,20,24,.84)!important}
-.dragging .dock-rail{z-index:50}.dragging .note-list{mask-image:none;-webkit-mask-image:none;align-items:flex-end}.dock-left.dragging .note-list{align-items:flex-end}.dragging .note-tab{width:96px;height:96px;flex-basis:96px;margin:-4px 0 0!important;transform-origin:center}.dragging .paper{border-radius:16px!important;animation:wiggle .22s ease-in-out infinite alternate}.dragging .note-tab:nth-child(2n) .paper{animation-delay:-.11s}.dragging .note-tab:nth-child(3n) .paper{animation-delay:-.055s}.dragging .title{inset:0;width:auto;writing-mode:horizontal-tb;text-orientation:mixed;letter-spacing:.04em}.dragging .paper::before,.dragging .quick-actions,.dragging .rail-controls{display:none}.screen-compact .note-list-shell{max-height:min(calc(var(--screen-height) - 224px),calc(100vh - 170px))}.screen-compact .note-list{gap:1px}.screen-compact .note-tab{height:88px;flex-basis:88px}.screen-compact .note-tab+.note-tab{margin-top:-7px}.screen-compact .paper{border-radius:15px 0 0 15px}.screen-compact.dock-left .paper{border-radius:0 15px 15px 0}.screen-compact .title{font-size:12px;letter-spacing:.02em}.screen-compact.dragging .note-tab{width:88px;height:88px;flex-basis:88px}.screen-compact.dragging .paper{border-radius:15px!important}
+.rail-controls{position:relative;z-index:30;width:100%;padding-top:0;display:flex;flex:0 0 auto;flex-direction:column;align-items:flex-end;opacity:0;visibility:hidden;transform:translateX(18px);pointer-events:none}.dock-left .rail-controls{align-items:flex-start;transform:translateX(-18px)}.controls-visible:not(.dragging) .rail-controls{pointer-events:none}.rail-controls .separator{position:absolute;top:-8px;right:0;width:54px;height:1px;margin:0;background:rgba(255,255,255,.18)}.dock-left .rail-controls .separator{right:auto;left:0}.rail-controls>button{position:relative;width:48px;height:48px;margin:0 4px 6px 0;padding:0;display:grid;place-items:center;border:1px solid rgba(255,255,255,.22);border-radius:50%;color:rgba(255,255,255,.82);background:rgba(24,26,31,.88);box-shadow:0 6px 18px rgba(0,0,0,.22);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);cursor:pointer;transition:color .18s ease,border-color .18s ease,box-shadow .2s var(--ease)}.dock-left .rail-controls>button{margin-right:0;margin-left:4px}.rail-controls>button>svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s var(--ease)}.rail-controls>button:hover{color:#fff}.rail-controls>button:hover>svg{transform:scale(1.16)}.rail-controls>button:active>svg{transform:scale(.94)}
+.adaptive-control.selected{color:#fff;border-color:rgba(255,255,255,.72);box-shadow:0 0 0 3px rgba(255,255,255,.14),0 7px 22px rgba(0,0,0,.3),inset 0 0 14px rgba(255,255,255,.1)}.adaptive-control.selected>svg{transform:scale(1.12)}.rail-controls>button[data-control="add"].selected>svg{transform:rotate(45deg) scale(1.06)}.drag-handle.selected>span{filter:drop-shadow(0 0 4px rgba(255,255,255,.75))}
+.dragging .dock-rail{z-index:50}.dragging .note-list{mask-image:none;-webkit-mask-image:none;align-items:flex-end}.dock-left.dragging .note-list{align-items:flex-end}.dragging .note-tab{width:96px;height:96px;flex-basis:96px;margin:-4px 0 0!important;transform-origin:center}.dragging .paper{border-radius:16px!important;animation:wiggle .22s ease-in-out infinite alternate}.dragging .note-tab:nth-child(2n) .paper{animation-delay:-.11s}.dragging .note-tab:nth-child(3n) .paper{animation-delay:-.055s}.dragging .title{inset:0;width:auto;writing-mode:horizontal-tb;text-orientation:mixed;letter-spacing:.04em}.dragging .paper::before,.dragging .quick-actions,.dragging .rail-controls{display:none}.screen-compact .note-list-shell{max-height:min(calc(var(--screen-height) - 224px),calc(100vh - 170px))}.screen-compact .note-list{gap:1px}.screen-compact .note-tab{height:104px;flex-basis:104px}.screen-compact .note-tab+.note-tab{margin-top:-14px}.screen-compact .paper{border-radius:15px 0 0 15px}.screen-compact.dock-left .paper{border-radius:0 15px 15px 0}.screen-compact .title{font-size:12px;letter-spacing:.02em}.screen-compact.dragging .note-tab{width:88px;height:88px;flex-basis:88px}.screen-compact.dragging .paper{border-radius:15px!important}
 .dock-toast{position:absolute;z-index:60;left:50%;bottom:16px;padding:9px 13px;border:1px solid rgba(255,255,255,.13);border-radius:10px;color:#fff;background:rgba(28,26,32,.86);box-shadow:none;transform:translateX(-50%);font-size:10px;white-space:nowrap}.toast-enter-active,.toast-leave-active{transition:opacity .16s ease,transform .2s ease}.toast-enter-from,.toast-leave-to{opacity:0;transform:translate(-50%,7px)}@keyframes wiggle{from{transform:rotate(-2deg) translate3d(-1px,0,0)}to{transform:rotate(2deg) translate3d(1px,-1px,0)}}
 @media(prefers-reduced-motion:reduce){.dragging .paper{animation:none!important}*{scroll-behavior:auto!important}}
 </style>

@@ -41,7 +41,7 @@
         "label": "dock-panel",
         "title": "Noty Panel",
         "url": "index.html#/dock-panel",
-        "width": 396,
+        "width": 432,
         "height": 720,
         "decorations": false,
         "transparent": true,

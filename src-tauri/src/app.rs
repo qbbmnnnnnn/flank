@@ -47,6 +47,8 @@ pub fn run() {
             crate::commands::system::sample_screen_luminance,
             crate::commands::system::is_primary_mouse_button_pressed,
             crate::commands::system::show_dock_panel,
+            crate::commands::system::settle_dock_panel,
+            crate::commands::system::prepare_dock_panel_animation,
             crate::commands::system::hide_dock_panel,
             crate::commands::system::show_dock_toast
         ])

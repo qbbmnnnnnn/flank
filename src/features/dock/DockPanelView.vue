@@ -25,6 +25,7 @@ const editorBody = ref<HTMLElement | null>(null);
 
 const side = ref<AnchorSide>("right");
 const open = ref(false);
+const edgeStaged = ref(false);
 const mode = ref<EditorMode>("closed");
 const activeNote = ref<Note | null>(null);
 const draftTarget = ref<Note | null>(null);
@@ -64,6 +65,26 @@ function requestClose() {
   void emitToDock(DOCK_BRIDGE.requestClose, null);
 }
 
+async function settlePanelWindow() {
+  if (!("__TAURI_INTERNALS__" in window)) return;
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("settle_dock_panel", { anchorSide: side.value });
+  } catch {
+    // Keep the wide, transparent layout if native hit-region shaping fails.
+  }
+}
+
+async function preparePanelAnimation() {
+  if (!("__TAURI_INTERNALS__" in window)) return;
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("prepare_dock_panel_animation");
+  } catch {
+    // The exit animation can still run with the current hit region.
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Entrance / exit
 // ---------------------------------------------------------------------------
@@ -74,6 +95,7 @@ function playPanelEntrance(panel: HTMLElement) {
 
   if (isReducedMotion()) {
     gsap.set(panel, { clearProps: "transform,opacity,visibility" });
+    void settlePanelWindow();
     return;
   }
 
@@ -88,7 +110,7 @@ function playPanelEntrance(panel: HTMLElement) {
   panelAnimation = gsap.timeline({ defaults: { overwrite: "auto" } })
     .set(panel, { autoAlpha: 1 })
     .to(panel, { x: 12 * direction, rotation: 2.2 * direction, duration: .56, ease: "power3.out" })
-    .to(panel, { x: 0, rotation: 0, duration: .3, ease: "back.out(1.7)", clearProps: "transform,opacity,visibility" });
+    .to(panel, { x: 0, rotation: 0, duration: .3, ease: "back.out(1.7)", clearProps: "transform,opacity,visibility", onComplete: () => void settlePanelWindow() });
 }
 
 async function animateOutCurrent() {
@@ -119,6 +141,7 @@ async function playPanelExit() {
 
 async function handleOpen(payload: DockPanelOpenPayload) {
   side.value = payload.anchorSide;
+  edgeStaged.value = true;
   const wasClosed = !open.value;
 
   if (payload.isNew) {
@@ -137,6 +160,7 @@ async function handleOpen(payload: DockPanelOpenPayload) {
     root.value?.querySelector<HTMLInputElement>(".editor-title")?.focus();
     const panel = root.value?.querySelector<HTMLElement>(".note-panel");
     if (panel && wasClosed) playPanelEntrance(panel);
+    else void settlePanelWindow();
     return;
   }
 
@@ -144,6 +168,7 @@ async function handleOpen(payload: DockPanelOpenPayload) {
   if (!note) return;
 
   if (payload.sameNote) {
+    void settlePanelWindow();
     if (mode.value === "preview" && activeNote.value?.id === note.id) {
       editNote();
     } else if (mode.value === "edit" && activeNote.value?.id === note.id) {
@@ -169,13 +194,16 @@ async function handleOpen(payload: DockPanelOpenPayload) {
   await nextTick();
   const panel = root.value?.querySelector<HTMLElement>(".note-panel");
   if (panel && (wasClosed || isSwitch)) playPanelEntrance(panel);
+  else void settlePanelWindow();
 }
 
 async function handleClose() {
   if (!open.value) return;
   if (mode.value === "edit") flushSave();
+  await preparePanelAnimation();
   await playPanelExit();
   open.value = false;
+  edgeStaged.value = false;
   mode.value = "closed";
   activeNote.value = null;
   draftTarget.value = null;
@@ -610,7 +638,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main ref="root" class="dock-panel-window" :class="[`dock-${side}`, { open }]">
+  <main ref="root" class="dock-panel-window" :class="[`dock-${side}`, { open, 'edge-staged': edgeStaged }]">
     <button v-if="open" class="panel-dismiss-layer" type="button" aria-label="关闭便签" @click="requestClose"></button>
     <article v-if="open && mode !== 'closed'" class="note-panel" :class="[mode]" :style="{ '--paper': paper }">
       <template v-if="mode === 'preview' && activeNote">
@@ -656,7 +684,7 @@ onUnmounted(() => {
 .dock-panel-window{width:100vw;height:100vh;position:relative;overflow:hidden;background:transparent;pointer-events:none;user-select:none;-webkit-user-select:none}
 .note-panel,.note-panel *{pointer-events:auto}
 .panel-dismiss-layer{position:absolute;z-index:2;inset:0;padding:0;border:0;background:transparent;pointer-events:auto;cursor:default}
-.note-panel{position:absolute;z-index:3;top:50%;right:10px;width:380px;overflow:hidden;will-change:transform,opacity;border:1px solid rgba(255,255,255,.28);border-radius:20px;color:#2c2930;background:var(--paper,#ffe78a);box-shadow:none;transform:translateY(-50%);transform-origin:right center}.dock-left .note-panel{left:10px;right:auto;transform-origin:left center}.note-panel::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(145deg,rgba(255,255,255,.26),transparent 26%,rgba(107,73,25,.05))}
+.note-panel{position:absolute;z-index:3;top:50%;right:0;width:380px;overflow:hidden;will-change:transform,opacity;border:1px solid rgba(255,255,255,.28);border-radius:20px;color:#2c2930;background:var(--paper,#ffe78a);box-shadow:none;transform:translateY(-50%);transform-origin:right center}.dock-left .note-panel{left:0;right:auto;transform-origin:left center}.edge-staged.dock-right .note-panel{right:104px}.edge-staged.dock-left .note-panel{left:104px}.note-panel::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(145deg,rgba(255,255,255,.26),transparent 26%,rgba(107,73,25,.05))}
 .note-panel.preview{height:min(490px,72vh)}.note-panel.edit{height:min(560px,78vh)}
 .panel-header{position:relative;z-index:1;height:64px;padding:0 15px 0 19px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(70,55,30,.11)}.panel-header h1{min-width:0;margin:0;overflow:hidden;color:#29262b;font-size:22px;line-height:1.2;letter-spacing:-.025em;text-overflow:ellipsis;white-space:nowrap}.panel-actions{display:flex;gap:6px}.panel-actions button,.panel-close{width:30px;height:30px;padding:0;display:grid;place-items:center;border:0;border-radius:50%;color:rgba(40,35,31,.58);background:rgba(255,255,255,.22);cursor:pointer;transition:background .18s ease,transform .18s ease}.panel-actions button:hover,.panel-close:hover{background:rgba(255,255,255,.42);transform:scale(1.06)}.panel-actions svg,.panel-close svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .preview-body{position:relative;z-index:1;height:calc(100% - 64px);padding:18px 22px 30px;overflow-y:auto;font-size:17px;line-height:1.85;scrollbar-width:thin;scrollbar-color:rgba(70,55,30,.22) transparent}.preview-body p{min-height:1.7em;margin:2px 0}.preview-body h1,.preview-body h2,.preview-body h3{margin:19px 0 8px;line-height:1.3}.preview-body h1{font-size:23px}.preview-body h2{font-size:20px}.preview-body h3{font-size:17px}.preview-body :deep(code){padding:2px 5px;border-radius:5px;background:rgba(255,255,255,.28);font-family:"Cascadia Code",Consolas,monospace;font-size:.9em}.preview-body :deep(a){color:#315f9f;text-decoration-thickness:1px;text-underline-offset:2px}.preview-body blockquote{margin:8px 0;padding-left:12px;border-left:3px solid rgba(54,48,53,.3);color:rgba(54,48,53,.72)}
