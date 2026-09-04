@@ -1,5 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
+import {
+  ArrowLeft,
+  Command,
+  Keyboard,
+  PanelRight,
+  RefreshCw,
+  Settings2,
+  ShieldCheck,
+  StickyNote,
+  X,
+} from "lucide-vue-next";
 import { useRouter } from "vue-router";
 
 import { useAppStore } from "../../app/stores/app";
@@ -27,7 +38,7 @@ let toastTimer: number | undefined;
 
 const settings = reactive<AppSettings>({
   language: "zh-CN",
-  launchAtLogin: false,
+  launchAtLogin: true,
   closeBehavior: "background",
   dockEnabled: true,
   dockVisibleCount: 7,
@@ -124,14 +135,14 @@ const shortcuts = ref<Shortcut[]>([
   { id: "archive", label: "Archive", description: "打开已归档便签", keys: ["Ctrl", "Alt", "A"] },
 ]);
 
-const sections: Array<{ id: SectionId; label: string; caption: string }> = [
-  { id: "general", label: "通用", caption: "启动与窗口" },
-  { id: "shortcuts", label: "快捷键", caption: "全局操作" },
-  { id: "dock", label: "便签栏", caption: "位置与行为" },
-  { id: "notes", label: "便签", caption: "编辑与外观" },
-  { id: "privacy", label: "数据与隐私", caption: "本地存储" },
-  { id: "updates", label: "更新", caption: "版本与发布" },
-];
+const sections = [
+  { id: "general", label: "通用", title: "通用设置", eyebrow: "GENERAL", subtitle: "定制 Noty 的显示方式与启动行为。", caption: "外观与启动", icon: Settings2 },
+  { id: "shortcuts", label: "快捷键", title: "快捷键", eyebrow: "SHORTCUTS", subtitle: "管理在任意应用中生效的全局操作。", caption: "全局操作", icon: Keyboard },
+  { id: "dock", label: "便签栏", title: "便签栏", eyebrow: "DOCK", subtitle: "调整便签栏的位置、数量与交互方式。", caption: "位置与行为", icon: PanelRight },
+  { id: "notes", label: "便签", title: "便签", eyebrow: "NOTES", subtitle: "设置便签的编辑体验与默认外观。", caption: "编辑与外观", icon: StickyNote },
+  { id: "privacy", label: "数据与隐私", title: "数据与隐私", eyebrow: "PRIVACY", subtitle: "管理本地数据、导入、导出与备份。", caption: "本地存储", icon: ShieldCheck },
+  { id: "updates", label: "更新", title: "更新", eyebrow: "UPDATES", subtitle: "查看版本信息与更新偏好。", caption: "版本与发布", icon: RefreshCw },
+] satisfies Array<{ id: SectionId; label: string; title: string; eyebrow: string; subtitle: string; caption: string; icon: unknown }>;
 
 const activeMeta = computed(() => sections.find((section) => section.id === activeSection.value)!);
 
@@ -192,11 +203,11 @@ onMounted(async () => {
 
 <template>
   <main class="settings-app" :class="{ embedded }">
-    <button v-if="embedded" class="settings-modal-close" type="button" aria-label="关闭设置" @click="closeSettings">×</button>
+    <button v-if="embedded" class="settings-modal-close" type="button" aria-label="关闭设置" @click="closeSettings"><X /></button>
     <aside class="sidebar" aria-label="设置分类">
-      <div class="brand">
-        <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
-        <div><strong>Flank</strong><small>贴在手边</small></div>
+      <div class="brand settings-brand">
+        <img src="/noty-logo.png" alt="" />
+        <div><strong>NOTY</strong><small>灵感停靠站</small></div>
       </div>
 
       <nav class="settings-nav">
@@ -209,20 +220,15 @@ onMounted(async () => {
           :aria-current="activeSection === section.id ? 'page' : undefined"
           @click="chooseSection(section.id)"
         >
-          <svg v-if="section.id === 'general'" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.86 2.86-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1.5 1.6H9.5A1.7 1.7 0 0 0 8 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.86-2.86.06-.06A1.7 1.7 0 0 0 4.6 15 1.7 1.7 0 0 0 3 13.5v-3A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06L7.06 4.2l.06.06A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10.5 3h3A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.86 2.86-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.6 1.5v3a1.7 1.7 0 0 0-1.6 1.5Z"/></svg>
-          <svg v-else-if="section.id === 'shortcuts'" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 10h.01M11 10h.01M15 10h2M7 14h7M17 14h.01"/></svg>
-          <svg v-else-if="section.id === 'dock'" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="3"/><path d="M15 7h1M15 11h1M15 15h1"/></svg>
-          <svg v-else-if="section.id === 'notes'" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l3 3v15H6Z"/><path d="M15 3v4h4M9 11h6M9 15h6"/></svg>
-          <svg v-else-if="section.id === 'privacy'" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.7 2.9 8.2 7 10 4.1-1.8 7-5.3 7-10V6Z"/><path d="m9 12 2 2 4-5"/></svg>
-          <svg v-else viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>
+          <component :is="section.icon" aria-hidden="true" />
           <span><b>{{ section.label }}</b><small>{{ section.caption }}</small></span>
         </button>
       </nav>
 
       <div class="sidebar-footer">
         <button type="button" class="library-link" @click="closeSettings">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h6v14H4zM14 5h6v14h-6z"/></svg>
-          <span>打开资料库</span><kbd>Ctrl Alt L</kbd>
+          <ArrowLeft aria-hidden="true" />
+          <span>返回便签库</span><kbd>Ctrl Alt L</kbd>
         </button>
         <div class="runtime-state" :class="{ ready: app.ready, error: app.error }">
           <span class="runtime-dot"></span>
@@ -236,8 +242,9 @@ onMounted(async () => {
     <section class="settings-main">
       <header class="content-header">
         <div>
-          <p>SETTINGS</p>
-          <h1>{{ activeMeta.label }}</h1>
+          <p>{{ activeMeta.eyebrow }}</p>
+          <h1>{{ activeMeta.title }}</h1>
+          <span class="content-subtitle">{{ activeMeta.subtitle }}</span>
         </div>
         <button class="dock-launch" type="button" @click="openDockWindow">
           <span class="dock-launch-icon" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -247,37 +254,37 @@ onMounted(async () => {
       </header>
 
       <div class="content-scroll">
-        <div v-if="activeSection === 'general'" class="settings-page">
-          <section class="settings-group">
-            <div class="group-heading"><div><h2>外观与语言</h2><p>选择 Flank 界面的显示方式。</p></div></div>
+        <div v-if="activeSection === 'general'" class="settings-page general-page">
+          <section class="settings-group appearance-group">
+            <div class="group-heading"><div><h2>外观与语言</h2><p>界面语言与整体颜色模式</p></div></div>
             <div class="setting-row">
-              <div class="setting-copy"><b>界面语言</b><span>更改后会即时应用到所有窗口</span></div>
+              <div class="setting-copy"><b>界面语言</b><span>更改后应用到所有窗口</span></div>
               <select v-model="settings.language" aria-label="界面语言"><option value="zh-CN">简体中文</option><option value="en-US">English</option><option value="ja-JP">日本語</option></select>
             </div>
             <div class="setting-row">
-              <div class="setting-copy"><b>颜色主题</b><span>Flank 会跟随系统浅色或深色模式</span></div>
+              <div class="setting-copy"><b>颜色主题</b></div>
               <div class="segmented"><button class="selected" type="button">跟随系统</button><button type="button" disabled>浅色</button><button type="button" disabled>深色</button></div>
             </div>
           </section>
 
-          <section class="settings-group">
-            <div class="group-heading"><div><h2>启动与关闭</h2><p>控制 Flank 在系统中的运行方式。</p></div></div>
+          <section class="settings-group startup-group">
+            <div class="group-heading"><div><h2>启动与关闭</h2><p>控制 Noty 在系统中的运行方式。</p></div></div>
             <label class="setting-row clickable">
-              <div class="setting-copy"><b>登录时启动 Flank</b><span>静默驻留系统托盘或菜单栏，不主动打开窗口</span></div>
+              <div class="setting-copy"><b>登录时启动 Noty</b><span>启动后保持在后台，不主动打开窗口</span></div>
               <input v-model="settings.launchAtLogin" class="switch-input" type="checkbox"><span class="switch" aria-hidden="true"></span>
             </label>
             <div class="setting-row">
-              <div class="setting-copy"><b>关闭主窗口时</b><span>{{ settings.closeBehavior === 'background' ? '隐藏窗口，Flank 继续在后台运行' : '关闭便签栏并退出 Flank' }}</span></div>
-              <div class="segmented"><button :class="{ selected: settings.closeBehavior === 'background' }" type="button" @click="updateCloseBehavior('background')">后台运行</button><button :class="{ selected: settings.closeBehavior === 'quit' }" type="button" @click="updateCloseBehavior('quit')">退出 Flank</button></div>
+              <div class="setting-copy"><b>关闭主窗口时</b></div>
+              <select v-model="settings.closeBehavior" aria-label="关闭主窗口时"><option value="background">最小化至后台</option><option value="quit">退出 Noty</option></select>
             </div>
           </section>
 
-          <section class="settings-group compact">
-            <div class="setting-row">
-              <div class="setting-copy"><b>首次使用引导</b><span>重新查看便签栏、快捷键和隐私说明</span></div>
-              <button class="secondary-button" type="button" @click="showToast('已准备重新运行首次引导')">重新运行引导</button>
-            </div>
+          <section class="quick-access-card">
+            <span class="quick-access-icon"><Command aria-hidden="true" /></span>
+            <div><b>随时呼出便签栏</b><small>默认快捷键 Ctrl + Alt + N，可在「快捷键」中修改。</small></div>
+            <kbd>Ctrl Alt N</kbd>
           </section>
+          <p class="settings-version">NOTY 1.0.0　·　LOCAL FIRST</p>
         </div>
 
         <div v-else-if="activeSection === 'shortcuts'" class="settings-page">

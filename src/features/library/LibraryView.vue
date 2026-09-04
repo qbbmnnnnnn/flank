@@ -1,6 +1,22 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { gsap } from "gsap";
+import {
+  AlertCircle,
+  Archive as ArchiveIcon,
+  Ellipsis,
+  Grid2X2,
+  List,
+  Minus,
+  Pin,
+  Plus,
+  Search,
+  Settings,
+  Square,
+  StickyNote,
+  Trash2,
+  X,
+} from "lucide-vue-next";
 import type { CreateNoteInput, NoteColor, NoteRecord, NoteScope, TextDirection } from "../../contracts/note";
 import { noteService } from "../../services/noteService";
 import SettingsView from "../settings/SettingsView.vue";
@@ -14,6 +30,8 @@ const saving = ref(false);
 const error = ref("");
 const toast = ref("");
 const deleteTarget = ref<NoteRecord | null>(null);
+const clearTrashConfirm = ref(false);
+const clearingTrash = ref(false);
 const editorOpen = ref(false);
 const settingsOpen = ref(false);
 const viewMode = ref<"grid" | "list">((localStorage.getItem("flank-library-view") as "grid" | "list") || "grid");
@@ -27,13 +45,13 @@ let toastTimer: number | undefined;
 
 const now = Date.now();
 const demoNotes = ref<NoteRecord[]>([
-  { id: "demo-1", title: "今日灵感", body: "让工具像家具一样安静，像朋友一样及时。\n\n- [ ] 调整首页留白\n- [x] 完成资料库结构", color: "lemon", createdAtMs: now - 86400000 * 2, updatedAtMs: now - 1000 * 60 * 18, archivedAtMs: null, deletedAtMs: null, sortKey: "1", textDirection: "automatic", revision: 1 },
-  { id: "demo-2", title: "产品待办", body: "高优先级\n\n- [x] 纵向 Dock 动效\n- [ ] 快速捕获\n- [ ] 导入导出", color: "peach", createdAtMs: now - 86400000 * 6, updatedAtMs: now - 3600000 * 3, archivedAtMs: null, deletedAtMs: null, sortKey: "2", textDirection: "automatic", revision: 1 },
+  { id: "demo-1", title: "今日灵感", body: "让工具像家具一样安静，像朋友一样及时。\n\n- [ ] 调整首页留白\n- [x] 完成资料库结构", color: "sky", createdAtMs: now - 86400000 * 2, updatedAtMs: now - 1000 * 60 * 18, archivedAtMs: null, deletedAtMs: null, sortKey: "1", textDirection: "automatic", revision: 1 },
+  { id: "demo-2", title: "产品待办", body: "高优先级\n\n- [x] 纵向 Dock 动效\n- [ ] 快速捕获\n- [ ] 导入导出", color: "lemon", createdAtMs: now - 86400000 * 6, updatedAtMs: now - 3600000 * 3, archivedAtMs: null, deletedAtMs: null, sortKey: "2", textDirection: "automatic", revision: 1 },
   { id: "demo-3", title: "阅读清单", body: "《设计中的设计》\n《制造消费者》\n《微交互》", color: "mint", createdAtMs: now - 86400000 * 20, updatedAtMs: now - 86400000 * 3, archivedAtMs: now - 86400000 * 2, deletedAtMs: null, sortKey: "3", textDirection: "automatic", revision: 2 },
   { id: "demo-4", title: "旧会议记录", body: "已经整理进项目文档。", color: "sky", createdAtMs: now - 86400000 * 35, updatedAtMs: now - 86400000 * 5, archivedAtMs: null, deletedAtMs: now - 86400000 * 5, sortKey: "4", textDirection: "automatic", revision: 2 },
   { id: "demo-5", title: "周末采购", body: "燕麦奶、咖啡豆、番茄\n给阳台补一盆薄荷。", color: "mint", createdAtMs: now - 86400000, updatedAtMs: now - 3600000 * 6, archivedAtMs: null, deletedAtMs: null, sortKey: "5", textDirection: "automatic", revision: 1 },
-  { id: "demo-6", title: "会议速记", body: "主页以内容为中心；设置收进弹窗；保留卡片与列表两种浏览方式。", color: "lilac", createdAtMs: now - 86400000 * 3, updatedAtMs: now - 86400000, archivedAtMs: null, deletedAtMs: null, sortKey: "6", textDirection: "automatic", revision: 1 },
-  { id: "demo-7", title: "一句话", body: "好的工具不是吸引注意力，而是在需要时恰好出现。", color: "sky", createdAtMs: now - 86400000 * 4, updatedAtMs: now - 86400000 * 2, archivedAtMs: null, deletedAtMs: null, sortKey: "7", textDirection: "automatic", revision: 1 },
+  { id: "demo-6", title: "会议速记", body: "主页以内容为中心；设置收进弹窗；保留卡片与列表两种浏览方式。", color: "mint", createdAtMs: now - 86400000 * 3, updatedAtMs: now - 86400000, archivedAtMs: null, deletedAtMs: null, sortKey: "6", textDirection: "automatic", revision: 1 },
+  { id: "demo-7", title: "一句话", body: "好的工具不是吸引注意力，而是在需要时恰好出现。", color: "rose", createdAtMs: now - 86400000 * 4, updatedAtMs: now - 86400000 * 2, archivedAtMs: null, deletedAtMs: null, sortKey: "7", textDirection: "automatic", revision: 1 },
   { id: "demo-8", title: "旅行清单", body: "- [x] 充电器\n- [x] 耳机\n- [ ] 相机电池\n- [ ] 随身水杯", color: "rose", createdAtMs: now - 86400000 * 5, updatedAtMs: now - 86400000 * 3, archivedAtMs: null, deletedAtMs: null, sortKey: "8", textDirection: "automatic", revision: 1 },
 ]);
 const isDesktop = "__TAURI_INTERNALS__" in window;
@@ -48,6 +66,22 @@ const selected = computed(() => notes.value.find((note) => note.id === selectedI
 const draft = reactive<CreateNoteInput>({ title: "", body: "", color: "lemon", textDirection: "automatic" });
 const isNew = ref(false);
 const hasChanges = computed(() => isNew.value || (!!selected.value && (draft.title !== selected.value.title || draft.body !== selected.value.body || draft.color !== selected.value.color || draft.textDirection !== selected.value.textDirection)));
+const pinnedNotes = computed(() => scope.value === "active" ? notes.value.slice(0, 2) : []);
+const recentNotes = computed(() => scope.value === "active" ? notes.value.slice(2) : notes.value);
+
+function noteTag(note: NoteRecord) {
+  const tags = ["PRODUCT", "LIFE", "WORK", "IDEA", "READ", "PERSONAL"];
+  return tags[Math.abs(note.id.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0)) % tags.length];
+}
+
+async function controlWindow(action: "minimize" | "maximize" | "close") {
+  if (!isDesktop) return;
+  const { getCurrentWindow } = await import("@tauri-apps/api/window");
+  const appWindow = getCurrentWindow();
+  if (action === "minimize") await appWindow.minimize();
+  else if (action === "maximize") await appWindow.toggleMaximize();
+  else await appWindow.close();
+}
 
 function scopedDemo(target: NoteScope, search = "") {
   const needle = search.trim().toLocaleLowerCase();
@@ -173,6 +207,30 @@ async function permanentlyDelete() {
   }
 }
 
+async function clearTrash() {
+  if (clearingTrash.value) return;
+  clearingTrash.value = true;
+  try {
+    if (isDesktop) {
+      for (const note of notes.value) {
+        await noteService.permanentlyDelete({ id: note.id, expectedRevision: note.revision });
+      }
+    } else {
+      const deletedIds = new Set(notes.value.map((note) => note.id));
+      demoNotes.value = demoNotes.value.filter((note) => !deletedIds.has(note.id));
+    }
+    clearTrashConfirm.value = false;
+    showToast("已清空删除项");
+    await loadNotes();
+  } catch {
+    clearTrashConfirm.value = false;
+    showToast("清空失败，请刷新后重试");
+    await loadNotes();
+  } finally {
+    clearingTrash.value = false;
+  }
+}
+
 async function setViewMode(mode: "grid" | "list") {
   if (viewMode.value === mode) return;
   viewMode.value = mode;
@@ -249,9 +307,15 @@ watch(query, () => {
 });
 
 function handleGlobalKeydown(event: KeyboardEvent) {
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
     event.preventDefault();
     searchInput.value?.focus();
+  }
+  if (event.key === "Escape") {
+    if (deleteTarget.value) deleteTarget.value = null;
+    else if (clearTrashConfirm.value) clearTrashConfirm.value = false;
+    else if (settingsOpen.value) settingsOpen.value = false;
+    else if (editorOpen.value) editorOpen.value = false;
   }
 }
 
@@ -284,105 +348,134 @@ onUnmounted(() => {
 <template>
   <main ref="libraryRoot" class="library-app">
     <aside class="library-sidebar" aria-label="资料库分区">
-      <div class="brand library-brand">
-        <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
-        <div><strong>Flank</strong><small>贴在手边</small></div>
+      <div class="library-brand" data-tauri-drag-region>
+        <img src="/noty-logo.png" alt="" />
+        <div><strong>NOTY</strong><small>灵感停靠站</small></div>
       </div>
-      <div class="library-kicker">资料库</div>
+      <p class="library-kicker">LIBRARY</p>
       <nav class="library-nav">
-        <button v-for="section in sections" :key="section.id" class="library-nav-item" :class="{ active: scope === section.id }" type="button" @click="chooseScope(section.id)">
+        <button v-for="section in sections" :key="section.id" class="library-nav-item" :class="{ active: scope === section.id }" type="button" :aria-current="scope === section.id ? 'page' : undefined" @click="chooseScope(section.id)">
           <span class="section-icon" :class="section.id" aria-hidden="true">
-            <svg v-if="section.id === 'active'" viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg>
-            <svg v-else-if="section.id === 'archived'" viewBox="0 0 24 24"><path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6"/></svg>
-            <svg v-else viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg>
+            <StickyNote v-if="section.id === 'active'" />
+            <ArchiveIcon v-else-if="section.id === 'archived'" />
+            <Trash2 v-else />
           </span>
-          <span><b>{{ section.label }}</b><small>{{ section.caption }}</small></span><em>{{ counts[section.id] }}</em>
+          <span>{{ section.id === 'active' ? '全部便签' : section.label }}</span><em>{{ counts[section.id] }}</em>
         </button>
       </nav>
-      <div class="library-sidebar-footer">
-        <div class="local-badge"><span></span><div><b>仅保存在此设备</b><small>你的内容不会离开本机</small></div></div>
-        <button type="button" class="settings-entry" @click="settingsOpen = true">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A8 8 0 0 0 15 6l-.3-2.6h-4L10.4 6A8 8 0 0 0 8 7.1l-2.4-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.4-1A8 8 0 0 0 10.4 18l.3 2.6h4L15 18a8 8 0 0 0 1.5-1.1l2.4 1 2-3.4-2-1.5a7 7 0 0 0 .1-1Z"/></svg>
-          设置
-        </button>
-      </div>
-    </aside>
-
-    <section class="note-index" aria-label="便签列表">
-      <header class="index-header">
-        <div><p>LIBRARY</p><h1>{{ sections.find(item => item.id === scope)?.label }}</h1></div>
-        <button class="new-note-button" type="button" @click="createNote"><span>＋</span>新建便签</button>
-      </header>
-      <div class="library-search">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>
-        <input ref="searchInput" v-model="query" type="search" :placeholder="`搜索${sections.find(item => item.id === scope)?.label}…`" aria-label="搜索标题和正文">
-        <kbd>Ctrl F</kbd>
-      </div>
-      <div class="result-summary">
-        <span>{{ query ? `${notes.length} 个搜索结果` : `${notes.length} 个便签` }}</span>
-        <div class="view-switch" role="group" aria-label="便签展示方式">
-          <button type="button" :class="{ active: viewMode === 'grid' }" title="卡片视图" aria-label="卡片视图" @click="setViewMode('grid')"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg></button>
-          <button type="button" :class="{ active: viewMode === 'list' }" title="列表视图" aria-label="列表视图" @click="setViewMode('list')"><svg viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg></button>
+      <div class="workspace-block">
+        <span class="workspace-label">WORKSPACE</span>
+        <div class="workspace-card">
+          <span>本周记录</span>
+          <div><b>18</b><em>条灵感</em></div>
+          <i><span></span></i>
+          <small>比上周多 4 条</small>
         </div>
       </div>
+      <button type="button" class="settings-entry" @click="settingsOpen = true">
+        <Settings aria-hidden="true" />
+        <span>设置</span><kbd>⌘ ,</kbd>
+      </button>
+    </aside>
+
+    <section class="library-surface">
+      <div class="window-drag-region" data-tauri-drag-region></div>
+      <div class="window-controls" aria-label="窗口控制">
+        <button type="button" aria-label="最小化" @click="controlWindow('minimize')"><Minus /></button>
+        <button type="button" aria-label="最大化或还原" @click="controlWindow('maximize')"><Square /></button>
+        <button class="window-close" type="button" aria-label="关闭" @click="controlWindow('close')"><X /></button>
+      </div>
+
+      <header class="index-header" :class="{ tall: scope !== 'active' }">
+        <div>
+          <p :class="{ danger: scope === 'deleted' }">{{ scope === 'active' ? 'NOTES / 06' : scope === 'archived' ? 'ARCHIVE / 12' : 'TRASH / 03' }}</p>
+          <h1>{{ scope === 'active' ? '今天想记点什么？' : scope === 'archived' ? '已归档' : '最近删除' }}</h1>
+          <span>{{ scope === 'active' ? '把稍纵即逝的想法，变成随时可取用的便签。' : scope === 'archived' ? '暂时收起，不代表忘记。需要时随时恢复。' : '删除的便签会保留 30 天，之后自动永久清除。' }}</span>
+        </div>
+        <button v-if="scope === 'active'" class="new-note-button" type="button" @click="createNote"><Plus aria-hidden="true" />新建便签</button>
+        <button v-else-if="scope === 'deleted'" class="clear-trash-button" type="button" @click="clearTrashConfirm = true">清空删除项</button>
+      </header>
+
+      <div v-if="scope !== 'deleted'" class="home-toolbar" :class="{ 'archive-toolbar': scope === 'archived' }">
+        <label class="library-search">
+          <Search aria-hidden="true" />
+          <input ref="searchInput" v-model="query" type="search" placeholder="搜索标题、正文或标签…" aria-label="搜索标题、正文或标签">
+          <kbd>⌘ K</kbd>
+        </label>
+        <template v-if="scope === 'active'">
+          <button class="sort-button" type="button">最近更新 <span>⌄</span></button>
+          <div class="view-switch" role="group" aria-label="便签展示方式">
+            <button type="button" :class="{ active: viewMode === 'grid' }" aria-label="卡片视图" @click="setViewMode('grid')"><Grid2X2 /></button>
+            <button type="button" :class="{ active: viewMode === 'list' }" aria-label="列表视图" @click="setViewMode('list')"><List /></button>
+          </div>
+        </template>
+        <div v-else class="archive-filter">按归档时间 · 最新优先</div>
+      </div>
+      <div v-else class="trash-alert"><AlertCircle aria-hidden="true" /><div><b>最早的一条便签将在 6 天后永久删除</b><small>你可以在倒计时结束前恢复它。</small></div></div>
+
       <div v-if="loading" class="library-state"><span class="state-spinner"></span><b>正在读取本地便签</b></div>
       <div v-else-if="error" class="library-state"><b>{{ error }}</b><button type="button" @click="loadNotes()">重试</button></div>
-      <div v-else-if="!notes.length" class="library-state empty-state">
-        <span class="empty-papers" aria-hidden="true"><i></i><i></i></span>
-        <b>{{ query ? '没有匹配的便签' : scope === 'active' ? '还没有展示中的便签' : scope === 'archived' ? '还没有归档便签' : '最近删除是空的' }}</b>
-        <p>{{ query ? '试试更短的关键词，搜索会同时检查标题和正文。' : scope === 'active' ? '新建一张便签，让它出现在屏幕边缘。' : '这里的内容会按时间自动整理。' }}</p>
-        <button v-if="scope === 'active' && !query" type="button" @click="createNote">新建第一张便签</button>
+      <div v-else-if="!notes.length" class="library-state"><b>{{ query ? '没有匹配的便签' : '这里还没有便签' }}</b><p>试试新建一张便签，或切换到其他资料库。</p></div>
+
+      <div v-else-if="scope === 'active'" class="notes-scroll">
+        <section v-if="pinnedNotes.length" class="notes-group">
+          <div class="group-title"><h2>置顶灵感</h2><span>{{ pinnedNotes.length }} PINNED</span></div>
+          <div class="pinned-grid">
+            <button v-for="note in pinnedNotes" :key="note.id" class="note-card pinned-card" :style="{ '--note': `var(--note-${note.color})` }" type="button" @click="selectNote(note.id, true)">
+              <span class="card-tag">{{ noteTag(note) }}</span><Pin class="pin-icon" aria-hidden="true" />
+              <b>{{ note.title || '无标题便签' }}</b><p>{{ note.body.replace(/[-*]\s*\[[ xX]\]\s*/g, '').replace(/\s+/g, ' ').slice(0, 90) || '空白便签' }}</p>
+              <small>{{ formatTime(note.updatedAtMs) }}</small>
+            </button>
+          </div>
+        </section>
+        <section class="notes-group recent-group">
+          <div class="group-title"><h2>最近便签</h2><span>{{ recentNotes.length }} NOTES</span></div>
+          <div class="recent-grid" :class="`mode-${viewMode}`">
+            <button v-for="note in recentNotes" :key="note.id" class="note-card recent-card" :style="{ '--note': `var(--note-${note.color})` }" type="button" @click="selectNote(note.id, true)">
+              <Ellipsis class="more" aria-hidden="true" />
+              <b>{{ note.title || '无标题便签' }}</b><p>{{ note.body.replace(/[-*]\s*\[[ xX]\]\s*/g, '').replace(/\s+/g, ' ').slice(0, 76) || '空白便签' }}</p>
+              <small>{{ formatTime(note.updatedAtMs) }}</small>
+            </button>
+          </div>
+          <p class="drag-hint">拖拽便签即可调整顺序　·　右键查看更多操作</p>
+        </section>
       </div>
-      <div v-else ref="noteList" class="note-list" :class="`mode-${viewMode}`" role="listbox" :aria-label="`${notes.length} 个便签`" @keydown="onListKeydown" @pointerleave="resetCardFocus">
-        <button v-for="note in notes" :key="note.id" class="note-row" :class="{ selected: selectedId === note.id }" :style="{ '--note': `var(--note-${note.color})` }" :data-note-id="note.id" type="button" role="option" :aria-selected="selectedId === note.id" @pointerenter="animateCardFocus(note.id)" @focus="animateCardFocus(note.id)" @blur="resetCardFocus" @click="selectNote(note.id, true)">
-          <span class="note-color" :style="{ '--note': `var(--note-${note.color})` }"></span>
-          <span class="note-fold" :style="{ '--note': `var(--note-${note.color})` }" aria-hidden="true"></span>
-          <span class="note-row-copy"><b>{{ note.title || '无标题便签' }}</b><span>{{ note.body.replace(/\s+/g, ' ').slice(0, 120) || '空白便签' }}</span><small><time>{{ formatTime(note.updatedAtMs) }}</time><i v-if="taskProgress(note.body)"></i>{{ taskProgress(note.body) }}<template v-if="scope === 'deleted'"><i></i>{{ retention(note) }}</template></small></span>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
-        </button>
+
+      <div v-else class="records-scroll" :class="scope">
+        <div class="group-title"><h2>{{ scope === 'archived' ? '归档记录' : '待处理' }}</h2><span>{{ notes.length }} ITEMS</span></div>
+        <article v-for="note in notes" :key="note.id" class="record-card" :style="{ '--note': `var(--note-${note.color})` }">
+          <span class="record-color" :class="{ dot: scope === 'deleted' }"></span>
+          <div><b>{{ note.title || '无标题便签' }}</b><p>{{ note.body.replace(/\s+/g, ' ').slice(0, 105) || '空白便签' }}</p><small v-if="scope === 'archived'">归档于 {{ formatTime(note.archivedAtMs || note.updatedAtMs) }}　·　{{ noteTag(note) }}</small><small v-else class="days-left">{{ retention(note).toUpperCase() }}</small></div>
+          <button type="button" @click="mutate(note, scope === 'archived' ? 'unarchive' : 'restore')">{{ scope === 'archived' ? '恢复便签' : '恢复' }}</button>
+          <button v-if="scope === 'deleted'" class="delete-forever" type="button" @click="deleteTarget = note">永久删除</button>
+        </article>
       </div>
     </section>
 
     <section v-if="editorOpen && (selected || isNew)" class="note-detail" aria-label="便签详情">
-      <template v-if="selected || isNew">
-        <header class="detail-toolbar">
-          <button class="editor-close" type="button" aria-label="关闭便签详情" @click="editorOpen = false">×</button>
-          <span class="detail-status"><i :style="{ background: `var(--note-${draft.color})` }"></i>{{ isNew ? '新便签' : scope === 'active' ? '展示中' : scope === 'archived' ? '已归档' : '最近删除' }}</span>
-          <div class="detail-actions" v-if="selected">
-            <button v-if="scope === 'active'" type="button" title="归档" @click="mutate(selected, 'archive')"><svg viewBox="0 0 24 24"><path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6"/></svg><span>归档</span></button>
-            <button v-else-if="scope === 'archived'" type="button" @click="mutate(selected, 'unarchive')"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6M4 4v6h6"/></svg><span>恢复</span></button>
-            <button v-else type="button" @click="mutate(selected, 'restore')"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6M4 4v6h6"/></svg><span>恢复</span></button>
-            <button v-if="scope !== 'deleted'" class="danger-action" type="button" @click="mutate(selected, 'delete')"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7"/></svg><span>删除</span></button>
-            <button v-else class="danger-action" type="button" @click="deleteTarget = selected"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7"/></svg><span>永久删除</span></button>
-          </div>
-        </header>
-        <div class="editor-wrap" :class="{ readonly: scope === 'deleted' }">
-          <input v-model="draft.title" class="note-title-input" type="text" maxlength="200" placeholder="无标题便签" :readonly="scope === 'deleted'" aria-label="便签标题">
-          <div class="note-meta"><span>修改于 {{ formatTime(selected?.updatedAtMs ?? Date.now()) }}</span><span v-if="selected">版本 {{ selected.revision }}</span></div>
-          <textarea v-model="draft.body" placeholder="写下此刻想到的事…" :readonly="scope === 'deleted'" aria-label="便签正文"></textarea>
+      <header class="detail-toolbar">
+        <button class="editor-close" type="button" aria-label="关闭便签详情" @click="editorOpen = false">×</button>
+        <span class="detail-status"><i :style="{ background: `var(--note-${draft.color})` }"></i>{{ isNew ? '新便签' : '便签详情' }}</span>
+        <div v-if="selected" class="detail-actions">
+          <button v-if="scope === 'active'" type="button" @click="mutate(selected, 'archive')">归档</button>
+          <button v-else type="button" @click="mutate(selected, scope === 'archived' ? 'unarchive' : 'restore')">恢复</button>
+          <button v-if="scope !== 'deleted'" class="danger-action" type="button" @click="mutate(selected, 'delete')">删除</button>
         </div>
-        <footer class="detail-footer">
-          <div class="color-picker" role="group" aria-label="便签颜色">
-            <button v-for="color in (['lemon','peach','rose','lilac','sky','mint'] as NoteColor[])" :key="color" :class="{ selected: draft.color === color }" :style="{ background: `var(--note-${color})` }" :disabled="scope === 'deleted'" type="button" :aria-label="`${color} 颜色`" @click="draft.color = color"></button>
-          </div>
-          <button v-if="scope !== 'deleted'" class="save-note-button" :disabled="!hasChanges || saving" type="button" @click="saveNote">{{ saving ? '保存中…' : hasChanges ? '保存更改' : '已保存' }}</button>
-          <span v-else class="retention-detail">{{ retention(selected!) }}</span>
-        </footer>
-      </template>
+      </header>
+      <div class="editor-wrap" :class="{ readonly: scope === 'deleted' }">
+        <input v-model="draft.title" class="note-title-input" type="text" maxlength="200" placeholder="无标题便签" :readonly="scope === 'deleted'" aria-label="便签标题">
+        <div class="note-meta">修改于 {{ formatTime(selected?.updatedAtMs ?? Date.now()) }}</div>
+        <textarea v-model="draft.body" placeholder="写下此刻想到的事…" :readonly="scope === 'deleted'" aria-label="便签正文"></textarea>
+      </div>
+      <footer class="detail-footer">
+        <div class="color-picker" role="group" aria-label="便签颜色"><button v-for="color in (['lemon','peach','rose','lilac','sky','mint'] as NoteColor[])" :key="color" :class="{ selected: draft.color === color }" :style="{ background: `var(--note-${color})` }" :disabled="scope === 'deleted'" type="button" :aria-label="`${color} 颜色`" @click="draft.color = color"></button></div>
+        <button v-if="scope !== 'deleted'" class="save-note-button" :disabled="!hasChanges || saving" type="button" @click="saveNote">{{ saving ? '保存中…' : hasChanges ? '保存更改' : '已保存' }}</button>
+      </footer>
     </section>
 
-    <Transition name="modal-fade">
-      <div v-if="settingsOpen" class="settings-modal-backdrop" @click.self="settingsOpen = false">
-        <SettingsView embedded @close="settingsOpen = false" />
-      </div>
-    </Transition>
-
-    <div v-if="deleteTarget" class="modal-backdrop" @click.self="deleteTarget = null">
-      <section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-title">
-        <span class="dialog-icon">!</span><h2 id="delete-title">永久删除这张便签？</h2><p>“{{ deleteTarget.title || '无标题便签' }}”将立即从此设备移除，此操作无法撤销。</p>
-        <div><button type="button" @click="deleteTarget = null">取消</button><button class="confirm-danger" type="button" @click="permanentlyDelete">永久删除</button></div>
-      </section>
-    </div>
-    <Transition name="toast"><div v-if="toast" class="library-toast"><span>✓</span>{{ toast }}</div></Transition>
+    <Transition name="modal-fade"><div v-if="settingsOpen" class="settings-modal-backdrop" @click.self="settingsOpen = false"><SettingsView embedded @close="settingsOpen = false" /></div></Transition>
+    <div v-if="deleteTarget" class="modal-backdrop" @click.self="deleteTarget = null"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-title"><span class="dialog-icon">!</span><h2 id="delete-title">永久删除这张便签？</h2><p>“{{ deleteTarget.title || '无标题便签' }}”将立即从此设备移除，此操作无法撤销。</p><div><button type="button" @click="deleteTarget = null">取消</button><button class="confirm-danger" type="button" @click="permanentlyDelete">永久删除</button></div></section></div>
+    <div v-if="clearTrashConfirm" class="modal-backdrop" @click.self="clearTrashConfirm = false"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-trash-title"><span class="dialog-icon">!</span><h2 id="clear-trash-title">清空所有删除项？</h2><p>最近删除中的 {{ notes.length }} 张便签将从此设备永久移除，此操作无法撤销。</p><div><button type="button" :disabled="clearingTrash" @click="clearTrashConfirm = false">取消</button><button class="confirm-danger" type="button" :disabled="clearingTrash" @click="clearTrash">{{ clearingTrash ? '正在清空…' : '清空删除项' }}</button></div></section></div>
+    <Transition name="toast"><div v-if="toast" class="library-toast" role="status"><span>✓</span>{{ toast }}</div></Transition>
   </main>
 </template>

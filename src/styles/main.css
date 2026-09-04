@@ -27,6 +27,9 @@ button { color: inherit; }
 .settings-app { width: 100vw; height: 100vh; display: grid; grid-template-columns: 246px minmax(0, 1fr); overflow: hidden; background: var(--surface); }
 .sidebar { position: relative; z-index: 2; min-height: 0; padding: 27px 16px 17px; display: flex; flex-direction: column; border-right: 1px solid rgba(56, 50, 62, .08); background: #f1efeb; }
 .brand { height: 58px; padding: 0 11px; display: flex; align-items: center; gap: 12px; }
+.settings-brand img { width: 42px; height: 42px; object-fit: cover; border-radius: 13px; }
+.settings-brand strong { font-family: Impact, "Arial Narrow", sans-serif; font-size: 21px; letter-spacing: -.02em; }
+.settings-brand small { font-family: "Noty Display", "Microsoft YaHei", sans-serif; }
 .brand-mark, .app-icon { position: relative; width: 40px; height: 40px; flex: 0 0 auto; }
 .brand-mark span, .app-icon span { position: absolute; inset: 5px 4px 3px 8px; border-radius: 8px 2px 8px 8px; background: #ffe57a; box-shadow: 0 5px 12px rgba(111, 84, 12, .14), inset 0 1px rgba(255,255,255,.75); transform: rotate(-5deg); }
 .brand-mark span:nth-child(2), .app-icon span:nth-child(2) { inset: 3px 7px 5px 5px; background: #ffb8a7; transform: rotate(5deg); }
@@ -60,6 +63,7 @@ kbd { min-width: 21px; padding: 3px 5px; display: inline-grid; place-items: cent
 .content-header { height: 105px; flex: 0 0 105px; padding: 24px clamp(30px, 5vw, 60px) 18px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); background: rgba(255,254,250,.93); }
 .content-header p { margin: 0 0 5px; color: #aaa5ad; font-size: 9px; font-weight: 750; letter-spacing: .16em; }
 .content-header h1 { margin: 0; font-size: 26px; line-height: 1; letter-spacing: -.045em; }
+.content-subtitle { display:block;margin-top:8px;color:#64748b;font-size:12px; }
 .dock-launch { height: 39px; padding: 0 10px 0 13px; display: flex; align-items: center; gap: 8px; border: 1px solid #ddd9d4; border-radius: 11px; color: #4b4650; background: #fff; box-shadow: 0 3px 10px rgba(45,40,50,.05); cursor: pointer; font-size: 11px; font-weight: 650; }
 .dock-launch:hover { border-color: #c8c1db; transform: translateY(-1px); box-shadow: 0 6px 16px rgba(45,40,50,.08); }
 .dock-launch-icon { display: flex; align-items: center; gap: 2px; }
@@ -140,6 +144,14 @@ select:focus { border-color: #8174d4; box-shadow: 0 0 0 3px rgba(101,88,200,.1);
 .dock-count-control label { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 9px; }
 .dock-count-control input { width: 58px; height: 30px; padding: 0 6px; border: 1px solid #ddd9d4; border-radius: 8px; background: #fbfaf8; text-align: center; }
 .setting-warning { color: #b27632; font-size: 9px; font-style: normal; }
+.quick-access-card { min-height:110px;padding:22px 28px 22px 24px;display:grid;grid-template-columns:56px 1fr auto;align-items:center;gap:20px;border-radius:20px;background:#eaf2ff; }
+.quick-access-icon { width:56px;height:56px;display:grid;place-items:center;border-radius:50%;color:#fff;background:#0062ff; }
+.quick-access-icon svg { width:24px;height:24px; }
+.quick-access-card>div { display:grid;gap:8px; }
+.quick-access-card b { color:#10213b;font-family:"Noty Display","Microsoft YaHei",sans-serif;font-size:19px;font-weight:400; }
+.quick-access-card small { color:#526781;font-family:"Noty Display","Microsoft YaHei",sans-serif;font-size:13px; }
+.quick-access-card>kbd { min-width:120px;height:46px;border:0;border-radius:13px;color:#0062ff;background:#fff;box-shadow:none;font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600; }
+.settings-version { margin:18px 0 0;color:#94a3b8;font-family:"IBM Plex Mono",monospace;font-size:10px; }
 .color-settings { padding-bottom: 20px; }
 .color-option { min-height: 68px; margin: 18px 20px 14px; padding: 12px 14px; display: grid; grid-template-columns: 54px 1fr auto; align-items: center; gap: 12px; border: 1px solid #d9d4ee; border-radius: 12px; background: #faf8ff; cursor: pointer; }
 .color-random { height: 34px; position: relative; }
