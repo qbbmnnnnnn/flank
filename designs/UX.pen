@@ -1,0 +1,3485 @@
+{
+  "version": "2.17",
+  "children": [
+    {
+      "type": "frame",
+      "id": "IEuI6",
+      "x": 0,
+      "y": 0,
+      "name": "Typography Gate",
+      "clip": true,
+      "width": 1120,
+      "height": 360,
+      "fill": "#FFFFFF",
+      "layout": "vertical",
+      "gap": 18,
+      "padding": 32,
+      "children": [
+        {
+          "type": "text",
+          "id": "aU8JZ",
+          "name": "Gate Title",
+          "fill": "#111827",
+          "content": "NOTY / 字体校验",
+          "fontFamily": "Anton",
+          "fontSize": 36,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "uNmrs",
+          "name": "Chinese Heading",
+          "fill": "#111827",
+          "content": "把灵感贴在桌面上",
+          "fontFamily": "ZCOOL QingKe HuangYou",
+          "fontSize": 28,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "HE6wO",
+          "name": "Chinese Body",
+          "fill": "#475569",
+          "content": "快速记录、归档与找回每一条重要便签。",
+          "fontFamily": "ZCOOL QingKe HuangYou",
+          "fontSize": 18,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "MewDA",
+          "name": "Latin Body",
+          "fill": "#475569",
+          "content": "Capture ideas. Keep the signal. Clear the noise.",
+          "fontFamily": "Geist",
+          "fontSize": 18,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "y1pPFI",
+          "name": "Data Sample",
+          "fill": "#2563EB",
+          "content": "2026-09-04  15:13  72%  ¥128.00  #A1B2",
+          "fontFamily": "IBM Plex Mono",
+          "fontSize": 16,
+          "fontWeight": "normal"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "oyHRV",
+      "x": 0,
+      "y": 450,
+      "name": "Screen / Notes Home",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "#F4F7FB",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "gTnTE",
+          "x": 0,
+          "y": 0,
+          "name": "Sidebar",
+          "reusable": true,
+          "width": 264,
+          "height": 900,
+          "fill": "#FFFFFF",
+          "layout": "none",
+          "children": [
+            {
+              "type": "frame",
+              "id": "XQQxR",
+              "x": 26,
+              "y": 29,
+              "name": "Logo Shadow",
+              "width": 54,
+              "height": 54,
+              "fill": "#DCE8FF",
+              "cornerRadius": 18,
+              "layout": "none"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 18,
+              "id": "S8NFX",
+              "x": 22,
+              "y": 25,
+              "name": "Noty Logo",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "H:/aigc/dailywork/noty_win/20260904-151355.png",
+                "mode": "fill"
+              },
+              "width": 54,
+              "height": 54
+            },
+            {
+              "type": "text",
+              "id": "daVxK",
+              "x": 90,
+              "y": 29,
+              "name": "Brand Name",
+              "fill": "#10213B",
+              "content": "FLANK",
+              "fontFamily": "Anton",
+              "fontSize": 26,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "ecHru",
+              "x": 90,
+              "y": 67,
+              "name": "Brand Tagline",
+              "fill": "#64748B",
+              "content": "灵感停靠站",
+              "fontFamily": "ZCOOL QingKe HuangYou",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "DgyL0",
+              "x": 24,
+              "y": 116,
+              "name": "Library Label",
+              "fill": "#94A3B8",
+              "content": "LIBRARY",
+              "fontFamily": "IBM Plex Mono",
+              "fontSize": 11,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "VdGx3",
+              "x": 16,
+              "y": 140,
+              "name": "Nav / Notes Active",
+              "width": 232,
+              "height": 56,
+              "fill": "#EAF2FF",
+              "cornerRadius": 16,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "rectangle",
+                  "cornerRadius": 4,
+                  "id": "cZpfZ",
+                  "x": 0,
+                  "y": 0,
+                  "name": "Active Rail",
+                  "fill": "#0062FF",
+                  "width": 4,
+                  "height": 56
+                },
+                {
+                  "type": "frame",
+                  "id": "M17PFf",
+                  "x": 16,
+                  "y": 14,
+                  "name": "Icon Tile",
+                  "width": 28,
+                  "height": 28,
+                  "fill": "#0062FF",
+                  "cornerRadius": 10,
+                  "layout": "none"
+                },
+                {
+                  "type": "text",
+                  "id": "baR8j",
+                  "x": 58,
+                  "y": 19.5,
+                  "name": "Label",
+                  "fill": "#10213B",
+                  "content": "全部便签",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 17,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "Wd8h4",
+                  "x": 204,
+                  "y": 19.5,
+                  "name": "Count",
+                  "fill": "#0062FF",
+                  "content": "6",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 13,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "icon",
+                  "id": "oRibQ",
+                  "x": 20,
+                  "y": 18,
+                  "name": "Lucide / Sticky Note",
+                  "width": 20,
+                  "height": 20,
+                  "icon": "sticky-note",
+                  "library": "lucide",
+                  "fill": "#FFFFFF"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "IhrbZ",
+              "x": 16,
+              "y": 204,
+              "name": "Nav / Archive",
+              "width": 232,
+              "height": 52,
+              "fill": "#FFFFFF",
+              "cornerRadius": 14,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Q6m6x",
+                  "x": 16,
+                  "y": 14,
+                  "name": "Archive Icon",
+                  "width": 24,
+                  "height": 24,
+                  "fill": "#EEF3F9",
+                  "cornerRadius": 8,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "BDwAu",
+                      "x": 3,
+                      "y": 3,
+                      "name": "Lucide / Archive",
+                      "width": 18,
+                      "height": 18,
+                      "icon": "archive",
+                      "library": "lucide",
+                      "fill": "#64748B"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "lGAVN",
+                  "x": 58,
+                  "y": 18,
+                  "name": "Label",
+                  "fill": "#475569",
+                  "content": "已归档",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 16,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "acSiN",
+                  "x": 199,
+                  "y": 18,
+                  "name": "Count",
+                  "fill": "#64748B",
+                  "content": "12",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 12,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "w9YiP",
+              "x": 16,
+              "y": 264,
+              "name": "Nav / Trash",
+              "width": 232,
+              "height": 52,
+              "fill": "#FFFFFF",
+              "cornerRadius": 14,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "i5tDFa",
+                  "x": 16,
+                  "y": 14,
+                  "name": "Trash Icon",
+                  "width": 24,
+                  "height": 24,
+                  "fill": "#FFF0F2",
+                  "cornerRadius": 8,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "nP2FW",
+                      "x": 3,
+                      "y": 3,
+                      "name": "Lucide / Trash",
+                      "width": 18,
+                      "height": 18,
+                      "icon": "trash-2",
+                      "library": "lucide",
+                      "fill": "#E24A63"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "PhyWz",
+                  "x": 58,
+                  "y": 18,
+                  "name": "Label",
+                  "fill": "#475569",
+                  "content": "最近删除",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 16,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "HR3na",
+                  "x": 205,
+                  "y": 18,
+                  "name": "Count",
+                  "fill": "#E24A63",
+                  "content": "3",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 12,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "HaHgs",
+              "x": 24,
+              "y": 350,
+              "name": "Workspace Label",
+              "fill": "#94A3B8",
+              "content": "WORKSPACE",
+              "fontFamily": "IBM Plex Mono",
+              "fontSize": 11,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "RlThy",
+              "x": 16,
+              "y": 374,
+              "name": "Quick Insight",
+              "width": 232,
+              "height": 128,
+              "fill": "#F8FAFC",
+              "cornerRadius": 18,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "K06YqI",
+                  "x": 18,
+                  "y": 17,
+                  "name": "Insight Eyebrow",
+                  "fill": "#64748B",
+                  "content": "本周记录",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "Sya5Y",
+                  "x": 18,
+                  "y": 42,
+                  "name": "Insight Value",
+                  "fill": "#0062FF",
+                  "content": "18",
+                  "fontFamily": "Anton",
+                  "fontSize": 34,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "OGZ42",
+                  "x": 62,
+                  "y": 55,
+                  "name": "Insight Unit",
+                  "fill": "#475569",
+                  "content": "条灵感",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "rectangle",
+                  "cornerRadius": 4,
+                  "id": "CdadB",
+                  "x": 18,
+                  "y": 91,
+                  "name": "Progress Track",
+                  "fill": "#DFE8F3",
+                  "width": 196,
+                  "height": 7
+                },
+                {
+                  "type": "rectangle",
+                  "cornerRadius": 4,
+                  "id": "WK0dz",
+                  "x": 18,
+                  "y": 91,
+                  "name": "Progress Value",
+                  "fill": "#0062FF",
+                  "width": 132,
+                  "height": 7
+                },
+                {
+                  "type": "text",
+                  "id": "IdWh1",
+                  "x": 18,
+                  "y": 105,
+                  "name": "Insight Footer",
+                  "fill": "#64748B",
+                  "content": "比上周多 4 条",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "nQAW9",
+              "x": 16,
+              "y": 836,
+              "name": "Settings Entry",
+              "width": 232,
+              "height": 48,
+              "fill": "#FFFFFF",
+              "cornerRadius": 14,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "D1MdgY",
+                  "x": 16,
+                  "y": 13,
+                  "name": "Settings Mark",
+                  "width": 24,
+                  "height": 24,
+                  "fill": "#EEF3F9",
+                  "cornerRadius": 8,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "r8hEwl",
+                      "x": 3,
+                      "y": 3,
+                      "name": "Lucide / Settings",
+                      "width": 18,
+                      "height": 18,
+                      "icon": "settings",
+                      "library": "lucide",
+                      "fill": "#64748B"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "rfUD3",
+                  "x": 58,
+                  "y": 16,
+                  "name": "Settings Label",
+                  "fill": "#475569",
+                  "content": "设置",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 16,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "n2FTnh",
+                  "x": 191,
+                  "y": 16,
+                  "name": "Settings Hint",
+                  "fill": "#64748B",
+                  "content": "⌘ ,",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 11,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rectangle",
+          "id": "UMcqT",
+          "x": 263,
+          "y": 0,
+          "name": "Sidebar Divider",
+          "fill": "#DCE5F0",
+          "width": 1,
+          "height": 900
+        },
+        {
+          "type": "frame",
+          "id": "u8d3F",
+          "x": 264,
+          "y": 0,
+          "name": "Main Workspace",
+          "width": 1176,
+          "height": 900,
+          "fill": "#F4F7FB",
+          "layout": "none",
+          "children": [
+            {
+              "type": "text",
+              "id": "RLn6R",
+              "x": 44,
+              "y": 72,
+              "name": "Page Eyebrow",
+              "fill": "#0062FF",
+              "content": "NOTES / 06",
+              "fontFamily": "IBM Plex Mono",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "A1kWPM",
+              "x": 44,
+              "y": 98,
+              "name": "Page Title",
+              "fill": "#10213B",
+              "content": "今天想记点什么？",
+              "fontFamily": "ZCOOL QingKe HuangYou",
+              "fontSize": 34,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "u6ypWl",
+              "x": 44,
+              "y": 144,
+              "name": "Page Subtitle",
+              "fill": "#64748B",
+              "content": "把稍纵即逝的想法，变成随时可取用的便签。",
+              "fontFamily": "ZCOOL QingKe HuangYou",
+              "fontSize": 16,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "CPvda",
+              "x": 941,
+              "y": 79,
+              "name": "Add Shadow",
+              "width": 170,
+              "height": 50,
+              "fill": "#BCD2F7",
+              "cornerRadius": 16,
+              "layout": "none"
+            },
+            {
+              "type": "frame",
+              "id": "ffIB1",
+              "x": 937,
+              "y": 75,
+              "name": "Primary Action",
+              "width": 170,
+              "height": 50,
+              "fill": "#0062FF",
+              "cornerRadius": 16,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "O65IdK",
+                  "x": 60.5,
+                  "y": 17,
+                  "name": "Add Label",
+                  "fill": "#FFFFFF",
+                  "content": "新建便签",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 16,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "icon",
+                  "id": "Os3oE",
+                  "x": 20,
+                  "y": 15,
+                  "name": "Lucide / Plus",
+                  "width": 20,
+                  "height": 20,
+                  "icon": "plus",
+                  "library": "lucide",
+                  "fill": "#FFFFFF"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "U3QJu2",
+              "x": 44,
+              "y": 192,
+              "name": "Search Field",
+              "reusable": true,
+              "width": 740,
+              "height": 54,
+              "fill": "#FFFFFF",
+              "cornerRadius": 16,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "R7oARp",
+                  "x": 50,
+                  "y": 19.5,
+                  "name": "Search Placeholder",
+                  "fill": "#94A3B8",
+                  "content": "搜索标题、正文或标签…",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 15,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "mmr40",
+                  "x": 678,
+                  "y": 19,
+                  "name": "Search Key",
+                  "fill": "#64748B",
+                  "content": "⌘ K",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 11,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "icon",
+                  "id": "Rwmap",
+                  "x": 18,
+                  "y": 17,
+                  "name": "Lucide / Search",
+                  "width": 20,
+                  "height": 20,
+                  "icon": "search",
+                  "library": "lucide",
+                  "fill": "#0062FF"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "yJ91a",
+              "x": 800,
+              "y": 192,
+              "name": "Filter Control",
+              "width": 148,
+              "height": 54,
+              "fill": "#FFFFFF",
+              "cornerRadius": 16,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "lTiP1",
+                  "x": 18,
+                  "y": 19.5,
+                  "name": "Filter Label",
+                  "fill": "#475569",
+                  "content": "最近更新",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 15,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "icon",
+                  "id": "H5j82",
+                  "x": 114,
+                  "y": 18,
+                  "name": "Lucide / Chevron Down",
+                  "width": 18,
+                  "height": 18,
+                  "icon": "chevron-down",
+                  "library": "lucide",
+                  "fill": "#64748B"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "N1MLYT",
+              "x": 964,
+              "y": 192,
+              "name": "View Toggle",
+              "width": 143,
+              "height": 54,
+              "fill": "#FFFFFF",
+              "cornerRadius": 16,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "cAU1d",
+                  "x": 8,
+                  "y": 8,
+                  "name": "Grid Active",
+                  "width": 61,
+                  "height": 38,
+                  "fill": "#EAF2FF",
+                  "cornerRadius": 12,
+                  "layout": "none"
+                },
+                {
+                  "type": "icon",
+                  "id": "N7yZG",
+                  "x": 28,
+                  "y": 17,
+                  "name": "Lucide / Layout Grid",
+                  "width": 18,
+                  "height": 18,
+                  "icon": "layout-grid",
+                  "library": "lucide",
+                  "fill": "#0062FF"
+                },
+                {
+                  "type": "icon",
+                  "id": "ukQnB",
+                  "x": 92,
+                  "y": 17,
+                  "name": "Lucide / List",
+                  "width": 18,
+                  "height": 18,
+                  "icon": "list",
+                  "library": "lucide",
+                  "fill": "#94A3B8"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "Z0QbVM",
+              "x": 44,
+              "y": 282,
+              "name": "Section Title",
+              "fill": "#10213B",
+              "content": "置顶灵感",
+              "fontFamily": "ZCOOL QingKe HuangYou",
+              "fontSize": 20,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "HbxSN",
+              "x": 980,
+              "y": 287,
+              "name": "Section Meta",
+              "fill": "#64748B",
+              "content": "2 PINNED",
+              "fontFamily": "IBM Plex Mono",
+              "fontSize": 11,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "o5CTT",
+              "x": 48,
+              "y": 325,
+              "name": "Note Shadow 1",
+              "width": 500,
+              "height": 198,
+              "fill": "#DBE4F0",
+              "cornerRadius": 22,
+              "layout": "none"
+            },
+            {
+              "type": "frame",
+              "id": "Z0R7yI",
+              "x": 44,
+              "y": 320,
+              "name": "Note Card / Product Ideas",
+              "width": 500,
+              "height": 198,
+              "fill": "#CFE2FF",
+              "cornerRadius": 22,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "dSX4h",
+                  "x": 24,
+                  "y": 22,
+                  "name": "Tag",
+                  "fill": "#135DB8",
+                  "content": "产品",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 12,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "zxB8K",
+                  "x": 24,
+                  "y": 54,
+                  "name": "Title",
+                  "fill": "#10213B",
+                  "content": "让便签自己找到归宿",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 24,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "yfdIJ",
+                  "x": 24,
+                  "y": 93,
+                  "name": "Body",
+                  "fill": "#334155",
+                  "textGrowth": "fixed-width",
+                  "width": 410,
+                  "content": "根据内容自动建议标签与归档位置，减少整理负担。",
+                  "lineHeight": 1.45,
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 16,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "J1fHCu",
+                  "x": 24,
+                  "y": 161,
+                  "name": "Time",
+                  "fill": "#52739C",
+                  "content": "刚刚编辑",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "icon",
+                  "id": "DDzKH",
+                  "x": 452,
+                  "y": 20,
+                  "name": "Lucide / Pin",
+                  "width": 22,
+                  "height": 22,
+                  "icon": "pin",
+                  "library": "lucide",
+                  "fill": "#0062FF"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "IpkFz",
+              "x": 566,
+              "y": 325,
+              "name": "Note Shadow 2",
+              "width": 541,
+              "height": 198,
+              "fill": "#DBE4F0",
+              "cornerRadius": 22,
+              "layout": "none"
+            },
+            {
+              "type": "frame",
+              "id": "R6Gu7",
+              "x": 562,
+              "y": 320,
+              "name": "Note Card / Weekend",
+              "width": 545,
+              "height": 198,
+              "fill": "#FFF0A6",
+              "cornerRadius": 22,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "BFnhy",
+                  "x": 24,
+                  "y": 22,
+                  "name": "Tag",
+                  "fill": "#8A6500",
+                  "content": "生活",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 12,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "didA2",
+                  "x": 24,
+                  "y": 54,
+                  "name": "Title",
+                  "fill": "#10213B",
+                  "content": "周末慢慢做",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 24,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "nROar",
+                  "x": 24,
+                  "y": 93,
+                  "name": "Body",
+                  "fill": "#4B5563",
+                  "textGrowth": "fixed-width",
+                  "width": 445,
+                  "content": "买一束花 · 整理书架 · 给相册补上名字",
+                  "lineHeight": 1.45,
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 16,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "KShiH",
+                  "x": 24,
+                  "y": 161,
+                  "name": "Time",
+                  "fill": "#806F3A",
+                  "content": "今天 09:40",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "icon",
+                  "id": "zoi0h",
+                  "x": 497,
+                  "y": 20,
+                  "name": "Lucide / Pin",
+                  "width": 22,
+                  "height": 22,
+                  "icon": "pin",
+                  "library": "lucide",
+                  "fill": "#B98500"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "PWVaE",
+              "x": 44,
+              "y": 562,
+              "name": "Recent Title",
+              "fill": "#10213B",
+              "content": "最近便签",
+              "fontFamily": "ZCOOL QingKe HuangYou",
+              "fontSize": 20,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "wsybb",
+              "x": 1012,
+              "y": 567,
+              "name": "Recent Meta",
+              "fill": "#64748B",
+              "content": "4 NOTES",
+              "fontFamily": "IBM Plex Mono",
+              "fontSize": 11,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "d9eVtA",
+              "x": 48,
+              "y": 606,
+              "name": "Recent Shadow 1",
+              "width": 250,
+              "height": 244,
+              "fill": "#DBE4F0",
+              "cornerRadius": 20,
+              "layout": "none"
+            },
+            {
+              "type": "frame",
+              "id": "y8nQ7u",
+              "x": 44,
+              "y": 601,
+              "name": "Note Card / Recent 1",
+              "width": 250,
+              "height": 244,
+              "fill": "#FFFFFF",
+              "cornerRadius": 20,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "RjrTx",
+                  "x": 20,
+                  "y": 20,
+                  "name": "Tag",
+                  "fill": "#0062FF",
+                  "content": "WORK",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 11,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "DM5EU",
+                  "x": 20,
+                  "y": 49,
+                  "name": "Title",
+                  "fill": "#10213B",
+                  "content": "发布前检查",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 20,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "WGGgu",
+                  "x": 20,
+                  "y": 88,
+                  "name": "Body",
+                  "fill": "#475569",
+                  "textGrowth": "fixed-width",
+                  "width": 210,
+                  "content": "图标尺寸 · 快捷键提示 · 空状态文案",
+                  "lineHeight": 1.45,
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 15,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "Z6tk5X",
+                  "x": 20,
+                  "y": 210,
+                  "name": "Time",
+                  "fill": "#64748B",
+                  "content": "13:20",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "icon",
+                  "id": "q7kO8z",
+                  "x": 206,
+                  "y": 18,
+                  "name": "Lucide / More",
+                  "width": 18,
+                  "height": 18,
+                  "icon": "ellipsis",
+                  "library": "lucide",
+                  "fill": "#64748B"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "doVz4",
+              "x": 314,
+              "y": 606,
+              "name": "Recent Shadow 2",
+              "width": 250,
+              "height": 244,
+              "fill": "#DBE4F0",
+              "cornerRadius": 20,
+              "layout": "none"
+            },
+            {
+              "type": "frame",
+              "id": "XgoO3",
+              "x": 310,
+              "y": 601,
+              "name": "Note Card / Recent 2",
+              "width": 250,
+              "height": 244,
+              "fill": "#C9F3DF",
+              "cornerRadius": 20,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "APN2x",
+                  "x": 20,
+                  "y": 20,
+                  "name": "Tag",
+                  "fill": "#167A56",
+                  "content": "IDEA",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 11,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "V4uCA",
+                  "x": 20,
+                  "y": 49,
+                  "name": "Title",
+                  "fill": "#10213B",
+                  "content": "写作提示",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 20,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "UDTia",
+                  "x": 20,
+                  "y": 88,
+                  "name": "Body",
+                  "fill": "#475569",
+                  "textGrowth": "fixed-width",
+                  "width": 210,
+                  "content": "一句话先说结论，再补充上下文。",
+                  "lineHeight": 1.45,
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 15,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "v78fZ",
+                  "x": 20,
+                  "y": 210,
+                  "name": "Time",
+                  "fill": "#64748B",
+                  "content": "昨天",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "icon",
+                  "id": "wFLOX",
+                  "x": 206,
+                  "y": 18,
+                  "name": "Lucide / More",
+                  "width": 18,
+                  "height": 18,
+                  "icon": "ellipsis",
+                  "library": "lucide",
+                  "fill": "#64748B"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "c475H",
+              "x": 580,
+              "y": 606,
+              "name": "Recent Shadow 3",
+              "width": 250,
+              "height": 244,
+              "fill": "#DBE4F0",
+              "cornerRadius": 20,
+              "layout": "none"
+            },
+            {
+              "type": "frame",
+              "id": "F4afOA",
+              "x": 576,
+              "y": 601,
+              "name": "Note Card / Recent 3",
+              "width": 250,
+              "height": 244,
+              "fill": "#FFD7E1",
+              "cornerRadius": 20,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "hYEZZ",
+                  "x": 20,
+                  "y": 20,
+                  "name": "Tag",
+                  "fill": "#B73555",
+                  "content": "READ",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 11,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "enIMc",
+                  "x": 20,
+                  "y": 49,
+                  "name": "Title",
+                  "fill": "#10213B",
+                  "content": "待读清单",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 20,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "ubhuN",
+                  "x": 20,
+                  "y": 88,
+                  "name": "Body",
+                  "fill": "#475569",
+                  "textGrowth": "fixed-width",
+                  "width": 210,
+                  "content": "设计系统不是组件仓库，而是共同语言。",
+                  "lineHeight": 1.45,
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 15,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "sr72g",
+                  "x": 20,
+                  "y": 210,
+                  "name": "Time",
+                  "fill": "#64748B",
+                  "content": "周二",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "icon",
+                  "id": "G4NVz",
+                  "x": 206,
+                  "y": 18,
+                  "name": "Lucide / More",
+                  "width": 18,
+                  "height": 18,
+                  "icon": "ellipsis",
+                  "library": "lucide",
+                  "fill": "#64748B"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "c0Iq9",
+              "x": 846,
+              "y": 606,
+              "name": "Recent Shadow 4",
+              "width": 265,
+              "height": 244,
+              "fill": "#DBE4F0",
+              "cornerRadius": 20,
+              "layout": "none"
+            },
+            {
+              "type": "frame",
+              "id": "Alyf7",
+              "x": 842,
+              "y": 601,
+              "name": "Note Card / Recent 4",
+              "width": 265,
+              "height": 244,
+              "fill": "#FFFFFF",
+              "cornerRadius": 20,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Q9D6yz",
+                  "x": 20,
+                  "y": 20,
+                  "name": "Tag",
+                  "fill": "#6B5CC7",
+                  "content": "PERSONAL",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 11,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "PGQmG",
+                  "x": 20,
+                  "y": 49,
+                  "name": "Title",
+                  "fill": "#10213B",
+                  "content": "给未来的自己",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 20,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "ci7Av",
+                  "x": 20,
+                  "y": 88,
+                  "name": "Body",
+                  "fill": "#475569",
+                  "textGrowth": "fixed-width",
+                  "width": 225,
+                  "content": "留一点空白，灵感才有地方落下。",
+                  "lineHeight": 1.45,
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 15,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "l8g9Bs",
+                  "x": 20,
+                  "y": 210,
+                  "name": "Time",
+                  "fill": "#64748B",
+                  "content": "8月 28日",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "icon",
+                  "id": "giDcp",
+                  "x": 221,
+                  "y": 18,
+                  "name": "Lucide / More",
+                  "width": 18,
+                  "height": 18,
+                  "icon": "ellipsis",
+                  "library": "lucide",
+                  "fill": "#64748B"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "TFyh7",
+              "x": 44,
+              "y": 852,
+              "name": "Footer Hint",
+              "fill": "#94A3B8",
+              "content": "拖拽便签即可调整顺序  ·  右键查看更多操作",
+              "fontFamily": "IBM Plex Mono",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "id": "N1Dxb",
+          "type": "ref",
+          "ref": "rIU7R",
+          "name": "Window Controls / Home",
+          "x": 1308,
+          "y": 0
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "X6GgND",
+      "x": 1500,
+      "y": 450,
+      "name": "Screen / Archive",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "#F4F7FB",
+      "layout": "none",
+      "children": [
+        {
+          "id": "Xfvgu",
+          "type": "ref",
+          "ref": "gTnTE",
+          "name": "Sidebar / Archive Instance",
+          "x": 0,
+          "y": 0,
+          "descendants": {
+            "VdGx3": {
+              "fill": "#FFFFFF"
+            },
+            "baR8j": {
+              "y": 19.5
+            },
+            "Wd8h4": {
+              "y": 19.5
+            },
+            "IhrbZ": {
+              "fill": "#EAF2FF"
+            },
+            "lGAVN": {
+              "y": 18
+            },
+            "acSiN": {
+              "y": 18
+            },
+            "PhyWz": {
+              "y": 18
+            },
+            "HR3na": {
+              "y": 18
+            },
+            "rfUD3": {
+              "y": 16
+            }
+          }
+        },
+        {
+          "type": "rectangle",
+          "id": "MY7Zm",
+          "x": 263,
+          "y": 0,
+          "name": "Sidebar Divider",
+          "fill": "#DCE5F0",
+          "width": 1,
+          "height": 900
+        },
+        {
+          "type": "frame",
+          "id": "rnRuM",
+          "x": 264,
+          "y": 0,
+          "name": "Archive Workspace",
+          "width": 1176,
+          "height": 900,
+          "fill": "#F4F7FB",
+          "layout": "none",
+          "children": [
+            {
+              "type": "text",
+              "id": "BSiE2",
+              "x": 44,
+              "y": 72,
+              "name": "Page Eyebrow",
+              "fill": "#0062FF",
+              "content": "ARCHIVE / 12",
+              "fontFamily": "IBM Plex Mono",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "CXOG7",
+              "x": 44,
+              "y": 98,
+              "name": "Page Title",
+              "fill": "#10213B",
+              "content": "已归档",
+              "fontFamily": "ZCOOL QingKe HuangYou",
+              "fontSize": 34,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "d9kpl6",
+              "x": 44,
+              "y": 144,
+              "name": "Page Subtitle",
+              "fill": "#64748B",
+              "content": "暂时收起，不代表忘记。需要时随时恢复。",
+              "fontFamily": "ZCOOL QingKe HuangYou",
+              "fontSize": 16,
+              "fontWeight": "normal"
+            },
+            {
+              "id": "ET1yt",
+              "type": "ref",
+              "ref": "U3QJu2",
+              "name": "Search / Archive Instance",
+              "x": 44,
+              "y": 192,
+              "descendants": {
+                "R7oARp": {
+                  "y": 19.5
+                },
+                "mmr40": {
+                  "y": 19
+                }
+              }
+            },
+            {
+              "type": "frame",
+              "id": "RidMY",
+              "x": 800,
+              "y": 192,
+              "name": "Archive Sort",
+              "width": 307,
+              "height": 54,
+              "fill": "#FFFFFF",
+              "cornerRadius": 16,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "oyyuv",
+                  "x": 97,
+                  "y": 17,
+                  "name": "Sort Label",
+                  "fill": "#475569",
+                  "content": "按归档时间 · 最新优先",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 15,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "vHuWY",
+              "x": 44,
+              "y": 284,
+              "name": "Section Title",
+              "fill": "#10213B",
+              "content": "归档记录",
+              "fontFamily": "ZCOOL QingKe HuangYou",
+              "fontSize": 20,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "zh8AX",
+              "x": 1020,
+              "y": 289,
+              "name": "Section Meta",
+              "fill": "#64748B",
+              "content": "12 ITEMS",
+              "fontFamily": "IBM Plex Mono",
+              "fontSize": 11,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "LT3N6",
+              "x": 44,
+              "y": 322,
+              "name": "Archive Row / 1",
+              "width": 1063,
+              "height": 116,
+              "fill": "#FFFFFF",
+              "cornerRadius": 18,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "rectangle",
+                  "id": "KSp1d",
+                  "x": 0,
+                  "y": 0,
+                  "name": "Color Rail",
+                  "fill": "#CFE2FF",
+                  "width": 8,
+                  "height": 116
+                },
+                {
+                  "type": "text",
+                  "id": "DO53P",
+                  "x": 28,
+                  "y": 22,
+                  "name": "Title",
+                  "fill": "#10213B",
+                  "content": "季度复盘提纲",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 20,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "QXeVa",
+                  "x": 28,
+                  "y": 57,
+                  "name": "Preview",
+                  "fill": "#64748B",
+                  "content": "进展、阻塞、下一步与需要协作的事项。",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 15,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "p1EoV",
+                  "x": 28,
+                  "y": 88,
+                  "name": "Meta",
+                  "fill": "#94A3B8",
+                  "content": "归档于 9月 2日  ·  WORK",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "RpmCU",
+                  "x": 907,
+                  "y": 32,
+                  "name": "Restore Action",
+                  "width": 124,
+                  "height": 48,
+                  "fill": "#EAF2FF",
+                  "cornerRadius": 14,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "YYFmp",
+                      "x": 39,
+                      "y": 16.5,
+                      "name": "Restore Label",
+                      "fill": "#0062FF",
+                      "content": "恢复便签",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "mpVVN",
+              "x": 44,
+              "y": 454,
+              "name": "Archive Row / 2",
+              "width": 1063,
+              "height": 116,
+              "fill": "#FFFFFF",
+              "cornerRadius": 18,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "rectangle",
+                  "id": "Sfhnz",
+                  "x": 0,
+                  "y": 0,
+                  "name": "Color Rail",
+                  "fill": "#FFF0A6",
+                  "width": 8,
+                  "height": 116
+                },
+                {
+                  "type": "text",
+                  "id": "fDrMA",
+                  "x": 28,
+                  "y": 22,
+                  "name": "Title",
+                  "fill": "#10213B",
+                  "content": "咖啡店观察",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 20,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "MgQum",
+                  "x": 28,
+                  "y": 57,
+                  "name": "Preview",
+                  "fill": "#64748B",
+                  "content": "人们总会选择靠窗、能看到门口的位置。",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 15,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "l2izb",
+                  "x": 28,
+                  "y": 88,
+                  "name": "Meta",
+                  "fill": "#94A3B8",
+                  "content": "归档于 8月 30日  ·  LIFE",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "GM3x4",
+                  "x": 907,
+                  "y": 32,
+                  "name": "Restore Action",
+                  "width": 124,
+                  "height": 48,
+                  "fill": "#EAF2FF",
+                  "cornerRadius": 14,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "cWJny",
+                      "x": 39,
+                      "y": 16.5,
+                      "name": "Restore Label",
+                      "fill": "#0062FF",
+                      "content": "恢复便签",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "g2nQn",
+              "x": 44,
+              "y": 586,
+              "name": "Archive Row / 3",
+              "width": 1063,
+              "height": 116,
+              "fill": "#FFFFFF",
+              "cornerRadius": 18,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "rectangle",
+                  "id": "ca1Vz",
+                  "x": 0,
+                  "y": 0,
+                  "name": "Color Rail",
+                  "fill": "#C9F3DF",
+                  "width": 8,
+                  "height": 116
+                },
+                {
+                  "type": "text",
+                  "id": "g02Aj",
+                  "x": 28,
+                  "y": 22,
+                  "name": "Title",
+                  "fill": "#10213B",
+                  "content": "旧版快捷键草案",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 20,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "A4Lde",
+                  "x": 28,
+                  "y": 57,
+                  "name": "Preview",
+                  "fill": "#64748B",
+                  "content": "新建、搜索、归档与快速呼出窗口。",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 15,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "bvl0i",
+                  "x": 28,
+                  "y": 88,
+                  "name": "Meta",
+                  "fill": "#94A3B8",
+                  "content": "归档于 8月 24日  ·  PRODUCT",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "GXZqs",
+                  "x": 907,
+                  "y": 32,
+                  "name": "Restore Action",
+                  "width": 124,
+                  "height": 48,
+                  "fill": "#EAF2FF",
+                  "cornerRadius": 14,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "XakQa",
+                      "x": 39,
+                      "y": 16.5,
+                      "name": "Restore Label",
+                      "fill": "#0062FF",
+                      "content": "恢复便签",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rectangle",
+          "id": "Q2EGv2",
+          "x": 16,
+          "y": 140,
+          "name": "Inactive Rail Mask",
+          "fill": "#FFFFFF",
+          "width": 4,
+          "height": 56
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 4,
+          "id": "Z67kn",
+          "x": 16,
+          "y": 204,
+          "name": "Archive Active Rail",
+          "fill": "#0062FF",
+          "width": 4,
+          "height": 52
+        },
+        {
+          "id": "tf0Me",
+          "type": "ref",
+          "ref": "rIU7R",
+          "name": "Window Controls / Archive",
+          "x": 1308,
+          "y": 0
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "Be4Dd",
+      "x": 3000,
+      "y": 450,
+      "name": "Screen / Recently Deleted",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "#F4F7FB",
+      "layout": "none",
+      "children": [
+        {
+          "id": "A5dif",
+          "type": "ref",
+          "ref": "gTnTE",
+          "name": "Sidebar / Trash Instance",
+          "x": 0,
+          "y": 0,
+          "descendants": {
+            "VdGx3": {
+              "fill": "#FFFFFF"
+            },
+            "baR8j": {
+              "y": 19.5
+            },
+            "Wd8h4": {
+              "y": 19.5
+            },
+            "lGAVN": {
+              "y": 18
+            },
+            "acSiN": {
+              "y": 18
+            },
+            "w9YiP": {
+              "fill": "#FFF0F2"
+            },
+            "PhyWz": {
+              "y": 18
+            },
+            "HR3na": {
+              "y": 18
+            },
+            "OGZ42": {
+              "y": 57
+            },
+            "rfUD3": {
+              "y": 16
+            }
+          }
+        },
+        {
+          "type": "rectangle",
+          "id": "k2RtH",
+          "x": 263,
+          "y": 0,
+          "name": "Sidebar Divider",
+          "fill": "#DCE5F0",
+          "width": 1,
+          "height": 900
+        },
+        {
+          "type": "frame",
+          "id": "kR6Jk",
+          "x": 264,
+          "y": 0,
+          "name": "Trash Workspace",
+          "width": 1176,
+          "height": 900,
+          "fill": "#F4F7FB",
+          "layout": "none",
+          "children": [
+            {
+              "type": "text",
+              "id": "L4HHEV",
+              "x": 44,
+              "y": 72,
+              "name": "Page Eyebrow",
+              "fill": "#E24A63",
+              "content": "TRASH / 03",
+              "fontFamily": "IBM Plex Mono",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "ZEYS7",
+              "x": 44,
+              "y": 98,
+              "name": "Page Title",
+              "fill": "#10213B",
+              "content": "最近删除",
+              "fontFamily": "ZCOOL QingKe HuangYou",
+              "fontSize": 34,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "o4tjwq",
+              "x": 44,
+              "y": 144,
+              "name": "Page Subtitle",
+              "fill": "#64748B",
+              "content": "删除的便签会保留 30 天，之后自动永久清除。",
+              "fontFamily": "ZCOOL QingKe HuangYou",
+              "fontSize": 16,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "NZhfZ",
+              "x": 941,
+              "y": 75,
+              "name": "Empty Trash Action",
+              "width": 166,
+              "height": 50,
+              "fill": "#FFF0F2",
+              "cornerRadius": 16,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "NGH6P",
+                  "x": 52,
+                  "y": 17,
+                  "name": "Empty Trash Label",
+                  "fill": "#E24A63",
+                  "content": "清空删除项",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 16,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "P94xJ",
+              "x": 44,
+              "y": 192,
+              "name": "Retention Banner",
+              "width": 1063,
+              "height": 72,
+              "fill": "#FFF7F8",
+              "cornerRadius": 18,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "vkyoQ",
+                  "x": 58,
+                  "y": 18,
+                  "name": "Retention Copy",
+                  "fill": "#7D2638",
+                  "content": "最早的一条便签将在 6 天后永久删除",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 17,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "Jgg9L",
+                  "x": 58,
+                  "y": 44,
+                  "name": "Retention Subcopy",
+                  "fill": "#A55364",
+                  "content": "你可以在倒计时结束前恢复它。",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "icon",
+                  "id": "z5GIZM",
+                  "x": 22,
+                  "y": 25,
+                  "name": "Lucide / Alert",
+                  "width": 22,
+                  "height": 22,
+                  "icon": "circle-alert",
+                  "library": "lucide",
+                  "fill": "#E24A63"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "o28HST",
+              "x": 44,
+              "y": 300,
+              "name": "Section Title",
+              "fill": "#10213B",
+              "content": "待处理",
+              "fontFamily": "ZCOOL QingKe HuangYou",
+              "fontSize": 20,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "jGXvn",
+              "x": 1025,
+              "y": 305,
+              "name": "Section Meta",
+              "fill": "#64748B",
+              "content": "3 ITEMS",
+              "fontFamily": "IBM Plex Mono",
+              "fontSize": 11,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "LbsDV",
+              "x": 44,
+              "y": 338,
+              "name": "Trash Row / 1",
+              "width": 1063,
+              "height": 128,
+              "fill": "#FFFFFF",
+              "cornerRadius": 18,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "LDxa6",
+                  "x": 24,
+                  "y": 28,
+                  "name": "Color Dot",
+                  "fill": "#FFD7E1",
+                  "width": 16,
+                  "height": 16
+                },
+                {
+                  "type": "text",
+                  "id": "UKjJe",
+                  "x": 56,
+                  "y": 20,
+                  "name": "Title",
+                  "fill": "#10213B",
+                  "content": "随手记：会议室灯光",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 20,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "SEJaI",
+                  "x": 56,
+                  "y": 55,
+                  "name": "Preview",
+                  "fill": "#64748B",
+                  "content": "靠窗区域太亮，演示时需要拉下遮光帘。",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 15,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "s1l1bo",
+                  "x": 56,
+                  "y": 92,
+                  "name": "Meta",
+                  "fill": "#E24A63",
+                  "content": "24 DAYS LEFT",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 11,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "JYnVP",
+                  "x": 795,
+                  "y": 40,
+                  "name": "Restore Action",
+                  "width": 112,
+                  "height": 48,
+                  "fill": "#EAF2FF",
+                  "cornerRadius": 14,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "I9XdkH",
+                      "x": 44.5,
+                      "y": 16.5,
+                      "name": "Restore Label",
+                      "fill": "#0062FF",
+                      "content": "恢复",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "s1Ee7",
+                  "x": 919,
+                  "y": 40,
+                  "name": "Delete Forever Action",
+                  "width": 112,
+                  "height": 48,
+                  "fill": "#FFF0F2",
+                  "cornerRadius": 14,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "gPkIo",
+                      "x": 33,
+                      "y": 16.5,
+                      "name": "Delete Label",
+                      "fill": "#E24A63",
+                      "content": "永久删除",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "S7aAXl",
+              "x": 44,
+              "y": 482,
+              "name": "Trash Row / 2",
+              "width": 1063,
+              "height": 128,
+              "fill": "#FFFFFF",
+              "cornerRadius": 18,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "eQemI",
+                  "x": 24,
+                  "y": 28,
+                  "name": "Color Dot",
+                  "fill": "#FFF0A6",
+                  "width": 16,
+                  "height": 16
+                },
+                {
+                  "type": "text",
+                  "id": "fnUJv",
+                  "x": 56,
+                  "y": 20,
+                  "name": "Title",
+                  "fill": "#10213B",
+                  "content": "过期采购清单",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 20,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "Rx6NS",
+                  "x": 56,
+                  "y": 55,
+                  "name": "Preview",
+                  "fill": "#64748B",
+                  "content": "键盘清洁刷、桌面理线器、暖色台灯。",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 15,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "vr77e",
+                  "x": 56,
+                  "y": 92,
+                  "name": "Meta",
+                  "fill": "#E24A63",
+                  "content": "18 DAYS LEFT",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 11,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "I7W3xD",
+                  "x": 795,
+                  "y": 40,
+                  "name": "Restore Action",
+                  "width": 112,
+                  "height": 48,
+                  "fill": "#EAF2FF",
+                  "cornerRadius": 14,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "dyjZ0",
+                      "x": 44.5,
+                      "y": 16.5,
+                      "name": "Restore Label",
+                      "fill": "#0062FF",
+                      "content": "恢复",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "xD3ki",
+                  "x": 919,
+                  "y": 40,
+                  "name": "Delete Forever Action",
+                  "width": 112,
+                  "height": 48,
+                  "fill": "#FFF0F2",
+                  "cornerRadius": 14,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "z6qB3P",
+                      "x": 33,
+                      "y": 16.5,
+                      "name": "Delete Label",
+                      "fill": "#E24A63",
+                      "content": "永久删除",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "RBkDq",
+              "x": 44,
+              "y": 626,
+              "name": "Trash Row / 3",
+              "width": 1063,
+              "height": 128,
+              "fill": "#FFFFFF",
+              "cornerRadius": 18,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "Wzz4p",
+                  "x": 24,
+                  "y": 28,
+                  "name": "Color Dot",
+                  "fill": "#CFE2FF",
+                  "width": 16,
+                  "height": 16
+                },
+                {
+                  "type": "text",
+                  "id": "r5Sdkm",
+                  "x": 56,
+                  "y": 20,
+                  "name": "Title",
+                  "fill": "#10213B",
+                  "content": "临时账号信息",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 20,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "y1T3v",
+                  "x": 56,
+                  "y": 55,
+                  "name": "Preview",
+                  "fill": "#64748B",
+                  "content": "内容已失效，仅保留标题用于确认。",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 15,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "d3rFx",
+                  "x": 56,
+                  "y": 92,
+                  "name": "Meta",
+                  "fill": "#E24A63",
+                  "content": "6 DAYS LEFT",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 11,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "zkygc",
+                  "x": 795,
+                  "y": 40,
+                  "name": "Restore Action",
+                  "width": 112,
+                  "height": 48,
+                  "fill": "#EAF2FF",
+                  "cornerRadius": 14,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "ghdGt",
+                      "x": 44.5,
+                      "y": 16.5,
+                      "name": "Restore Label",
+                      "fill": "#0062FF",
+                      "content": "恢复",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "DmGdq",
+                  "x": 919,
+                  "y": 40,
+                  "name": "Delete Forever Action",
+                  "width": 112,
+                  "height": 48,
+                  "fill": "#FFF0F2",
+                  "cornerRadius": 14,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "BkNdp",
+                      "x": 33,
+                      "y": 16.5,
+                      "name": "Delete Label",
+                      "fill": "#E24A63",
+                      "content": "永久删除",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rectangle",
+          "id": "eLYXh",
+          "x": 16,
+          "y": 140,
+          "name": "Inactive Rail Mask",
+          "fill": "#FFFFFF",
+          "width": 4,
+          "height": 56
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 4,
+          "id": "SwE82",
+          "x": 16,
+          "y": 264,
+          "name": "Trash Active Rail",
+          "fill": "#E24A63",
+          "width": 4,
+          "height": 52
+        },
+        {
+          "id": "dW5ln",
+          "type": "ref",
+          "ref": "rIU7R",
+          "name": "Window Controls / Trash",
+          "x": 1308,
+          "y": 0
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "gaH7q",
+      "x": 4500,
+      "y": 450,
+      "name": "Overlay / Settings General",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "#22324A",
+      "layout": "none",
+      "children": [
+        {
+          "type": "rectangle",
+          "id": "ee4Xy",
+          "x": 0,
+          "y": 0,
+          "name": "Backdrop Glow",
+          "fill": "#10213B99",
+          "width": 1440,
+          "height": 900
+        },
+        {
+          "type": "frame",
+          "id": "Smvl5",
+          "x": 100,
+          "y": 50,
+          "name": "Settings Modal",
+          "clip": true,
+          "width": 1240,
+          "height": 800,
+          "fill": "#FFFFFF",
+          "cornerRadius": 28,
+          "layout": "none",
+          "children": [
+            {
+              "type": "frame",
+              "id": "vv91q",
+              "x": 0,
+              "y": 0,
+              "name": "Settings Sidebar",
+              "width": 300,
+              "height": 800,
+              "fill": "#F8FAFC",
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "yZFpO",
+                  "x": 28,
+                  "y": 110,
+                  "name": "Settings Label",
+                  "fill": "#94A3B8",
+                  "content": "SETTINGS",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 11,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "iyAS3",
+                  "x": 20,
+                  "y": 136,
+                  "name": "Settings Nav / General Active",
+                  "width": 260,
+                  "height": 58,
+                  "fill": "#EAF2FF",
+                  "cornerRadius": 16,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "rectangle",
+                      "cornerRadius": 4,
+                      "id": "vkwf1",
+                      "x": 0,
+                      "y": 0,
+                      "name": "Active Rail",
+                      "fill": "#0062FF",
+                      "width": 4,
+                      "height": 58
+                    },
+                    {
+                      "type": "text",
+                      "id": "yGtpi",
+                      "x": 54,
+                      "y": 10,
+                      "name": "Nav Label",
+                      "fill": "#10213B",
+                      "content": "通用",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 17,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "YF4S4",
+                      "x": 54,
+                      "y": 34,
+                      "name": "Nav Caption",
+                      "fill": "#64748B",
+                      "content": "外观与启动",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "h67li",
+                      "x": 20,
+                      "y": 19,
+                      "name": "Lucide / Sliders",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "sliders-horizontal",
+                      "library": "lucide",
+                      "fill": "#0062FF"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "e2njH",
+                  "x": 54,
+                  "y": 212,
+                  "name": "Nav Label 2",
+                  "fill": "#475569",
+                  "content": "快捷键",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 16,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "Q8Kun",
+                  "x": 54,
+                  "y": 236,
+                  "name": "Nav Caption 2",
+                  "fill": "#94A3B8",
+                  "content": "全局操作",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "K6jsDf",
+                  "x": 54,
+                  "y": 276,
+                  "name": "Nav Label 3",
+                  "fill": "#475569",
+                  "content": "便签栏",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 16,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "i1Tl8",
+                  "x": 54,
+                  "y": 300,
+                  "name": "Nav Caption 3",
+                  "fill": "#94A3B8",
+                  "content": "位置与行为",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "AMtkh",
+                  "x": 54,
+                  "y": 340,
+                  "name": "Nav Label 4",
+                  "fill": "#475569",
+                  "content": "便签",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 16,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "tHidV",
+                  "x": 54,
+                  "y": 364,
+                  "name": "Nav Caption 4",
+                  "fill": "#94A3B8",
+                  "content": "编辑与外观",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "cOhZw",
+                  "x": 54,
+                  "y": 404,
+                  "name": "Nav Label 5",
+                  "fill": "#475569",
+                  "content": "数据与隐私",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 16,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "ClpXk",
+                  "x": 54,
+                  "y": 428,
+                  "name": "Nav Caption 5",
+                  "fill": "#94A3B8",
+                  "content": "本地存储",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "b4gE3h",
+                  "x": 54,
+                  "y": 468,
+                  "name": "Nav Label 6",
+                  "fill": "#475569",
+                  "content": "更新",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 16,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "xo1gG",
+                  "x": 54,
+                  "y": 492,
+                  "name": "Nav Caption 6",
+                  "fill": "#94A3B8",
+                  "content": "版本与发布",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "tJjHs",
+                  "x": 20,
+                  "y": 716,
+                  "name": "Back To Notes",
+                  "width": 260,
+                  "height": 52,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 16,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "euJZ2",
+                      "x": 52,
+                      "y": 14,
+                      "name": "Back Label",
+                      "fill": "#475569",
+                      "content": "返回便签库",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "iKPIT",
+                      "x": 20,
+                      "y": 16,
+                      "name": "Lucide / Back",
+                      "width": 18,
+                      "height": 18,
+                      "icon": "arrow-left",
+                      "library": "lucide",
+                      "fill": "#0062FF"
+                    }
+                  ]
+                },
+                {
+                  "type": "icon",
+                  "id": "P3oT6",
+                  "x": 22,
+                  "y": 220,
+                  "name": "Lucide / Command",
+                  "width": 18,
+                  "height": 18,
+                  "icon": "command",
+                  "library": "lucide",
+                  "fill": "#94A3B8"
+                },
+                {
+                  "type": "icon",
+                  "id": "ckiry",
+                  "x": 22,
+                  "y": 284,
+                  "name": "Lucide / Panel Right",
+                  "width": 18,
+                  "height": 18,
+                  "icon": "panel-right",
+                  "library": "lucide",
+                  "fill": "#94A3B8"
+                },
+                {
+                  "type": "icon",
+                  "id": "YtIPg",
+                  "x": 22,
+                  "y": 348,
+                  "name": "Lucide / Sticky Note",
+                  "width": 18,
+                  "height": 18,
+                  "icon": "sticky-note",
+                  "library": "lucide",
+                  "fill": "#94A3B8"
+                },
+                {
+                  "type": "icon",
+                  "id": "L01p15",
+                  "x": 22,
+                  "y": 412,
+                  "name": "Lucide / Shield",
+                  "width": 18,
+                  "height": 18,
+                  "icon": "shield-check",
+                  "library": "lucide",
+                  "fill": "#94A3B8"
+                },
+                {
+                  "type": "icon",
+                  "id": "QkqXq",
+                  "x": 22,
+                  "y": 476,
+                  "name": "Lucide / Refresh",
+                  "width": 18,
+                  "height": 18,
+                  "icon": "refresh-cw",
+                  "library": "lucide",
+                  "fill": "#94A3B8"
+                }
+              ]
+            },
+            {
+              "type": "rectangle",
+              "id": "a8A0Z",
+              "x": 299,
+              "y": 0,
+              "name": "Settings Divider",
+              "fill": "#DCE5F0",
+              "width": 1,
+              "height": 800
+            },
+            {
+              "type": "frame",
+              "id": "Vx0M3",
+              "x": 300,
+              "y": 0,
+              "name": "Settings Content",
+              "width": 940,
+              "height": 800,
+              "fill": "#FFFFFF",
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "o9Y0Be",
+                  "x": 44,
+                  "y": 34,
+                  "name": "Page Eyebrow",
+                  "fill": "#0062FF",
+                  "content": "GENERAL",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 11,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "e4yT5",
+                  "x": 44,
+                  "y": 58,
+                  "name": "Page Title",
+                  "fill": "#10213B",
+                  "content": "通用设置",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 32,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "rZyca",
+                  "x": 44,
+                  "y": 102,
+                  "name": "Page Subtitle",
+                  "fill": "#64748B",
+                  "content": "定制 Noty 的显示方式与启动行为。",
+                  "fontFamily": "ZCOOL QingKe HuangYou",
+                  "fontSize": 15,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "rectangle",
+                  "id": "L22APY",
+                  "x": 0,
+                  "y": 140,
+                  "name": "Header Divider",
+                  "fill": "#E7EDF4",
+                  "width": 940,
+                  "height": 1
+                },
+                {
+                  "type": "frame",
+                  "id": "bgpFf",
+                  "x": 44,
+                  "y": 174,
+                  "name": "Settings Card / Appearance",
+                  "width": 852,
+                  "height": 222,
+                  "fill": "#F8FAFC",
+                  "cornerRadius": 20,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "FS7Zx",
+                      "x": 24,
+                      "y": 22,
+                      "name": "Card Title",
+                      "fill": "#10213B",
+                      "content": "外观与语言",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 20,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "RdNuT",
+                      "x": 24,
+                      "y": 52,
+                      "name": "Card Caption",
+                      "fill": "#64748B",
+                      "content": "界面语言与整体颜色模式",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "rectangle",
+                      "id": "s3olbq",
+                      "x": 0,
+                      "y": 86,
+                      "name": "Row Divider 1",
+                      "fill": "#E1E8F0",
+                      "width": 852,
+                      "height": 1
+                    },
+                    {
+                      "type": "text",
+                      "id": "W3pajo",
+                      "x": 24,
+                      "y": 108,
+                      "name": "Language Label",
+                      "fill": "#10213B",
+                      "content": "界面语言",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "BAqhX",
+                      "x": 24,
+                      "y": 134,
+                      "name": "Language Hint",
+                      "fill": "#64748B",
+                      "content": "更改后应用到所有窗口",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "siPOL",
+                      "x": 640,
+                      "y": 102,
+                      "name": "Language Select",
+                      "width": 184,
+                      "height": 50,
+                      "fill": "#FFFFFF",
+                      "cornerRadius": 14,
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "uwrU8",
+                          "x": 18,
+                          "y": 17.5,
+                          "name": "Selected Language",
+                          "fill": "#475569",
+                          "content": "简体中文",
+                          "fontFamily": "ZCOOL QingKe HuangYou",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "AV4Qy",
+                          "x": 148,
+                          "y": 16,
+                          "name": "Lucide / Chevron Down",
+                          "width": 18,
+                          "height": 18,
+                          "icon": "chevron-down",
+                          "library": "lucide",
+                          "fill": "#64748B"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "rectangle",
+                      "id": "Wk9qL",
+                      "x": 0,
+                      "y": 170,
+                      "name": "Row Divider 2",
+                      "fill": "#E1E8F0",
+                      "width": 852,
+                      "height": 1
+                    },
+                    {
+                      "type": "text",
+                      "id": "LCX4t",
+                      "x": 24,
+                      "y": 188,
+                      "name": "Theme Label",
+                      "fill": "#10213B",
+                      "content": "颜色主题",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "M0JUws",
+                      "x": 540,
+                      "y": 180,
+                      "name": "Theme Segmented Control",
+                      "width": 284,
+                      "height": 36,
+                      "fill": "#E9EEF5",
+                      "cornerRadius": 12,
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "S39dJ",
+                          "x": 4,
+                          "y": 4,
+                          "name": "System Active",
+                          "width": 90,
+                          "height": 28,
+                          "fill": "#FFFFFF",
+                          "cornerRadius": 9,
+                          "layout": "none"
+                        },
+                        {
+                          "type": "text",
+                          "id": "CQq2W",
+                          "x": 20,
+                          "y": 11.5,
+                          "name": "System Label",
+                          "fill": "#0062FF",
+                          "content": "跟随系统",
+                          "fontFamily": "ZCOOL QingKe HuangYou",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "vJcng",
+                          "x": 127,
+                          "y": 11.5,
+                          "name": "Light Label",
+                          "fill": "#64748B",
+                          "content": "浅色",
+                          "fontFamily": "ZCOOL QingKe HuangYou",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "j0qPN",
+                          "x": 221,
+                          "y": 11.5,
+                          "name": "Dark Label",
+                          "fill": "#64748B",
+                          "content": "深色",
+                          "fontFamily": "ZCOOL QingKe HuangYou",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "pJLqJ",
+                  "x": 44,
+                  "y": 416,
+                  "name": "Settings Card / Startup",
+                  "width": 852,
+                  "height": 206,
+                  "fill": "#F8FAFC",
+                  "cornerRadius": 20,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "oukj0",
+                      "x": 24,
+                      "y": 22,
+                      "name": "Card Title",
+                      "fill": "#10213B",
+                      "content": "启动与关闭",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 20,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "R2Y9Vh",
+                      "x": 24,
+                      "y": 52,
+                      "name": "Card Caption",
+                      "fill": "#64748B",
+                      "content": "控制 Noty 在系统中的运行方式",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "rectangle",
+                      "id": "CS1o6",
+                      "x": 0,
+                      "y": 86,
+                      "name": "Row Divider 1",
+                      "fill": "#E1E8F0",
+                      "width": 852,
+                      "height": 1
+                    },
+                    {
+                      "type": "text",
+                      "id": "YtjLm",
+                      "x": 24,
+                      "y": 103,
+                      "name": "Startup Label",
+                      "fill": "#10213B",
+                      "content": "登录时启动 Noty",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "B2RP0",
+                      "x": 24,
+                      "y": 130,
+                      "name": "Startup Hint",
+                      "fill": "#64748B",
+                      "content": "启动后保持在后台，不主动打开窗口",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Samx4",
+                      "x": 772,
+                      "y": 108,
+                      "name": "Startup Toggle On",
+                      "width": 52,
+                      "height": 30,
+                      "fill": "#0062FF",
+                      "cornerRadius": 15,
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "J6ctL",
+                          "x": 25,
+                          "y": 3,
+                          "name": "Toggle Knob",
+                          "fill": "#FFFFFF",
+                          "width": 24,
+                          "height": 24
+                        }
+                      ]
+                    },
+                    {
+                      "type": "rectangle",
+                      "id": "TdEMz",
+                      "x": 0,
+                      "y": 158,
+                      "name": "Row Divider 2",
+                      "fill": "#E1E8F0",
+                      "width": 852,
+                      "height": 1
+                    },
+                    {
+                      "type": "text",
+                      "id": "yY9aX",
+                      "x": 24,
+                      "y": 174,
+                      "name": "Close Behavior Label",
+                      "fill": "#10213B",
+                      "content": "关闭主窗口时",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "l4Kfl3",
+                      "x": 612,
+                      "y": 166,
+                      "name": "Close Behavior",
+                      "width": 212,
+                      "height": 34,
+                      "fill": "#FFFFFF",
+                      "cornerRadius": 11,
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "HNfn8",
+                          "x": 76,
+                          "y": 10.5,
+                          "name": "Close Behavior Value",
+                          "fill": "#475569",
+                          "content": "最小化至后台",
+                          "fontFamily": "ZCOOL QingKe HuangYou",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "oWUPY",
+                  "x": 44,
+                  "y": 642,
+                  "name": "Settings Card / Quick Access",
+                  "width": 852,
+                  "height": 110,
+                  "fill": "#EAF2FF",
+                  "cornerRadius": 20,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "hpDuT",
+                      "x": 24,
+                      "y": 27,
+                      "name": "Shortcut Mark",
+                      "fill": "#0062FF",
+                      "width": 56,
+                      "height": 56
+                    },
+                    {
+                      "type": "text",
+                      "id": "BvUyZ",
+                      "x": 100,
+                      "y": 27,
+                      "name": "Quick Title",
+                      "fill": "#10213B",
+                      "content": "随时呼出便签栏",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 19,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "mx7AE",
+                      "x": 100,
+                      "y": 64,
+                      "name": "Quick Copy",
+                      "fill": "#526781",
+                      "content": "默认快捷键  Ctrl + Alt + N，可在「快捷键」中修改。",
+                      "fontFamily": "ZCOOL QingKe HuangYou",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "qNcIH",
+                      "x": 704,
+                      "y": 32,
+                      "name": "Shortcut Key",
+                      "width": 120,
+                      "height": 46,
+                      "fill": "#FFFFFF",
+                      "cornerRadius": 13,
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "mTRN9",
+                          "x": 23.5,
+                          "y": 15,
+                          "name": "Shortcut Key Label",
+                          "fill": "#0062FF",
+                          "content": "Ctrl Alt N",
+                          "fontFamily": "IBM Plex Mono",
+                          "fontSize": 12,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "dikrL",
+                      "x": 40,
+                      "y": 40,
+                      "name": "Lucide / Command",
+                      "width": 24,
+                      "height": 24,
+                      "icon": "command",
+                      "library": "lucide",
+                      "fill": "#FFFFFF"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "yN0hz",
+                  "x": 44,
+                  "y": 772,
+                  "name": "Version",
+                  "fill": "#94A3B8",
+                  "content": "NOTY 1.0.0  ·  LOCAL FIRST",
+                  "fontFamily": "IBM Plex Mono",
+                  "fontSize": 10,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "icon",
+                  "id": "HLrth",
+                  "x": 884,
+                  "y": 32,
+                  "name": "Lucide / Close",
+                  "width": 22,
+                  "height": 22,
+                  "icon": "x",
+                  "library": "lucide",
+                  "fill": "#64748B"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "MKhgE",
+          "type": "ref",
+          "ref": "rIU7R",
+          "name": "Window Controls / Settings",
+          "x": 1308,
+          "y": 0,
+          "descendants": {
+            "q8LGzK": {
+              "fill": "#FFFFFF"
+            },
+            "wIVzR": {
+              "fill": "#FFFFFF"
+            },
+            "L9PtT": {
+              "fill": "#FFFFFF"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "rIU7R",
+      "x": 6100,
+      "y": 0,
+      "name": "Component / Window Controls",
+      "reusable": true,
+      "width": 132,
+      "height": 40,
+      "fill": "#FFFFFF00",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "h3AB7",
+          "x": 0,
+          "y": 0,
+          "name": "Window / Minimize",
+          "width": 44,
+          "height": 40,
+          "fill": "#FFFFFF00",
+          "layout": "none",
+          "children": [
+            {
+              "type": "icon",
+              "id": "q8LGzK",
+              "x": 14,
+              "y": 12,
+              "name": "Lucide / Minimize",
+              "width": 16,
+              "height": 16,
+              "icon": "minus",
+              "library": "lucide",
+              "fill": "#334155"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "eL2lK",
+          "x": 44,
+          "y": 0,
+          "name": "Window / Maximize",
+          "width": 44,
+          "height": 40,
+          "fill": "#FFFFFF00",
+          "layout": "none",
+          "children": [
+            {
+              "type": "icon",
+              "id": "wIVzR",
+              "x": 14,
+              "y": 12,
+              "name": "Lucide / Maximize",
+              "width": 16,
+              "height": 16,
+              "icon": "square",
+              "library": "lucide",
+              "fill": "#334155"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "NF9f3",
+          "x": 88,
+          "y": 0,
+          "name": "Window / Close",
+          "width": 44,
+          "height": 40,
+          "fill": "#FFFFFF00",
+          "layout": "none",
+          "children": [
+            {
+              "type": "icon",
+              "id": "L9PtT",
+              "x": 14,
+              "y": 12,
+              "name": "Lucide / Close",
+              "width": 16,
+              "height": 16,
+              "icon": "x",
+              "library": "lucide",
+              "fill": "#334155"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "icon",
+      "id": "NxkC5",
+      "x": 3401.4986365982268,
+      "y": 1505.773099635896,
+      "width": 24,
+      "height": 24,
+      "icon": "heart",
+      "library": "lucide",
+      "fill": "#000000"
+    }
+  ],
+  "variables": {
+    "color.canvas": {
+      "type": "color",
+      "value": "#F4F7FB"
+    },
+    "color.surface": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "color.surfaceSubtle": {
+      "type": "color",
+      "value": "#F8FAFC"
+    },
+    "color.text": {
+      "type": "color",
+      "value": "#10213B"
+    },
+    "color.textMuted": {
+      "type": "color",
+      "value": "#64748B"
+    },
+    "color.border": {
+      "type": "color",
+      "value": "#DCE5F0"
+    },
+    "color.accent": {
+      "type": "color",
+      "value": "#0062FF"
+    },
+    "color.accentSoft": {
+      "type": "color",
+      "value": "#EAF2FF"
+    },
+    "color.success": {
+      "type": "color",
+      "value": "#16A06A"
+    },
+    "color.danger": {
+      "type": "color",
+      "value": "#E24A63"
+    },
+    "color.noteBlue": {
+      "type": "color",
+      "value": "#CFE2FF"
+    },
+    "color.noteYellow": {
+      "type": "color",
+      "value": "#FFF0A6"
+    },
+    "color.noteMint": {
+      "type": "color",
+      "value": "#C9F3DF"
+    },
+    "color.noteRose": {
+      "type": "color",
+      "value": "#FFD7E1"
+    },
+    "radius.sm": {
+      "type": "number",
+      "value": 10
+    },
+    "radius.md": {
+      "type": "number",
+      "value": 16
+    },
+    "radius.lg": {
+      "type": "number",
+      "value": 24
+    },
+    "space.1": {
+      "type": "number",
+      "value": 8
+    },
+    "space.2": {
+      "type": "number",
+      "value": 12
+    },
+    "space.3": {
+      "type": "number",
+      "value": 16
+    },
+    "space.4": {
+      "type": "number",
+      "value": 24
+    },
+    "space.5": {
+      "type": "number",
+      "value": 32
+    }
+  },
+  "fileToken": "ce668c0a-17d3-416f-acde-9422277fc1aa"
+}
