@@ -3,7 +3,7 @@ use std::sync::RwLock;
 use serde::{Deserialize, Serialize};
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
-    tray::TrayIconBuilder,
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager,
 };
 use tauri_plugin_autostart::MacosLauncher;
@@ -40,9 +40,9 @@ impl Default for AppSettings {
             launch_at_login: false,
             close_behavior: "background".into(),
             dock_enabled: true,
-            dock_visible_count: 7,
+            dock_visible_count: 5,
             dock_side: "right".into(),
-            vertical_position: 52,
+            vertical_position: 50,
             dock_size: "medium".into(),
             hover_animation: true,
             action_delay: 1.0,
@@ -77,29 +77,51 @@ fn show_main(app: &tauri::AppHandle, route: Option<&str>) {
 fn toggle_dock(app: &tauri::AppHandle) {
     if let Some(dock) = app.get_webview_window("dock") {
         if dock.is_visible().unwrap_or(false) {
+            let _ = app.emit_to("dock", "dock:hidden", ());
             let _ = dock.hide();
+            if let Some(panel) = app.get_webview_window("dock-panel") {
+                let _ = panel.hide();
+            }
         } else {
             let _ = dock.show();
         }
     }
 }
 
+fn create_note_from_status_entry(app: &tauri::AppHandle) {
+    if let Some(dock) = app.get_webview_window("dock") {
+        let _ = dock.show();
+        let _ = app.emit_to("dock", "dock:create-note", ());
+    }
+}
+
 fn install_status_entry(app: &mut tauri::App) -> tauri::Result<()> {
-    let open = MenuItemBuilder::with_id("open-main", "打开 Flank").build(app)?;
-    let dock = MenuItemBuilder::with_id("toggle-dock", "显示 / 隐藏 Dock").build(app)?;
-    let settings = MenuItemBuilder::with_id("settings", "设置").build(app)?;
+    let open = MenuItemBuilder::with_id("open-main", "打开主窗口").build(app)?;
+    let dock = MenuItemBuilder::with_id("toggle-dock", "显示 / 隐藏 Dock 栏").build(app)?;
+    let new_note = MenuItemBuilder::with_id("new-note", "新建便签").build(app)?;
     let quit = MenuItemBuilder::with_id("quit", "退出 Flank").build(app)?;
     let menu = MenuBuilder::new(app)
-        .items(&[&open, &dock, &settings, &quit])
+        .items(&[&open, &dock, &new_note, &quit])
         .build()?;
 
     let mut tray = TrayIconBuilder::with_id("flank-status")
         .menu(&menu)
+        .show_menu_on_left_click(false)
         .tooltip("Flank")
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                show_main(tray.app_handle(), Some("/"));
+            }
+        })
         .on_menu_event(|app, event| match event.id().as_ref() {
             "open-main" => show_main(app, Some("/")),
-            "settings" => show_main(app, Some("/settings")),
             "toggle-dock" => toggle_dock(app),
+            "new-note" => create_note_from_status_entry(app),
             "quit" => app.exit(0),
             _ => {}
         });
@@ -141,7 +163,9 @@ pub fn run() {
                     let screen_position = monitor.position();
                     let screen_size = monitor.size();
                     let dock_size = dock.outer_size()?;
-                    let x = screen_position.x + screen_size.width as i32 - dock_size.width as i32;
+                    let x = if settings.dock_side == "left" { screen_position.x } else {
+                        screen_position.x + screen_size.width as i32 - dock_size.width as i32
+                    };
                     let y = screen_position.y
                         + ((screen_size.height.saturating_sub(dock_size.height)) / 2) as i32;
                     dock.set_position(tauri::PhysicalPosition::new(x, y))?;
@@ -201,7 +225,7 @@ pub fn run() {
             crate::commands::system::settle_dock_panel,
             crate::commands::system::prepare_dock_panel_animation,
             crate::commands::system::hide_dock_panel,
-            crate::commands::system::show_dock_toast
+            crate::commands::system::show_main_notification
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Flank");

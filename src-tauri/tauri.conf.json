@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.flank.desktop",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -28,7 +28,7 @@
         "width": 104,
         "height": 720,
         "minWidth": 104,
-        "minHeight": 420,
+        "minHeight": 1,
         "decorations": false,
         "transparent": true,
         "shadow": false,
@@ -44,21 +44,6 @@
         "url": "index.html#/dock-panel",
         "width": 432,
         "height": 720,
-        "decorations": false,
-        "transparent": true,
-        "shadow": false,
-        "resizable": false,
-        "alwaysOnTop": true,
-        "skipTaskbar": true,
-        "focus": false,
-        "visible": false
-      },
-      {
-        "label": "dock-toast",
-        "title": "Flank Toast",
-        "url": "index.html#/dock-toast",
-        "width": 320,
-        "height": 52,
         "decorations": false,
         "transparent": true,
         "shadow": false,

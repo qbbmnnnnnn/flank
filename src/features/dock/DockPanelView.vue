@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { showNotification } from "../../services/notificationService";
 import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
 import { gsap } from "gsap";
 
@@ -37,6 +38,7 @@ const draftTitle = ref("");
 const draftBody = ref("");
 const draftColor = ref<NoteColor>("lemon");
 const isNew = ref(false);
+const isPlaceholder = ref(false);
 const saveState = ref<"idle" | "typing" | "saving" | "saved" | "error">("idle");
 
 const palette: NoteColor[] = ["lemon", "peach", "rose", "lilac", "sky", "mint"]; 
@@ -63,6 +65,7 @@ function inward() {
 
 function setSaveState(state: typeof saveState.value) {
   window.clearTimeout(saveStateTimer);
+  if (state === "error" && saveState.value !== "error") showNotification("便签保存失败，请重试；当前编辑内容已保留");
   saveState.value = state;
   if (state === "saved") saveStateTimer = window.setTimeout(() => (saveState.value = "idle"), 1800);
 }
@@ -151,6 +154,7 @@ async function handleOpen(payload: DockPanelOpenPayload) {
   const wasClosed = !open.value;
 
   if (payload.isNew) {
+    isPlaceholder.value = false;
     if (mode.value === "edit") {
       await flushSave();
       if (saveState.value === "error") return;
@@ -178,6 +182,7 @@ async function handleOpen(payload: DockPanelOpenPayload) {
 
   if (payload.sameNote) {
     void settlePanelWindow();
+    if (payload.isPlaceholder) return;
     if (mode.value === "preview" && activeNote.value?.id === note.id) {
       editNote();
     } else if (mode.value === "edit" && activeNote.value?.id === note.id) {
@@ -201,6 +206,7 @@ async function handleOpen(payload: DockPanelOpenPayload) {
   activeNote.value = note;
   draftTarget.value = null;
   isNew.value = false;
+  isPlaceholder.value = Boolean(payload.isPlaceholder);
   mode.value = "preview";
   open.value = true;
   await nextTick();
@@ -223,6 +229,7 @@ async function handleClose() {
   activeNote.value = null;
   draftTarget.value = null;
   isNew.value = false;
+  isPlaceholder.value = false;
   draftTitle.value = "";
   draftBody.value = "";
 }
@@ -286,7 +293,7 @@ function flushSave(): Promise<Note | null> {
 }
 
 function editNote() {
-  if (!activeNote.value) return;
+  if (!activeNote.value || isPlaceholder.value) return;
   draftTarget.value = activeNote.value;
   draftTitle.value = activeNote.value.title;
   draftBody.value = activeNote.value.body;
@@ -617,7 +624,7 @@ function parseMarkdown(body: string): PreviewLine[] {
 }
 
 async function toggleTask(index: number) {
-  if (!activeNote.value) return;
+  if (!activeNote.value || isPlaceholder.value) return;
   const lines = activeNote.value.body.split("\n");
   if (/^\s*☐/.test(lines[index])) lines[index] = lines[index].replace("☐", "☑");
   else if (/^\s*☑/.test(lines[index])) lines[index] = lines[index].replace("☑", "☐");
@@ -687,18 +694,18 @@ onUnmounted(() => {
 <template>
   <main ref="root" class="dock-panel-window" :class="[`dock-${side}`, { open, 'edge-staged': edgeStaged }]">
     <button v-if="open" class="panel-dismiss-layer" type="button" aria-label="关闭便签" @click="requestClose"></button>
-    <article v-if="open && mode !== 'closed'" class="note-panel" :class="[mode]" :style="{ '--paper': paper }">
+    <article v-if="open && mode !== 'closed'" class="note-panel" :class="[mode, { placeholder: isPlaceholder }]" :style="{ '--paper': paper }">
       <template v-if="mode === 'preview' && activeNote">
         <header class="panel-header">
           <h1>{{ activeNote.title }}</h1>
-          <div class="panel-actions">
+          <div v-if="!isPlaceholder" class="panel-actions">
             <button type="button" aria-label="编辑便签" title="编辑" @click="editNote"><svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg></button>
           </div>
         </header>
         <div class="preview-body">
           <template v-for="line in previewLines" :key="line.index">
             <component :is="`h${line.level}`" v-if="line.kind === 'heading'" v-html="line.html" />
-            <div v-else-if="line.kind === 'task'" class="preview-task" :class="{ done: line.checked }"><button type="button" :aria-label="line.checked ? '标记未完成' : '标记完成'" @click="void toggleTask(line.index)">{{ line.checked ? "✓" : "" }}</button><span v-html="line.html"></span></div>
+            <div v-else-if="line.kind === 'task'" class="preview-task" :class="{ done: line.checked }"><button type="button" :disabled="isPlaceholder" :aria-label="line.checked ? '标记未完成' : '标记完成'" @click="void toggleTask(line.index)"></button><span v-html="line.html"></span></div>
             <div v-else-if="line.kind === 'list'" class="preview-list"><i></i><span v-html="line.html"></span></div>
             <blockquote v-else-if="line.kind === 'quote'" v-html="line.html" />
             <p v-else v-html="line.html || '&nbsp;'" />
@@ -728,14 +735,14 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.dock-panel-window{width:100vw;height:100vh;position:relative;overflow:hidden;background:transparent;pointer-events:none;user-select:none;-webkit-user-select:none}
+.dock-panel-window{width:100vw;height:100vh;position:relative;overflow:hidden;background:transparent;pointer-events:none;user-select:none;-webkit-user-select:none;font-family:"Noty Display","Microsoft YaHei",Geist,"Segoe UI",sans-serif}
 .note-panel,.note-panel *{pointer-events:auto}
 .panel-dismiss-layer{position:absolute;z-index:2;inset:0;padding:0;border:0;background:transparent;pointer-events:auto;cursor:default}
 .note-panel{position:absolute;z-index:3;top:50%;right:0;width:380px;overflow:hidden;will-change:transform,opacity;border:1px solid rgba(255,255,255,.28);border-radius:20px;color:#2c2930;background:var(--paper,#ffe78a);box-shadow:none;transform:translateY(-50%);transform-origin:right center}.dock-left .note-panel{left:0;right:auto;transform-origin:left center}.edge-staged.dock-right .note-panel{right:104px}.edge-staged.dock-left .note-panel{left:104px}.note-panel::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(145deg,rgba(255,255,255,.26),transparent 26%,rgba(107,73,25,.05))}
 .note-panel.preview{height:min(490px,72vh)}.note-panel.edit{height:min(560px,78vh)}
 .panel-header{position:relative;z-index:1;height:64px;padding:0 15px 0 19px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(70,55,30,.11)}.panel-header h1{min-width:0;margin:0;overflow:hidden;color:#29262b;font-size:22px;line-height:1.2;letter-spacing:-.025em;text-overflow:ellipsis;white-space:nowrap}.panel-actions{display:flex;gap:6px}.panel-actions button,.panel-close{width:30px;height:30px;padding:0;display:grid;place-items:center;border:0;border-radius:50%;color:rgba(40,35,31,.58);background:rgba(255,255,255,.22);cursor:pointer;transition:background .18s ease,transform .18s ease}.panel-actions button:hover,.panel-close:hover{background:rgba(255,255,255,.42);transform:scale(1.06)}.panel-actions svg,.panel-close svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .preview-body{position:relative;z-index:1;height:calc(100% - 64px);padding:18px 22px 30px;overflow-y:auto;font-size:17px;line-height:1.85;scrollbar-width:thin;scrollbar-color:rgba(70,55,30,.22) transparent}.preview-body p{min-height:1.7em;margin:2px 0}.preview-body h1,.preview-body h2,.preview-body h3{margin:19px 0 8px;line-height:1.3}.preview-body h1{font-size:23px}.preview-body h2{font-size:20px}.preview-body h3{font-size:17px}.preview-body :deep(code){padding:2px 5px;border-radius:5px;background:rgba(255,255,255,.28);font-family:"Cascadia Code",Consolas,monospace;font-size:.9em}.preview-body :deep(a){color:#315f9f;text-decoration-thickness:1px;text-underline-offset:2px}.preview-body blockquote{margin:8px 0;padding-left:12px;border-left:3px solid rgba(54,48,53,.3);color:rgba(54,48,53,.72)}
-.preview-task,.preview-list{display:flex;align-items:flex-start;gap:9px;margin:5px 0}.preview-task button{width:19px;height:19px;flex:0 0 auto;margin-top:6px;padding:0;display:grid;place-items:center;border:1.6px solid rgba(54,48,53,.48);border-radius:6px;color:#fff;background:rgba(255,255,255,.2);cursor:pointer;font-size:13px}.preview-task.done button{border-color:#3d985c;background:#4cab69}.preview-task.done span{opacity:.55;text-decoration:line-through}.preview-list i{width:5px;height:5px;flex:0 0 auto;margin:10px 5px 0 6px;border-radius:50%;background:currentColor;opacity:.58}
+.preview-task,.preview-list{display:flex;align-items:flex-start;gap:9px;margin:5px 0}.preview-task button{width:19px;height:19px;flex:0 0 auto;margin-top:6px;padding:0;display:grid;place-items:center;border:1.6px solid rgba(54,48,53,.48);border-radius:6px;color:#fff;background:rgba(255,255,255,.2);cursor:pointer}.preview-task.done button{border-color:#3d985c;background:#4cab69}.preview-task.done button::after{content:"✓";font-size:13px;font-weight:800;line-height:1}.preview-task.done span{opacity:.55;text-decoration:line-through}.preview-list i{width:5px;height:5px;flex:0 0 auto;margin:10px 5px 0 6px;border-radius:50%;background:currentColor;opacity:.58}
 .editor-header{position:relative;z-index:1;height:56px;padding:0 14px 0 19px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid rgba(70,55,30,.11)}.editor-header>div:first-child{display:flex;align-items:center;gap:9px;white-space:nowrap}.editor-header b{font-size:13px}.save-state{display:inline-flex;align-items:center;gap:6px;color:rgba(45,39,34,.58);font-size:11px;font-weight:650;transition:opacity .18s ease}.save-state.idle,.save-state.typing{opacity:0}.save-state i{width:6px;height:6px;border-radius:50%;background:rgba(45,39,34,.28)}.save-state.saving i{background:#4e7fc9;animation:panel-pulse .7s ease-in-out infinite alternate}.save-state.saved i{background:#3e9b5d}.save-state.error{color:#a33f3f}.save-state.error i{background:#d34f4f}.palette{margin-left:auto;display:flex;gap:7px}.palette button{width:18px;height:18px;padding:0;border:2px solid rgba(255,255,255,.62);border-radius:50%;box-shadow:none;cursor:pointer;transition:transform .16s ease}.palette button:hover{transform:scale(1.16)}.palette button.selected{border-color:rgba(43,38,35,.7);transform:scale(.88)}
 .editor-title{position:relative;z-index:1;width:100%;height:78px;padding:20px 22px 10px;border:0;outline:0;color:#29262b;background:transparent;font-size:27px;font-weight:700;line-height:1.2;letter-spacing:-.035em}.editor-title::placeholder{color:rgba(45,39,34,.4)}.editor-body-shell{position:relative;z-index:1;height:calc(100% - 188px);min-height:0}.editor-title,.editor-body{user-select:text;-webkit-user-select:text}.editor-body{position:absolute;inset:0;padding:10px 22px 20px;overflow-y:auto;outline:0;font-size:17px;line-height:1.85;scrollbar-width:thin;scrollbar-color:rgba(70,55,30,.28) transparent}.editor-body.is-empty::before{content:attr(data-placeholder);position:absolute;left:22px;top:10px;color:rgba(45,39,34,.4);pointer-events:none}.editor-body :deep(.editor-line){min-height:31.45px;display:block;overflow-wrap:anywhere;white-space:pre-wrap}.editor-body :deep(.editor-line.is-task){display:grid;grid-template-columns:19px minmax(0,1fr);align-items:start;gap:9px}.editor-body :deep(.editor-line-copy){min-width:0;outline:0;overflow-wrap:anywhere;white-space:pre-wrap}.editor-body :deep(.editor-task-box){width:19px;height:19px;margin-top:6px;padding:0;display:grid;place-items:center;border:1.6px solid rgba(54,48,53,.5);border-radius:6px;color:#fff;background:transparent;cursor:pointer}.editor-body :deep(.editor-task-box.is-checked){border-color:#3d985c;background:#4cab69}.editor-body :deep(.editor-task-box.is-checked::after){content:"✓";font-size:13px;font-weight:800;line-height:1}
 .format-bar{position:absolute;z-index:2;left:0;right:0;bottom:0;height:54px;padding:0 18px;display:flex;align-items:center;gap:5px;border-top:1px solid rgba(70,55,30,.1);background:rgba(255,255,255,.12)}.format-bar button{width:32px;height:32px;padding:0;display:grid;place-items:center;border:0;border-radius:8px;color:rgba(43,38,42,.66);background:transparent;cursor:pointer;font-weight:750}.format-bar button:hover{color:#29242a;background:rgba(255,255,255,.36)}.format-bar svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.format-bar>i{width:1px;height:20px;margin:0 3px;background:rgba(70,55,30,.13)}.format-bar>span{margin-left:auto;color:rgba(45,39,34,.5);font-size:10px;white-space:nowrap}

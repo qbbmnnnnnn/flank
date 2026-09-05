@@ -68,7 +68,11 @@ pub async fn save_settings(
                 retryable: true,
             })?;
         } else {
+            let _ = app.emit_to("dock", "dock:hidden", ());
             let _ = dock.hide();
+            if let Some(panel) = app.get_webview_window("dock-panel") {
+                let _ = panel.hide();
+            }
         }
     }
     Ok(settings)
@@ -155,7 +159,10 @@ pub fn show_dock_panel(
             .set_size(tauri::PhysicalSize::new(staged_width, panel_size.height))
             .map_err(|error| error.to_string())?;
     }
-    let target_position = tauri::PhysicalPosition::new(x, rail_position.y);
+    let y = (rail_position.y + window.outer_size().map_err(|error| error.to_string())?.height as i32 / 2
+        - panel_size.height as i32 / 2)
+        .clamp(monitor_position.y, monitor_position.y + monitor_size.height.saturating_sub(panel_size.height) as i32);
+    let target_position = tauri::PhysicalPosition::new(x, y);
     if panel.outer_position().map_err(|error| error.to_string())? != target_position {
         panel
             .set_position(target_position)
@@ -204,37 +211,18 @@ pub fn hide_dock_panel(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn show_dock_toast(
+pub fn show_main_notification(
     app: tauri::AppHandle,
-    window: tauri::WebviewWindow,
     message: String,
 ) -> Result<(), String> {
-    use tauri::{Emitter, Manager};
-
-    let toast = app
-        .get_webview_window("dock-toast")
-        .ok_or_else(|| "dock toast window is unavailable".to_string())?;
-    let monitor = window
-        .current_monitor()
-        .map_err(|error| error.to_string())?
-        .ok_or_else(|| "current monitor is unavailable".to_string())?;
-    let monitor_position = monitor.position();
-    let monitor_size = monitor.size();
-    let toast_size = toast.outer_size().map_err(|error| error.to_string())?;
-    let scale_factor = monitor.scale_factor();
-    let x = monitor_position.x + (monitor_size.width.saturating_sub(toast_size.width) / 2) as i32;
-    let y = monitor_position.y + monitor_size.height.saturating_sub(toast_size.height) as i32
-        - (28.0 * scale_factor).round() as i32;
-
-    toast
-        .set_position(tauri::PhysicalPosition::new(x, y))
-        .map_err(|error| error.to_string())?;
-    toast
-        .set_ignore_cursor_events(true)
-        .map_err(|error| error.to_string())?;
-    toast.show().map_err(|error| error.to_string())?;
-    toast
-        .emit("dock-toast", message)
+    // Show without stealing keyboard focus from the note editor.
+    let main = app.get_webview_window("main")
+        .ok_or_else(|| "main window is unavailable".to_string())?;
+    if main.is_minimized().map_err(|error| error.to_string())? {
+        main.unminimize().map_err(|error| error.to_string())?;
+    }
+    main.show().map_err(|error| error.to_string())?;
+    app.emit_to("main", "main:notification", message)
         .map_err(|error| error.to_string())
 }
 

@@ -423,8 +423,8 @@ Panel staged width = 432 + 104 = 536
 前端与 Rust 静态检查：
 
 ```powershell
-pnpm build
-pnpm test
+npm run build
+npm test
 cargo check --manifest-path src-tauri/Cargo.toml
 ```
 

@@ -23,10 +23,5 @@ export const router = createRouter({
       name: "dock-panel",
       component: () => import("../../features/dock/DockPanelView.vue"),
     },
-    {
-      path: "/dock-toast",
-      name: "dock-toast",
-      component: () => import("../../features/dock/DockToastView.vue"),
-    },
   ],
 });

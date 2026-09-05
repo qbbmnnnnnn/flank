@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { gsap } from "gsap";
+import { showNotification as showToast, showNotification as showLocalToast } from "../../services/notificationService";
+import { dockLayout } from "./layout";
 
 import type { AppSettings } from "../../contracts/app";
 import { appService } from "../../services/appService";
@@ -32,15 +34,29 @@ const previewNotes: Note[] = [
   sortKey: String(index), textDirection: "automatic", revision: 1,
 }));
 const notes = ref<Note[]>(isTauriRuntime() ? [] : previewNotes);
+const GUIDE_NOTE_ID = "__flank_dock_guide__";
+const guideNote: Note = {
+  id: GUIDE_NOTE_ID,
+  title: "使用指南",
+  body: "## 欢迎使用 Flank\n\n把常用内容放在屏幕边缘，需要时随手打开。\n\n- 单击便签：预览，再次单击进入编辑\n- 悬停约 1 秒：显示归档和删除操作\n- 点击下方 ＋：新建便签\n- Dock 栏固定在屏幕边缘居中，位置可在设置中切换\n- 支持 Markdown 与任务清单\n\n创建第一张便签后，本指南会自动隐藏。",
+  color: "lemon",
+  createdAtMs: 0,
+  updatedAtMs: 0,
+  archivedAtMs: null,
+  deletedAtMs: null,
+  sortKey: "",
+  textDirection: "automatic",
+  revision: 0,
+};
+const displayNotes = computed(() => notes.value.length > 0 ? notes.value : [guideNote]);
 
-const dragging = ref(false);
 const controlsVisible = ref(false);
 const actionNote = ref<string | null>(null);
 const peekNote = ref<string | null>(null);
 const settingsSelected = ref(false);
 const canScrollUp = ref(false);
 const canScrollDown = ref(false);
-const toast = ref("");
+
 
 // Panel coordination state (the rail is the only controller of the panel window).
 const panelOpen = ref(false);
@@ -49,7 +65,7 @@ const isNewNotePending = ref(false);
 
 let context: gsap.Context | undefined;
 let media: gsap.MatchMedia | undefined;
-let toastTimer: number | undefined;
+
 let settingsSelectedTimer: number | undefined;
 let controlsHideTimer: number | undefined;
 let controlsTimeline: gsap.core.Timeline | undefined;
@@ -58,19 +74,19 @@ let pendingCloseTimer: number | undefined;
 let unlistenPanelSave: (() => void) | undefined;
 let unlistenPanelBlurred: (() => void) | undefined;
 let unlistenPanelRequestClose: (() => void) | undefined;
+let unlistenCreateNote: (() => void) | undefined;
+let unlistenDockHidden: (() => void) | undefined;
 let panelToken = 0;
 let suppressBlurUntil = 0;
 const hoverTimers = new Map<string, number>();
 const quickSetters = new Map<HTMLElement, { x: (value: number) => void; scaleX: (value: number) => void; scaleY: (value: number) => void }>();
 
 const compact = computed(() => screenHeight.value <= 800);
-const visibleCount = ref(7);
-const listTargetHeight = computed(() => {
-  const count = Math.min(12, Math.max(5, visibleCount.value));
-  const noteHeight = compact.value ? 104 : 126;
-  const step = compact.value ? 91 : 112;
-  return 25 + noteHeight + (count - 1) * step;
-});
+const visibleCount = ref(5);
+const layout = computed(() => dockLayout(displayNotes.value.length, visibleCount.value, screenHeight.value));
+const listTargetHeight = computed(() => layout.value.listHeight);
+let layoutQueue = Promise.resolve();
+let unlistenScale: (() => void) | undefined;
 let unlistenSettings: (() => void) | undefined;
 let unlistenNotesChanged: (() => void) | undefined;
 
@@ -78,9 +94,13 @@ async function loadDockNotes() {
   if (!isTauriRuntime()) return;
   try {
     notes.value = await noteService.list({ scope: "active", query: "" });
+    if (notes.value.length > 0 && activeNoteId.value === GUIDE_NOTE_ID) await closePanel();
     await nextTick();
     setupQuickSetters();
     updateScrollEdges();
+    // An empty transparent rail has no visible target that can trigger the
+    // hover animation. Keep its creation controls exposed until a note exists.
+    if (notes.value.length === 0) showControls();
   } catch {
     showLocalToast("无法读取本地便签");
   }
@@ -89,37 +109,25 @@ async function loadDockNotes() {
 async function applyDockSettings(settings: AppSettings) {
   visibleCount.value = settings.dockVisibleCount;
   side.value = settings.dockSide;
-  const win = await getDockWindow();
-  if (!win) return;
-  try {
+  await resizeDock();
+}
+
+function resizeDock() {
+  layoutQueue = layoutQueue.then(async () => {
+    if (!isTauriRuntime()) return;
+    const win = await getDockWindow();
+    if (!win) return;
+    await updateDisplayMetrics();
     const { LogicalSize } = await import("@tauri-apps/api/dpi");
-    const targetHeight = Math.min(screenHeight.value - 16, Math.max(420, listTargetHeight.value + 152));
-    await win.setSize(new LogicalSize(104, targetHeight));
+    await win.setSize(new LogicalSize(104, layout.value.windowHeight));
     await snapNativeWindow();
-  } catch {
-    // Window managers can reject a resize while a display is changing.
-  }
+  }).catch((error) => console.error("Unable to size Dock", error));
+  return layoutQueue;
 }
 
 function displayTitle(title: string) {
   const chars = Array.from(title);
   return chars.length > 5 ? `${chars.slice(0, 5).join("")}…` : title;
-}
-
-function showLocalToast(message: string) {
-  toast.value = message;
-  window.clearTimeout(toastTimer);
-  toastTimer = window.setTimeout(() => (toast.value = ""), 1800);
-}
-
-function showToast(message: string) {
-  if (!("__TAURI_INTERNALS__" in window)) {
-    showLocalToast(message);
-    return;
-  }
-  void import("@tauri-apps/api/core")
-    .then(({ invoke }) => invoke("show_dock_toast", { message }))
-    .catch(() => showLocalToast(message));
 }
 
 function isReducedMotion() {
@@ -186,12 +194,13 @@ function hideDockPanel() {
 }
 
 async function openNote(note: Note) {
+  const isPlaceholder = note.id === GUIDE_NOTE_ID;
   if (panelOpen.value && activeNoteId.value === note.id) {
-    // Same note: the panel toggles preview/edit internally.
+    // Persisted notes toggle preview/edit; the Dock-only guide stays read-only.
     suppressBlurUntil = Date.now() + 260;
     window.clearTimeout(pendingCloseTimer);
     await showDockPanel(side.value);
-    await emitToPanel(DOCK_BRIDGE.open, { note, anchorSide: side.value, isNew: false, sameNote: true });
+    await emitToPanel(DOCK_BRIDGE.open, { note, anchorSide: side.value, isNew: false, sameNote: true, isPlaceholder });
     return;
   }
 
@@ -202,7 +211,7 @@ async function openNote(note: Note) {
   window.clearTimeout(pendingCloseTimer);
   panelToken += 1;
   await showDockPanel(side.value);
-  await emitToPanel(DOCK_BRIDGE.open, { note, anchorSide: side.value, isNew: false, sameNote: false });
+  await emitToPanel(DOCK_BRIDGE.open, { note, anchorSide: side.value, isNew: false, sameNote: false, isPlaceholder });
 }
 
 async function createNote() {
@@ -218,7 +227,7 @@ async function createNote() {
   window.clearTimeout(pendingCloseTimer);
   panelToken += 1;
   await showDockPanel(side.value);
-  await emitToPanel(DOCK_BRIDGE.open, { note: null, anchorSide: side.value, isNew: true, sameNote: false });
+  await emitToPanel(DOCK_BRIDGE.open, { note: null, anchorSide: side.value, isNew: true, sameNote: false, isPlaceholder: false });
 }
 
 async function closePanel() {
@@ -278,7 +287,6 @@ function findTab(id: string) {
 }
 
 function onRailMove(event: PointerEvent) {
-  if (dragging.value) return;
   showControls();
   const direction = inward();
   const hovered = (event.target as HTMLElement).closest<HTMLElement>(".note-tab");
@@ -324,8 +332,9 @@ function beginHover(note: Note) {
   peekNote.value = note.id;
   const tab = findTab(note.id);
   if (tab) quickSetters.get(tab)?.x(20 * inward());
+  if (note.id === GUIDE_NOTE_ID) return;
   const timer = window.setTimeout(() => {
-    if (peekNote.value !== note.id || dragging.value) return;
+    if (peekNote.value !== note.id) return;
     actionNote.value = note.id;
     const current = findTab(note.id);
     if (current) quickSetters.get(current)?.x(42 * inward());
@@ -344,28 +353,24 @@ function endHover(note: Note) {
 function controlElements() {
   const scope = root.value;
   return {
-    grabZone: scope?.querySelector<HTMLElement>(".grab-zone") ?? null,
-    dragHandle: scope?.querySelector<HTMLElement>(".drag-handle") ?? null,
     controls: scope?.querySelector<HTMLElement>(".rail-controls") ?? null,
     actions: [...(scope?.querySelectorAll<HTMLElement>(".rail-controls > button") ?? [])],
   };
 }
 
 function buildControlsTimeline() {
-  const { grabZone, dragHandle, controls, actions } = controlElements();
+  const { controls, actions } = controlElements();
   controlsTimeline?.kill();
-  gsap.killTweensOf([grabZone, dragHandle, controls, ...actions]);
+  gsap.killTweensOf([controls, ...actions]);
   const duration = isReducedMotion() ? 0 : .42;
   controlsTimeline = gsap.timeline({ paused: true, defaults: { overwrite: "auto" } })
-    .fromTo(grabZone, { autoAlpha: 0, y: 20 }, { autoAlpha: 1, y: 0, duration: duration * .55, ease: "power2.out" }, 0)
-    .fromTo(dragHandle, { autoAlpha: 0, y: 24, scale: .82 }, { autoAlpha: 1, y: 0, scale: 1, duration, ease: "back.out(1.9)" }, 0)
     .fromTo(controls, { autoAlpha: 0, x: 18 * -inward() }, { autoAlpha: 1, x: 0, duration: duration * .55, ease: "power2.out" }, 0)
     .fromTo(actions, { autoAlpha: 0, y: -30, scale: .76 }, { autoAlpha: 1, y: 0, scale: 1, duration, stagger: isReducedMotion() ? 0 : .12, ease: "back.out(1.9)" }, isReducedMotion() ? 0 : .08);
 }
 
 function showControls() {
   window.clearTimeout(controlsHideTimer);
-  if (dragging.value || controlsVisible.value) return;
+  if (controlsVisible.value) return;
   controlsVisible.value = true;
   nextTick(() => {
     if (!controlsTimeline) buildControlsTimeline();
@@ -375,20 +380,19 @@ function showControls() {
 
 function hideControls(force = false) {
   window.clearTimeout(controlsHideTimer);
-  if (dragging.value && !force) return;
+  if (!force && notes.value.length === 0) return;
   controlsVisible.value = false;
   if (force || isReducedMotion()) {
     controlsTimeline?.kill();
     controlsTimeline = undefined;
-    const { grabZone, dragHandle, controls, actions } = controlElements();
-    gsap.set([grabZone, dragHandle, controls, ...actions], { autoAlpha: 0 });
+    const { controls, actions } = controlElements();
+    gsap.set([controls, ...actions], { autoAlpha: 0 });
     return;
   }
   controlsTimeline?.reverse();
 }
 
 function onRailLeave() {
-  if (dragging.value) return;
   resetRail();
   window.clearTimeout(controlsHideTimer);
   controlsHideTimer = window.setTimeout(() => hideControls(), 1200);
@@ -425,7 +429,7 @@ async function deleteNote(note: Note) {
 }
 
 // ---------------------------------------------------------------------------
-// Drag / snap
+// Screen-edge centering
 // ---------------------------------------------------------------------------
 
 async function snapNativeWindow() {
@@ -441,189 +445,13 @@ async function snapNativeWindow() {
     const monitor = await monitorFromPoint(centerX, centerY);
     if (!monitor) return;
     await updateDisplayMetrics(monitor);
-    side.value = centerX < monitor.position.x + monitor.size.width / 2 ? "left" : "right";
     const target = {
       x: side.value === "left" ? monitor.position.x : monitor.position.x + monitor.size.width - size.width,
-      y: gsap.utils.clamp(monitor.position.y + 8, monitor.position.y + monitor.size.height - size.height - 8, position.y),
+      y: Math.round(monitor.position.y + (monitor.size.height - size.height) / 2),
     };
-    if (isReducedMotion()) await win.setPosition(new PhysicalPosition(target.x, target.y));
-    else {
-      await new Promise<void>((resolve) => {
-        const point = { x: position.x, y: position.y };
-        gsap.to(point, {
-          ...target, duration: .34, ease: "back.out(1.28)",
-          onUpdate: () => void win.setPosition(new PhysicalPosition(Math.round(point.x), Math.round(point.y))),
-          onComplete: resolve,
-        });
-      });
-    }
+    await win.setPosition(new PhysicalPosition(target.x, target.y));
   } catch {
     // Keep the current position if a window manager rejects repositioning.
-  }
-}
-
-async function beginWindowDrag(event: PointerEvent) {
-  if (event.button !== 0 || dragging.value) return;
-  event.preventDefault();
-  const dragTarget = event.currentTarget as HTMLElement;
-  const pointerId = event.pointerId;
-  let latestPointer = { x: event.screenX, y: event.screenY };
-  let released = false;
-  let moveWindow: (() => void) | undefined;
-  let resolveRelease: (() => void) | undefined;
-  const releasePromise = new Promise<void>((resolve) => (resolveRelease = resolve));
-  const onMove = (moveEvent: PointerEvent) => {
-    if (moveEvent.pointerId !== pointerId) return;
-    latestPointer = { x: moveEvent.screenX, y: moveEvent.screenY };
-    moveWindow?.();
-  };
-  const onRelease = (upEvent: PointerEvent) => {
-    if (upEvent.pointerId !== pointerId || released) return;
-    if (upEvent.type === "pointerup") latestPointer = { x: upEvent.screenX, y: upEvent.screenY };
-    released = true;
-    resolveRelease?.();
-  };
-  const cleanupPointer = () => {
-    window.removeEventListener("pointermove", onMove);
-    window.removeEventListener("pointerup", onRelease);
-    window.removeEventListener("pointercancel", onRelease);
-    if (dragTarget.hasPointerCapture?.(pointerId)) dragTarget.releasePointerCapture(pointerId);
-  };
-
-  dragTarget.setPointerCapture?.(pointerId);
-  window.addEventListener("pointermove", onMove);
-  window.addEventListener("pointerup", onRelease);
-  window.addEventListener("pointercancel", onRelease);
-  const winPromise = getDockWindow();
-  if (panelOpen.value) await closePanel();
-  dragging.value = true;
-  resetRail();
-  hideControls(true);
-  await nextTick();
-  const handle = root.value?.querySelector<HTMLElement>(".drag-handle");
-  if (handle) gsap.set(handle, { autoAlpha: 1, y: 0, scale: 1 });
-  const win = await winPromise;
-  if (!win) {
-    cleanupPointer();
-    if (released) {
-      dragging.value = false;
-      showControlsAfterDrag();
-    } else {
-      beginBrowserDrag(event);
-    }
-    return;
-  }
-
-  try {
-    const [{ PhysicalPosition }, startPosition, scaleFactor] = await Promise.all([
-      import("@tauri-apps/api/dpi"), win.outerPosition(), win.scaleFactor(),
-    ]);
-    const startPointer = { x: latestPointer.x * scaleFactor, y: latestPointer.y * scaleFactor };
-    let pendingPosition: InstanceType<typeof PhysicalPosition> | null = null;
-    let moving = false;
-    let movementPromise = Promise.resolve();
-
-    moveWindow = () => {
-      pendingPosition = new PhysicalPosition(
-        Math.round(startPosition.x + latestPointer.x * scaleFactor - startPointer.x),
-        Math.round(startPosition.y + latestPointer.y * scaleFactor - startPointer.y),
-      );
-      if (moving) return;
-      moving = true;
-      movementPromise = (async () => {
-        while (pendingPosition) {
-          const position = pendingPosition;
-          pendingPosition = null;
-          await win.setPosition(position);
-        }
-        moving = false;
-      })().catch(() => {
-        pendingPosition = null;
-        moving = false;
-      });
-    };
-
-    if (!released) await releasePromise;
-    moveWindow();
-    await movementPromise;
-  } catch {
-    // Keep the last accepted position when manual movement is unavailable.
-  } finally {
-    cleanupPointer();
-  }
-
-  await snapNativeWindow();
-  dragging.value = false;
-  showControlsAfterDrag();
-}
-
-function showControlsAfterDrag() {
-  controlsVisible.value = false;
-  nextTick(showControls);
-  showToast(side.value === "left" ? "便签栏已吸附到左侧" : "便签栏已吸附到右侧");
-}
-
-function beginBrowserDrag(event: PointerEvent) {
-  const rail = root.value?.querySelector<HTMLElement>(".dock-rail");
-  if (!rail) return;
-  const rect = rail.getBoundingClientRect();
-  rail.style.right = "auto";
-  rail.style.left = `${rect.left}px`;
-  rail.style.top = `${rect.top}px`;
-  rail.style.transform = "none";
-  const startX = event.clientX;
-  const startY = event.clientY;
-  const onMove = (e: PointerEvent) => {
-    rail.style.left = `${gsap.utils.clamp(0, window.innerWidth - rect.width, rect.left + e.clientX - startX)}px`;
-    rail.style.top = `${gsap.utils.clamp(8, window.innerHeight - rect.height - 8, rect.top + e.clientY - startY)}px`;
-  };
-  const onUp = (e: PointerEvent) => {
-    window.removeEventListener("pointermove", onMove);
-    window.removeEventListener("pointerup", onUp);
-    window.removeEventListener("pointercancel", onUp);
-    const nextSide = e.clientX < window.innerWidth / 2 ? "left" : "right";
-    const targetLeft = nextSide === "left" ? 0 : window.innerWidth - rect.width;
-    const targetTop = gsap.utils.clamp(8, window.innerHeight - rect.height - 8, Number.parseFloat(rail.style.top));
-    gsap.to(rail, {
-      left: targetLeft, top: targetTop, duration: isReducedMotion() ? 0 : .34, ease: "back.out(1.28)",
-      onComplete: () => {
-        side.value = nextSide;
-        rail.style.left = nextSide === "left" ? "0px" : "auto";
-        rail.style.right = nextSide === "right" ? "0px" : "auto";
-        rail.style.top = `${targetTop}px`;
-        dragging.value = false;
-        showControlsAfterDrag();
-      },
-    });
-  };
-  window.addEventListener("pointermove", onMove);
-  window.addEventListener("pointerup", onUp);
-  window.addEventListener("pointercancel", onUp);
-}
-
-async function toggleSideWithKeyboard() {
-  const nextSide = side.value === "right" ? "left" : "right";
-  const win = await getDockWindow();
-  if (!win) {
-    side.value = nextSide;
-    showToast(nextSide === "left" ? "便签栏已吸附到左侧" : "便签栏已吸附到右侧");
-    return;
-  }
-  try {
-    const [{ currentMonitor }, { PhysicalPosition }, position, size] = await Promise.all([
-      import("@tauri-apps/api/window"), import("@tauri-apps/api/dpi"), win.outerPosition(), win.outerSize(),
-    ]);
-    const monitor = await currentMonitor();
-    if (monitor) {
-      await updateDisplayMetrics(monitor);
-      const x = nextSide === "left" ? monitor.position.x : monitor.position.x + monitor.size.width - size.width;
-      const y = gsap.utils.clamp(monitor.position.y + 8, monitor.position.y + monitor.size.height - size.height - 8, position.y);
-      await win.setPosition(new PhysicalPosition(x, y));
-    }
-    side.value = nextSide;
-    showToast(nextSide === "left" ? "便签栏已吸附到左侧" : "便签栏已吸附到右侧");
-  } catch {
-    showToast("无法移动便签栏，请检查窗口权限");
   }
 }
 
@@ -634,7 +462,7 @@ async function openSettings() {
   try {
     await appService.showMainWindow();
   } catch {
-    showToast("已打开设置");
+    showToast("无法打开主窗口，请重试");
   }
 }
 
@@ -649,7 +477,14 @@ function onRootPointerDown(event: PointerEvent) {
   void closePanel();
 }
 
-watch(() => notes.value.length, () => nextTick(updateScrollEdges));
+watch([listTargetHeight, side, screenHeight], () => void resizeDock());
+
+watch(() => notes.value.length, (count) => {
+  void nextTick(() => {
+    updateScrollEdges();
+    if (count === 0) showControls();
+  });
+});
 
 onMounted(async () => {
   document.documentElement.classList.add("dock-document");
@@ -658,6 +493,8 @@ onMounted(async () => {
   await loadDockNotes();
   try {
     await applyDockSettings(await appService.getSettings());
+    const win = await getDockWindow();
+    unlistenScale = await win?.onScaleChanged(() => void resizeDock());
     const { listen } = await import("@tauri-apps/api/event");
     unlistenSettings = await listen<AppSettings>("settings-updated", (event) => void applyDockSettings(event.payload));
     unlistenNotesChanged = await listen("notes:changed", () => void loadDockNotes());
@@ -683,13 +520,14 @@ onMounted(async () => {
   unlistenPanelSave = await listenOnWebview<DockPanelSavePayload>(DOCK_BRIDGE.save, onPanelSave);
   unlistenPanelBlurred = await listenOnWebview<null>(DOCK_BRIDGE.blurred, onPanelBlurred);
   unlistenPanelRequestClose = await listenOnWebview<null>(DOCK_BRIDGE.requestClose, onPanelRequestClose);
+  unlistenCreateNote = await listenOnWebview<null>(DOCK_BRIDGE.createNote, () => void createNote());
+  unlistenDockHidden = await listenOnWebview<null>(DOCK_BRIDGE.hidden, () => void closePanel());
 
 });
 
 onUnmounted(() => {
   document.documentElement.classList.remove("dock-document");
   document.body.classList.remove("dock-document");
-  window.clearTimeout(toastTimer);
   window.clearTimeout(settingsSelectedTimer);
   window.clearTimeout(controlsHideTimer);
   window.clearTimeout(pendingCloseTimer);
@@ -698,7 +536,10 @@ onUnmounted(() => {
   unlistenPanelSave?.();
   unlistenPanelBlurred?.();
   unlistenPanelRequestClose?.();
+  unlistenCreateNote?.();
+  unlistenDockHidden?.();
   unlistenSettings?.();
+  unlistenScale?.();
   unlistenNotesChanged?.();
   controlsTimeline?.kill();
   if (root.value) gsap.killTweensOf(root.value.querySelectorAll("*"));
@@ -708,15 +549,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main ref="root" class="dock-window" :class="[`dock-${side}`, { dragging, 'screen-compact': compact }]" :style="{ '--screen-height': `${screenHeight}px`, '--list-target': `${listTargetHeight}px` }" @keydown="onRootKeydown" @pointerdown="onRootPointerDown">
+  <main ref="root" class="dock-window" :class="[`dock-${side}`, { 'screen-compact': compact }]" :style="{ '--screen-height': `${screenHeight}px`, '--list-target': `${listTargetHeight}px`, '--note-gap': `${layout.gap}px`, '--note-margin-top': `${layout.marginTop}px` }" @keydown="onRootKeydown" @pointerdown="onRootPointerDown">
     <aside class="dock-rail" :class="{ 'controls-visible': controlsVisible }" aria-label="便签栏" @pointermove="onRailMove" @pointerleave="onRailLeave">
-      <div class="grab-zone">
-        <button class="drag-handle adaptive-control" :class="{ selected: dragging }" data-control="handle" type="button" draggable="false" aria-label="拖动便签栏" :aria-pressed="dragging ? 'true' : 'false'" title="拖动便签栏" @pointerdown.left="beginWindowDrag" @keydown.enter.prevent="toggleSideWithKeyboard" @keydown.space.prevent="toggleSideWithKeyboard"><span><i></i><i></i><i></i><i></i><i></i><i></i></span></button>
-      </div>
-      <div class="note-list-shell" :class="{ 'blur-top': canScrollUp, 'blur-bottom': canScrollDown }">
+      <div class="note-list-shell" :class="{ 'overflow-top': canScrollUp, 'overflow-bottom': canScrollDown }">
         <div ref="noteList" class="note-list" @scroll="updateScrollEdges" @pointerenter="showControls">
-        <div v-for="note in notes" :key="note.id" class="note-tab" :class="{ active: activeNoteId === note.id, actions: actionNote === note.id }" :data-id="note.id" role="button" tabindex="0" draggable="false" :aria-label="`打开${note.title}`" @pointerenter="beginHover(note)" @pointerleave="endHover(note)" @click="openNote(note)" @keydown.enter.prevent="openNote(note)" @keydown.space.prevent="openNote(note)">
-          <span class="paper" :style="{ '--paper': noteColorCss(note.color) }"><span class="title">{{ displayTitle(note.title) }}</span><span class="quick-actions"><button type="button" title="归档" aria-label="归档" @click.stop="archiveNote(note)"><svg viewBox="0 0 24 24"><path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6"/></svg></button><button type="button" title="删除" aria-label="删除" @click.stop="deleteNote(note)"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></button></span></span>
+        <div v-for="note in displayNotes" :key="note.id" class="note-tab" :class="{ active: activeNoteId === note.id, actions: actionNote === note.id, guide: note.id === GUIDE_NOTE_ID }" :data-id="note.id" role="button" tabindex="0" draggable="false" :aria-label="`打开${note.title}`" @pointerenter="beginHover(note)" @pointerleave="endHover(note)" @click="openNote(note)" @keydown.enter.prevent="openNote(note)" @keydown.space.prevent="openNote(note)">
+          <span class="paper" :style="{ '--paper': noteColorCss(note.color) }"><span class="title">{{ displayTitle(note.title) }}</span><span v-if="note.id !== GUIDE_NOTE_ID" class="quick-actions"><button type="button" title="归档" aria-label="归档" @click.stop="archiveNote(note)"><svg viewBox="0 0 24 24"><path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6"/></svg></button><button type="button" title="删除" aria-label="删除" @click.stop="deleteNote(note)"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></button></span></span>
         </div>
         </div>
       </div>
@@ -726,18 +564,16 @@ onUnmounted(() => {
       </div>
     </aside>
 
-    <Transition name="toast"><div v-if="toast" class="dock-toast" role="status">{{ toast }}</div></Transition>
+
   </main>
 </template>
 
 <style scoped>
-.dock-window{--rail:104px;--ease:cubic-bezier(.22,1,.36,1);width:100vw;height:100vh;position:relative;overflow:hidden;color:#29262b;background:transparent;pointer-events:none;user-select:none;-webkit-user-select:none}.dock-window svg,.note-tab,.paper{-webkit-user-drag:none}.note-tab,.drag-handle,.rail-controls>button{pointer-events:auto}.dock-rail{position:absolute;z-index:5;top:50%;right:0;width:var(--rail);height:min(calc(var(--screen-height) - 16px),calc(100vh - 16px));padding:3px 0;display:flex;flex-direction:column;align-items:flex-end;transform:translateY(-50%);perspective:700px;pointer-events:none}.dock-left .dock-rail{left:0;right:auto;align-items:flex-start}
-.grab-zone{width:100%;height:38px;flex:0 0 38px;display:flex;align-items:center;justify-content:flex-end;opacity:0;visibility:hidden;transform:translateY(20px);pointer-events:none}.dock-left .grab-zone{justify-content:flex-start}.controls-visible .grab-zone,.dragging .grab-zone{pointer-events:none}.drag-handle{width:48px;height:32px;margin-right:8px;padding:0;display:grid;place-items:center;border:1px solid rgba(255,255,255,.22);border-radius:11px;color:rgba(255,255,255,.82);background:rgba(24,26,31,.88);box-shadow:0 5px 16px rgba(0,0,0,.2);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);cursor:grab;touch-action:none;transition:color .18s ease,border-color .18s ease,box-shadow .2s var(--ease)}.dock-left .drag-handle{margin:0 0 0 8px}.drag-handle>span{width:18px;display:grid;grid-template-columns:repeat(3,4px);grid-template-rows:repeat(2,4px);justify-content:space-between;gap:3px}.drag-handle i{width:4px;height:4px;border-radius:50%;background:currentColor}.drag-handle:hover{color:#fff}.drag-handle:active,.dragging .drag-handle{cursor:grabbing}
-.note-list-shell{position:relative;width:100%;min-height:0;max-height:min(var(--list-target),calc(var(--screen-height) - 228px),calc(100vh - 156px));flex:1 1 auto;overflow:hidden;pointer-events:none}.note-list-shell::before,.note-list-shell::after{content:"";position:absolute;z-index:20;left:0;right:0;height:24px;opacity:0;pointer-events:none;transition:opacity .18s ease;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}.note-list-shell::before{top:0;mask-image:linear-gradient(to bottom,#000,transparent);-webkit-mask-image:linear-gradient(to bottom,#000,transparent)}.note-list-shell::after{bottom:0;mask-image:linear-gradient(to top,#000,transparent);-webkit-mask-image:linear-gradient(to top,#000,transparent)}.note-list-shell.blur-top::before,.note-list-shell.blur-bottom::after{opacity:1}.note-list{width:100%;height:100%;max-height:none;padding:10px 0 15px;pointer-events:none;display:flex;flex-direction:column;align-items:flex-end;gap:2px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scroll-behavior:smooth;scrollbar-width:none}.blur-top:not(.blur-bottom) .note-list{mask-image:linear-gradient(to bottom,transparent 0,#000 22px);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px)}.blur-bottom:not(.blur-top) .note-list{mask-image:linear-gradient(to bottom,#000 calc(100% - 22px),transparent 100%);-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 22px),transparent 100%)}.blur-top.blur-bottom .note-list{mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px,#000 calc(100% - 22px),transparent 100%)}.note-list::-webkit-scrollbar{display:none}.dock-left .note-list{align-items:flex-start}.note-tab{position:relative;width:88px;height:126px;flex:0 0 126px;margin:0 -48px 0 0;padding:0;border:0;color:#302c2e;background:transparent;cursor:pointer;transform-origin:right center;will-change:transform;rotate:var(--tilt,0deg)}.note-tab+.note-tab{margin-top:-16px}.dock-left .note-tab{margin-right:0;margin-left:-48px;transform-origin:left center}.note-tab:nth-child(1){--tilt:-1.8deg;z-index:1}.note-tab:nth-child(2){--tilt:.9deg;z-index:2}.note-tab:nth-child(3){--tilt:-1.1deg;z-index:3}.note-tab:nth-child(4){--tilt:1.25deg;z-index:4}.note-tab:nth-child(5){--tilt:-1.35deg;z-index:5}.note-tab:nth-child(n+6){--tilt:-1deg}.note-tab.nearest,.note-tab.active,.note-tab:hover{z-index:12}.paper{position:absolute;inset:0;overflow:hidden;display:block;border-radius:18px 0 0 18px;background:var(--paper);box-shadow:none;transition:filter .2s ease}.note-tab:hover .paper{filter:brightness(1.045);box-shadow:none}.dock-left .paper{border-radius:0 18px 18px 0;box-shadow:none}.paper::after{content:"";position:absolute;inset:0;background:linear-gradient(145deg,rgba(255,255,255,.3),transparent 40%,rgba(60,45,30,.05));pointer-events:none}.paper::before{content:"";position:absolute;z-index:2;top:9px;bottom:9px;right:50%;border-right:1px dashed rgba(72,58,43,.2)}.title{position:absolute;z-index:3;left:0;top:9px;bottom:9px;width:38px;display:grid;place-items:center;writing-mode:vertical-rl;text-orientation:upright;color:rgba(47,42,40,.78);font-size:14px;font-weight:800;letter-spacing:.08em;overflow:hidden;text-overflow:ellipsis}.dock-left .title{left:auto;right:0}
+.dock-window{--rail:104px;--ease:cubic-bezier(.22,1,.36,1);width:100vw;height:100vh;position:relative;overflow:hidden;color:#29262b;background:transparent;pointer-events:none;user-select:none;-webkit-user-select:none;font-family:"Noty Display","Microsoft YaHei",Geist,"Segoe UI",sans-serif}.dock-window svg,.note-tab,.paper{-webkit-user-drag:none}.note-tab,.rail-controls>button{pointer-events:auto}.dock-rail{position:absolute;z-index:5;top:50%;right:0;width:var(--rail);height:calc(var(--list-target) + 114px);padding:3px 0;display:flex;flex-direction:column;align-items:flex-end;transform:translateY(-50%);perspective:700px;pointer-events:none}.dock-left .dock-rail{left:0;right:auto;align-items:flex-start}
+.note-list-shell{position:relative;width:100%;min-height:0;height:var(--list-target);flex:0 0 var(--list-target);overflow:hidden;pointer-events:none}.note-list{width:100%;height:100%;max-height:none;padding:14px 0;pointer-events:none;display:flex;flex-direction:column;align-items:flex-end;gap:var(--note-gap);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scroll-behavior:smooth;scrollbar-width:none}.note-list::-webkit-scrollbar{display:none}.dock-left .note-list{align-items:flex-start}.note-tab{position:relative;width:88px;height:126px;flex:0 0 126px;margin:0 -48px 0 0;padding:0;border:0;color:#302c2e;background:transparent;cursor:pointer;transform-origin:right center;will-change:transform;rotate:var(--tilt,0deg)}.note-tab+.note-tab{margin-top:var(--note-margin-top)}.dock-left .note-tab{margin-right:0;margin-left:-48px;transform-origin:left center}.note-tab:nth-child(1){--tilt:-1.8deg;z-index:1}.note-tab:nth-child(2){--tilt:.9deg;z-index:2}.note-tab:nth-child(3){--tilt:-1.1deg;z-index:3}.note-tab:nth-child(4){--tilt:1.25deg;z-index:4}.note-tab:nth-child(5){--tilt:-1.35deg;z-index:5}.note-tab:nth-child(n+6){--tilt:-1deg}.note-tab.nearest,.note-tab.active,.note-tab:hover{z-index:12}.paper{position:absolute;inset:0;overflow:hidden;display:block;border-radius:18px 0 0 18px;background:var(--paper);box-shadow:none;transition:filter .2s ease}.note-tab:hover .paper{filter:brightness(1.045);box-shadow:none}.dock-left .paper{border-radius:0 18px 18px 0;box-shadow:none}.paper::after{content:"";position:absolute;inset:0;background:linear-gradient(145deg,rgba(255,255,255,.3),transparent 40%,rgba(60,45,30,.05));pointer-events:none}.paper::before{content:"";position:absolute;z-index:2;top:9px;bottom:9px;right:50%;border-right:1px dashed rgba(72,58,43,.2)}.title{position:absolute;z-index:3;left:0;top:9px;bottom:9px;width:38px;display:grid;place-items:center;writing-mode:vertical-rl;text-orientation:upright;color:rgba(47,42,40,.78);font-size:16px;font-weight:700;letter-spacing:.04em;overflow:hidden;text-overflow:ellipsis}.dock-left .title{left:auto;right:0}
 .quick-actions{position:absolute;z-index:4;right:7px;top:0;bottom:0;width:45px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;opacity:0;transform:translateX(7px) scale(.92);pointer-events:none;transition:opacity .16s ease,transform .22s var(--ease)}.dock-left .quick-actions{left:7px;right:auto;transform:translateX(-7px) scale(.92)}.note-tab.actions .quick-actions{opacity:1;transform:none;pointer-events:auto}.quick-actions button{width:31px;height:31px;padding:0;display:grid;place-items:center;border:0;border-radius:10px;color:rgba(52,45,44,.63);background:transparent;cursor:pointer;transition:color .18s ease,background .18s ease,transform .2s var(--ease)}.quick-actions svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.quick-actions button:hover{color:#fff;transform:scale(1.06)}.quick-actions button:hover:first-child{background:#5b92e8;box-shadow:none}.quick-actions button:hover:last-child{background:#ef6262;box-shadow:none}
-.rail-controls{position:relative;z-index:30;width:100%;padding-top:0;display:flex;flex:0 0 auto;flex-direction:column;align-items:flex-end;opacity:0;visibility:hidden;transform:translateX(18px);pointer-events:none}.dock-left .rail-controls{align-items:flex-start;transform:translateX(-18px)}.controls-visible:not(.dragging) .rail-controls{pointer-events:none}.rail-controls .separator{position:absolute;top:-8px;right:0;width:54px;height:1px;margin:0;background:rgba(255,255,255,.18)}.dock-left .rail-controls .separator{right:auto;left:0}.rail-controls>button{position:relative;width:48px;height:48px;margin:0 4px 6px 0;padding:0;display:grid;place-items:center;border:1px solid rgba(255,255,255,.22);border-radius:50%;color:rgba(255,255,255,.82);background:rgba(24,26,31,.88);box-shadow:0 6px 18px rgba(0,0,0,.22);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);cursor:pointer;transition:color .18s ease,border-color .18s ease,box-shadow .2s var(--ease)}.dock-left .rail-controls>button{margin-right:0;margin-left:4px}.rail-controls>button>svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s var(--ease)}.rail-controls>button:hover{color:#fff}.rail-controls>button:hover>svg{transform:scale(1.16)}.rail-controls>button:active>svg{transform:scale(.94)}
-.adaptive-control.selected{color:#fff;border-color:rgba(255,255,255,.72);box-shadow:0 0 0 3px rgba(255,255,255,.14),0 7px 22px rgba(0,0,0,.3),inset 0 0 14px rgba(255,255,255,.1)}.adaptive-control.selected>svg{transform:scale(1.12)}.rail-controls>button[data-control="add"].selected>svg{transform:rotate(45deg) scale(1.06)}.drag-handle.selected>span{filter:drop-shadow(0 0 4px rgba(255,255,255,.75))}
-.dragging .dock-rail{z-index:50}.dragging .note-list{mask-image:none;-webkit-mask-image:none;align-items:flex-end}.dock-left.dragging .note-list{align-items:flex-end}.dragging .note-tab{width:96px;height:96px;flex-basis:96px;margin:-4px 0 0!important;transform-origin:center}.dragging .paper{border-radius:16px!important;animation:wiggle .22s ease-in-out infinite alternate}.dragging .note-tab:nth-child(2n) .paper{animation-delay:-.11s}.dragging .note-tab:nth-child(3n) .paper{animation-delay:-.055s}.dragging .title{inset:0;width:auto;writing-mode:horizontal-tb;text-orientation:mixed;letter-spacing:.04em}.dragging .paper::before,.dragging .quick-actions,.dragging .rail-controls{display:none}.screen-compact .note-list-shell{max-height:min(calc(var(--screen-height) - 224px),calc(100vh - 170px))}.screen-compact .note-list{gap:1px}.screen-compact .note-tab{height:104px;flex-basis:104px}.screen-compact .note-tab+.note-tab{margin-top:-14px}.screen-compact .paper{border-radius:15px 0 0 15px}.screen-compact.dock-left .paper{border-radius:0 15px 15px 0}.screen-compact .title{font-size:12px;letter-spacing:.02em}.screen-compact.dragging .note-tab{width:88px;height:88px;flex-basis:88px}.screen-compact.dragging .paper{border-radius:15px!important}
-.dock-toast{position:absolute;z-index:60;left:50%;bottom:16px;padding:9px 13px;border:1px solid rgba(255,255,255,.13);border-radius:10px;color:#fff;background:rgba(28,26,32,.86);box-shadow:none;transform:translateX(-50%);font-size:10px;white-space:nowrap}.toast-enter-active,.toast-leave-active{transition:opacity .16s ease,transform .2s ease}.toast-enter-from,.toast-leave-to{opacity:0;transform:translate(-50%,7px)}@keyframes wiggle{from{transform:rotate(-2deg) translate3d(-1px,0,0)}to{transform:rotate(2deg) translate3d(1px,-1px,0)}}
-@media(prefers-reduced-motion:reduce){.dragging .paper{animation:none!important}*{scroll-behavior:auto!important}}
+.rail-controls{position:relative;z-index:30;width:100%;padding-top:10px;display:flex;flex:0 0 auto;flex-direction:column;align-items:flex-end;opacity:0;visibility:hidden;transform:translateX(18px);pointer-events:none}.dock-left .rail-controls{align-items:flex-start;transform:translateX(-18px)}.controls-visible .rail-controls{pointer-events:none}.rail-controls .separator{position:absolute;z-index:2;top:4px;right:0;width:40px;height:1px;margin:0;background:rgba(255,255,255,.18)}.dock-left .rail-controls .separator{right:auto;left:0}.rail-controls>button{position:relative;width:40px;height:40px;margin:0 0 6px 0;padding:0;display:grid;place-items:center;border:1px solid rgba(255,255,255,.22);border-radius:50%;color:rgba(255,255,255,.82);background:rgba(24,26,31,.88);box-shadow:0 6px 18px rgba(0,0,0,.22);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);cursor:pointer;transition:color .18s ease,border-color .18s ease,box-shadow .2s var(--ease)}.dock-left .rail-controls>button{margin:0 0 6px 0}.rail-controls>button>svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s var(--ease)}.rail-controls>button:hover{color:#fff}.rail-controls>button:hover>svg{transform:scale(1.16)}.rail-controls>button:active>svg{transform:scale(.94)}
+.adaptive-control.selected{color:#fff;border-color:rgba(255,255,255,.72);box-shadow:0 0 0 3px rgba(255,255,255,.14),0 7px 22px rgba(0,0,0,.3),inset 0 0 14px rgba(255,255,255,.1)}.adaptive-control.selected>svg{transform:scale(1.12)}.rail-controls>button[data-control="add"].selected>svg{transform:rotate(45deg) scale(1.06)}
+.screen-compact .note-tab{height:104px;flex-basis:104px}.screen-compact .paper{border-radius:15px 0 0 15px}.screen-compact.dock-left .paper{border-radius:0 15px 15px 0}.screen-compact .title{font-size:14px;letter-spacing:.02em}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 </style>

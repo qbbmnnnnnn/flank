@@ -1,4 +1,5 @@
 ﻿<script setup lang="ts">
+import { showNotification as showToast } from "../../services/notificationService";
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { gsap } from "gsap";
 import {
@@ -8,7 +9,6 @@ import {
   Grid2X2,
   List,
   Minus,
-  Pin,
   Plus,
   Search,
   Settings,
@@ -28,7 +28,7 @@ const selectedId = ref<string | null>(null);
 const loading = ref(false);
 const saving = ref(false);
 const error = ref("");
-const toast = ref("");
+
 const deleteTarget = ref<NoteRecord | null>(null);
 const clearTrashConfirm = ref(false);
 const clearingTrash = ref(false);
@@ -41,7 +41,7 @@ const noteList = ref<HTMLElement | null>(null);
 let animationContext: gsap.Context | undefined;
 let unlistenNotesChanged: (() => void) | undefined;
 let searchTimer: number | undefined;
-let toastTimer: number | undefined;
+
 
 const now = Date.now();
 const demoNotes = ref<NoteRecord[]>([
@@ -66,8 +66,6 @@ const selected = computed(() => notes.value.find((note) => note.id === selectedI
 const draft = reactive<CreateNoteInput>({ title: "", body: "", color: "lemon", textDirection: "automatic" });
 const isNew = ref(false);
 const hasChanges = computed(() => isNew.value || (!!selected.value && (draft.title !== selected.value.title || draft.body !== selected.value.body || draft.color !== selected.value.color || draft.textDirection !== selected.value.textDirection)));
-const pinnedNotes = computed(() => scope.value === "active" ? notes.value.slice(0, 2) : []);
-const recentNotes = computed(() => scope.value === "active" ? notes.value.slice(2) : notes.value);
 
 function noteTag(note: NoteRecord) {
   const tags = ["PRODUCT", "LIFE", "WORK", "IDEA", "READ", "PERSONAL"];
@@ -264,11 +262,7 @@ function resetCardFocus() {
   gsap.to(items, { y: 0, scale: 1, duration: .42, ease: "power3.out", overwrite: "auto", clearProps: "transform" });
 }
 
-function showToast(message: string) {
-  toast.value = message;
-  window.clearTimeout(toastTimer);
-  toastTimer = window.setTimeout(() => (toast.value = ""), 2300);
-}
+
 
 function formatTime(value: number) {
   const diff = Date.now() - value;
@@ -341,7 +335,6 @@ onUnmounted(() => {
   unlistenNotesChanged?.();
   window.removeEventListener("keydown", handleGlobalKeydown);
   window.clearTimeout(searchTimer);
-  window.clearTimeout(toastTimer);
 });
 </script>
 
@@ -363,7 +356,7 @@ onUnmounted(() => {
           <span>{{ section.id === 'active' ? '全部便签' : section.label }}</span><em>{{ counts[section.id] }}</em>
         </button>
       </nav>
-      <div class="workspace-block">
+      <!-- <div class="workspace-block">
         <span class="workspace-label">WORKSPACE</span>
         <div class="workspace-card">
           <span>本周记录</span>
@@ -371,10 +364,10 @@ onUnmounted(() => {
           <i><span></span></i>
           <small>比上周多 4 条</small>
         </div>
-      </div>
+      </div> -->
       <button type="button" class="settings-entry" @click="settingsOpen = true">
         <Settings aria-hidden="true" />
-        <span>设置</span><kbd>⌘ ,</kbd>
+        <span>设置</span>
       </button>
     </aside>
 
@@ -403,7 +396,6 @@ onUnmounted(() => {
           <kbd>⌘ K</kbd>
         </label>
         <template v-if="scope === 'active'">
-          <button class="sort-button" type="button">最近更新 <span>⌄</span></button>
           <div class="view-switch" role="group" aria-label="便签展示方式">
             <button type="button" :class="{ active: viewMode === 'grid' }" aria-label="卡片视图" @click="setViewMode('grid')"><Grid2X2 /></button>
             <button type="button" :class="{ active: viewMode === 'list' }" aria-label="列表视图" @click="setViewMode('list')"><List /></button>
@@ -418,27 +410,14 @@ onUnmounted(() => {
       <div v-else-if="!notes.length" class="library-state"><b>{{ query ? '没有匹配的便签' : '这里还没有便签' }}</b><p>试试新建一张便签，或切换到其他资料库。</p></div>
 
       <div v-else-if="scope === 'active'" class="notes-scroll">
-        <section v-if="pinnedNotes.length" class="notes-group">
-          <div class="group-title"><h2>置顶灵感</h2><span>{{ pinnedNotes.length }} PINNED</span></div>
-          <div class="pinned-grid">
-            <button v-for="note in pinnedNotes" :key="note.id" class="note-card pinned-card" :style="{ '--note': `var(--note-${note.color})` }" type="button" @click="selectNote(note.id, true)">
-              <span class="card-tag">{{ noteTag(note) }}</span><Pin class="pin-icon" aria-hidden="true" />
-              <b>{{ note.title || '无标题便签' }}</b><p>{{ note.body.replace(/[-*]\s*\[[ xX]\]\s*/g, '').replace(/\s+/g, ' ').slice(0, 90) || '空白便签' }}</p>
-              <small>{{ formatTime(note.updatedAtMs) }}</small>
-            </button>
-          </div>
-        </section>
-        <section class="notes-group recent-group">
-          <div class="group-title"><h2>最近便签</h2><span>{{ recentNotes.length }} NOTES</span></div>
-          <div class="recent-grid" :class="`mode-${viewMode}`">
-            <button v-for="note in recentNotes" :key="note.id" class="note-card recent-card" :style="{ '--note': `var(--note-${note.color})` }" type="button" @click="selectNote(note.id, true)">
-              <Ellipsis class="more" aria-hidden="true" />
-              <b>{{ note.title || '无标题便签' }}</b><p>{{ note.body.replace(/[-*]\s*\[[ xX]\]\s*/g, '').replace(/\s+/g, ' ').slice(0, 76) || '空白便签' }}</p>
-              <small>{{ formatTime(note.updatedAtMs) }}</small>
-            </button>
-          </div>
-          <p class="drag-hint">拖拽便签即可调整顺序　·　右键查看更多操作</p>
-        </section>
+        <div class="recent-grid" :class="`mode-${viewMode}`">
+          <button v-for="note in notes" :key="note.id" class="note-card recent-card" :style="{ '--note': `var(--note-${note.color})` }" type="button" @click="selectNote(note.id, true)">
+            <Ellipsis class="more" aria-hidden="true" />
+            <b>{{ note.title || '无标题便签' }}</b><p>{{ note.body.replace(/[-*]\s*\[[ xX]\]\s*/g, '').replace(/\s+/g, ' ').slice(0, 76) || '空白便签' }}</p>
+            <small>{{ formatTime(note.updatedAtMs) }}</small>
+          </button>
+        </div>
+        <p class="drag-hint">拖拽便签即可调整顺序　·　右键查看更多操作</p>
       </div>
 
       <div v-else class="records-scroll" :class="scope">
@@ -476,6 +455,6 @@ onUnmounted(() => {
     <Transition name="modal-fade"><div v-if="settingsOpen" class="settings-modal-backdrop" @click.self="settingsOpen = false"><SettingsView embedded @close="settingsOpen = false" /></div></Transition>
     <div v-if="deleteTarget" class="modal-backdrop" @click.self="deleteTarget = null"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-title"><span class="dialog-icon">!</span><h2 id="delete-title">永久删除这张便签？</h2><p>“{{ deleteTarget.title || '无标题便签' }}”将立即从此设备移除，此操作无法撤销。</p><div><button type="button" @click="deleteTarget = null">取消</button><button class="confirm-danger" type="button" @click="permanentlyDelete">永久删除</button></div></section></div>
     <div v-if="clearTrashConfirm" class="modal-backdrop" @click.self="clearTrashConfirm = false"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-trash-title"><span class="dialog-icon">!</span><h2 id="clear-trash-title">清空所有删除项？</h2><p>最近删除中的 {{ notes.length }} 张便签将从此设备永久移除，此操作无法撤销。</p><div><button type="button" :disabled="clearingTrash" @click="clearTrashConfirm = false">取消</button><button class="confirm-danger" type="button" :disabled="clearingTrash" @click="clearTrash">{{ clearingTrash ? '正在清空…' : '清空删除项' }}</button></div></section></div>
-    <Transition name="toast"><div v-if="toast" class="library-toast" role="status"><span>✓</span>{{ toast }}</div></Transition>
+
   </main>
 </template>

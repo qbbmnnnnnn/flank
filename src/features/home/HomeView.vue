@@ -26,7 +26,7 @@ onMounted(() => app.initialize());
         <span v-else>等待 Tauri 运行时</span>
       </div>
 
-      <p class="hint">使用 <code>pnpm tauri:dev</code> 启动桌面开发环境。</p>
+      <p class="hint">使用 <code>npm run tauri:dev</code> 启动桌面开发环境。</p>
     </section>
   </main>
 </template>

@@ -28,6 +28,8 @@ export interface DockPanelOpenPayload {
   isNew: boolean;
   /** The note is already open; the panel should toggle preview/edit. */
   sameNote: boolean;
+  /** A Dock-only usage guide that must never be persisted or edited. */
+  isPlaceholder?: boolean;
 }
 
 export interface DockPanelSavePayload {
@@ -42,6 +44,8 @@ export const DOCK_BRIDGE = {
   save: "dock-panel:save",
   blurred: "dock-panel:blurred",
   requestClose: "dock-panel:request-close",
+  createNote: "dock:create-note",
+  hidden: "dock:hidden",
 } as const;
 
 export function isTauriRuntime(): boolean {

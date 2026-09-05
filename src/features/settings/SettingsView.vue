@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { showNotification as showToast } from "../../services/notificationService";
+import { dockLayout } from "../dock/layout";
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import {
   ArrowLeft,
@@ -32,18 +34,18 @@ type Shortcut = {
 const app = useAppStore();
 const router = useRouter();
 const activeSection = ref<SectionId>("general");
-const toast = ref("");
+
 const recordingShortcut = ref<string | null>(null);
-let toastTimer: number | undefined;
+
 
 const settings = reactive<AppSettings>({
   language: "zh-CN",
   launchAtLogin: true,
   closeBehavior: "background",
   dockEnabled: true,
-  dockVisibleCount: 7,
+  dockVisibleCount: 5,
   dockSide: "right",
-  verticalPosition: 52,
+  verticalPosition: 50,
   dockSize: "medium",
   hoverAnimation: true,
   actionDelay: 1,
@@ -60,10 +62,6 @@ const recommendedDockCount = ref(7);
 const settingsLoaded = ref(false);
 let saveTimer: number | undefined;
 
-const recommendedDockRange = computed(() => {
-  const maximum = recommendedDockCount.value;
-  return maximum <= 5 ? "5" : `${Math.max(5, maximum - 2)}–${maximum}`;
-});
 const dockCountWarning = computed(() => settings.dockVisibleCount > recommendedDockCount.value);
 
 function clampDockCount() {
@@ -94,14 +92,10 @@ async function updateDockRecommendation() {
       monitor = await monitorFromPoint(position.x + size.width / 2, position.y + size.height / 2) ?? monitor;
     }
     const logicalHeight = monitor ? monitor.size.height / monitor.scaleFactor : window.screen.availHeight;
-    const compact = logicalHeight <= 800;
-    const reserved = compact ? 249 : 253;
-    const noteHeight = compact ? 104 : 126;
-    const step = compact ? 91 : 112;
-    recommendedDockCount.value = Math.min(12, Math.max(5, 1 + Math.floor((logicalHeight - reserved - noteHeight) / step)));
+    recommendedDockCount.value = dockLayout(12, 12, logicalHeight).count;
   } catch {
     const logicalHeight = window.screen.availHeight || 1080;
-    recommendedDockCount.value = logicalHeight <= 800 ? 5 : logicalHeight <= 960 ? 6 : logicalHeight <= 1080 ? 7 : logicalHeight <= 1200 ? 8 : logicalHeight <= 1440 ? 10 : 12;
+    recommendedDockCount.value = dockLayout(12, 12, logicalHeight).count;
   }
 }
 
@@ -155,11 +149,7 @@ const colors = [
   { id: "mint", name: "Mint", hex: "#A9E5D1" },
 ];
 
-function showToast(message: string) {
-  toast.value = message;
-  window.clearTimeout(toastTimer);
-  toastTimer = window.setTimeout(() => (toast.value = ""), 2400);
-}
+
 
 function closeSettings() {
   if (props.embedded) emit("close");
@@ -311,16 +301,15 @@ onMounted(async () => {
           <section class="settings-group">
             <label class="setting-row clickable"><div class="setting-copy"><b>启用 Dock</b><span>关闭后仍可通过系统托盘、菜单栏或主窗口重新启用</span></div><input v-model="settings.dockEnabled" class="switch-input" type="checkbox"><span class="switch"></span></label>
             <div class="setting-row align-start">
-              <div class="setting-copy"><b>每次展示数量</b><span>当前显示器推荐 {{ recommendedDockCount }} 个 · 舒适范围 {{ recommendedDockRange }} 个<br><em v-if="dockCountWarning" class="setting-warning">设置已保留，实际数量会按屏幕安全空间调整</em></span></div>
+              <div class="setting-copy"><b>每次展示数量</b><span>默认最多显示 5 个完整便签；不足上限时随数量增高，超出后滚动<br>当前屏幕最多容纳 {{ recommendedDockCount }} 个<br><em v-if="dockCountWarning" class="setting-warning">设置已保留，实际数量会按屏幕安全空间调整</em></span></div>
               <div class="dock-count-control"><div class="segmented"><button v-for="count in [5, 7, 9, 12]" :key="count" :class="{ selected: settings.dockVisibleCount === count }" type="button" @click="settings.dockVisibleCount = count">{{ count }}</button></div><label>自定义 <input v-model.number="settings.dockVisibleCount" type="number" min="5" max="12" step="1" @change="clampDockCount"></label></div>
             </div>
             <div class="setting-row">
-              <div class="setting-copy"><b>屏幕边缘</b><span>拖动便签栏后也会自动更新</span></div>
+              <div class="setting-copy"><b>屏幕边缘</b><span>固定在所选屏幕边缘的居中位置</span></div>
               <div class="segmented"><button :class="{ selected: settings.dockSide === 'left' }" type="button" @click="settings.dockSide = 'left'">左侧</button><button :class="{ selected: settings.dockSide === 'right' }" type="button" @click="settings.dockSide = 'right'">右侧</button></div>
             </div>
             <div class="setting-row">
-              <div class="setting-copy"><b>垂直位置</b><span>{{ settings.verticalPosition }}% · 以屏幕工作区为基准</span></div>
-              <input v-model="settings.verticalPosition" class="range" type="range" min="10" max="90" aria-label="便签栏垂直位置">
+              <div class="setting-copy"><b>垂直位置</b><span>始终居中，随便签栏高度自动调整</span></div>
             </div>
             <div class="setting-row">
               <div class="setting-copy"><b>便签栏大小</b><span>不会改变便签正文的字体大小</span></div>
@@ -381,6 +370,6 @@ onMounted(async () => {
       </div>
     </section>
 
-    <Transition name="toast"><div v-if="toast" class="app-toast" role="status"><span>✓</span>{{ toast }}</div></Transition>
+
   </main>
 </template>
