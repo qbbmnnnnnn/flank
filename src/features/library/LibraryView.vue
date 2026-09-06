@@ -10,6 +10,7 @@ import {
   List,
   Minus,
   Plus,
+  RotateCcw,
   Search,
   Settings,
   Square,
@@ -38,6 +39,8 @@ const viewMode = ref<"grid" | "list">((localStorage.getItem("flank-library-view"
 const searchInput = ref<HTMLInputElement | null>(null);
 const libraryRoot = ref<HTMLElement | null>(null);
 const noteList = ref<HTMLElement | null>(null);
+const contextMenu = ref<{ note: NoteRecord; x: number; y: number } | null>(null);
+const contextMenuEl = ref<HTMLElement | null>(null);
 let animationContext: gsap.Context | undefined;
 let unlistenNotesChanged: (() => void) | undefined;
 let searchTimer: number | undefined;
@@ -63,6 +66,11 @@ const sections: Array<{ id: NoteScope; label: string; caption: string }> = [
 ];
 const counts = reactive<Record<NoteScope, number>>({ active: 0, archived: 0, deleted: 0 });
 const selected = computed(() => notes.value.find((note) => note.id === selectedId.value) ?? null);
+const contextMenuStyle = computed(() => {
+  const menu = contextMenu.value;
+  if (!menu) return {};
+  return { left: `${menu.x}px`, top: `${menu.y}px` };
+});
 const isNew = ref(false);
 const editorKey = ref("new");
 const noteEditor = ref<InstanceType<typeof NoteEditor> | null>(null);
@@ -127,6 +135,7 @@ async function selectNote(id: string | null, open = false) {
 async function chooseScope(next: NoteScope) {
   if (scope.value === next) return;
   if (editorOpen.value && !(await closeEditor())) return;
+  closeContextMenu();
   scope.value = next;
   query.value = "";
   void loadNotes();
@@ -346,6 +355,36 @@ function retention(note: NoteRecord) {
   return days === 0 ? "即将永久删除" : `${days} 天后永久删除`;
 }
 
+function openContextMenu(note: NoteRecord, event: MouseEvent) {
+  event.preventDefault();
+  contextMenu.value = { note, x: event.clientX, y: event.clientY };
+}
+
+function closeContextMenu() {
+  contextMenu.value = null;
+}
+
+function contextAction(action: "edit" | "archive" | "unarchive" | "restore" | "delete" | "permanentlyDelete") {
+  const note = contextMenu.value?.note;
+  closeContextMenu();
+  if (!note) return;
+  if (action === "edit") void selectNote(note.id, true);
+  else if (action === "archive") void mutate(note, "archive");
+  else if (action === "unarchive") void mutate(note, "unarchive");
+  else if (action === "restore") void mutate(note, "restore");
+  else if (action === "delete") void mutate(note, "delete");
+  else if (action === "permanentlyDelete") deleteTarget.value = note;
+}
+
+function handleWindowContextMenu(event: MouseEvent) {
+  event.preventDefault();
+  const target = event.target instanceof Element ? event.target : null;
+  if (target?.closest(".note-card, .record-card")) return;
+  closeContextMenu();
+}
+
+const closeMenuOnClick = () => closeContextMenu();
+
 function onListKeydown(event: KeyboardEvent) {
   if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key) || !notes.value.length) return;
   event.preventDefault();
@@ -360,13 +399,25 @@ watch(query, () => {
   searchTimer = window.setTimeout(() => void loadNotes(selectedId.value ?? undefined), 120);
 });
 
+watch(contextMenu, async (menu) => {
+  if (!menu) return;
+  await nextTick();
+  const el = contextMenuEl.value;
+  if (!el) return;
+  const width = el.offsetWidth;
+  const height = el.offsetHeight;
+  menu.x = Math.max(8, Math.min(menu.x, window.innerWidth - width - 8));
+  menu.y = Math.max(8, Math.min(menu.y, window.innerHeight - height - 8));
+});
+
 function handleGlobalKeydown(event: KeyboardEvent) {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
     event.preventDefault();
     searchInput.value?.focus();
   }
   if (event.key === "Escape") {
-    if (deleteTarget.value) deleteTarget.value = null;
+    if (contextMenu.value) closeContextMenu();
+    else if (deleteTarget.value) deleteTarget.value = null;
     else if (clearTrashConfirm.value) clearTrashConfirm.value = false;
     else if (settingsOpen.value) settingsOpen.value = false;
     else if (editorOpen.value) void closeEditor();
@@ -380,6 +431,8 @@ onMounted(async () => {
     unlistenNotesChanged = await listen("notes:changed", () => void loadNotes(undefined, { silent: true }));
   }
   window.addEventListener("keydown", handleGlobalKeydown);
+  window.addEventListener("contextmenu", handleWindowContextMenu);
+  window.addEventListener("click", closeMenuOnClick);
   if (libraryRoot.value) {
     animationContext = gsap.context(() => {
       if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -394,6 +447,8 @@ onUnmounted(() => {
   animationContext?.revert();
   unlistenNotesChanged?.();
   window.removeEventListener("keydown", handleGlobalKeydown);
+  window.removeEventListener("contextmenu", handleWindowContextMenu);
+  window.removeEventListener("click", closeMenuOnClick);
   window.clearTimeout(searchTimer);
 });
 </script>
@@ -471,7 +526,7 @@ onUnmounted(() => {
 
       <div v-else-if="scope === 'active'" class="notes-scroll">
         <div class="recent-grid" :class="`mode-${viewMode}`">
-          <div v-for="note in notes" :key="note.id" class="note-card recent-card" :class="{ selected: selectedId === note.id }" :style="{ '--note': `var(--note-${note.color})` }" role="button" tabindex="0" :data-note-id="note.id" :aria-label="`便签：${note.title || '无标题便签'}`" @click="selectNote(note.id)" @keydown.enter.prevent="selectNote(note.id)" @keydown.space.prevent="selectNote(note.id)">
+          <div v-for="note in notes" :key="note.id" class="note-card recent-card" :class="{ selected: selectedId === note.id }" :style="{ '--note': `var(--note-${note.color})` }" role="button" tabindex="0" :data-note-id="note.id" :aria-label="`便签：${note.title || '无标题便签'}`" @click="selectNote(note.id)" @contextmenu.prevent="openContextMenu(note, $event)" @keydown.enter.prevent="selectNote(note.id)" @keydown.space.prevent="selectNote(note.id)">
             <button class="card-edit" type="button" :aria-label="`编辑便签：${note.title || '无标题便签'}`" title="编辑" @click.stop="selectNote(note.id, true)"><Pencil aria-hidden="true" /></button>
             <b class="card-title">{{ note.title || '无标题便签' }}</b>
             <p class="card-preview" v-html="cardPreview(note.body)"></p>
@@ -483,11 +538,12 @@ onUnmounted(() => {
 
       <div v-else class="records-scroll" :class="scope">
         <div class="group-title"><h2>{{ scope === 'archived' ? '归档记录' : '待处理' }}</h2><span>{{ notes.length }} ITEMS</span></div>
-        <article v-for="note in notes" :key="note.id" class="record-card" :style="{ '--note': `var(--note-${note.color})` }">
+        <article v-for="note in notes" :key="note.id" class="record-card" :style="{ '--note': `var(--note-${note.color})` }" @contextmenu.prevent="openContextMenu(note, $event)">
           <span class="record-color" :class="{ dot: scope === 'deleted' }"></span>
-          <div><b>{{ note.title || '无标题便签' }}</b><p>{{ note.body.replace(/\s+/g, ' ').slice(0, 105) || '空白便签' }}</p><small v-if="scope === 'archived'">归档于 {{ formatTime(note.archivedAtMs || note.updatedAtMs) }}　·　{{ noteTag(note) }}</small><small v-else class="days-left">{{ retention(note).toUpperCase() }}</small></div>
+          <div><b>{{ note.title || '无标题便签' }}</b><p class="card-preview" v-html="cardPreview(note.body)"></p><small v-if="scope === 'archived'">归档于 {{ formatTime(note.archivedAtMs || note.updatedAtMs) }}　·　{{ noteTag(note) }}</small><small v-else class="days-left">{{ retention(note).toUpperCase() }}</small></div>
           <button type="button" @click="mutate(note, scope === 'archived' ? 'unarchive' : 'restore')">{{ scope === 'archived' ? '恢复便签' : '恢复' }}</button>
           <button v-if="scope === 'deleted'" class="delete-forever" type="button" @click="deleteTarget = note">永久删除</button>
+          <button v-else-if="scope === 'archived'" class="delete-forever" type="button" @click="mutate(note, 'delete')">删除</button>
         </article>
       </div>
     </section>
@@ -507,5 +563,22 @@ onUnmounted(() => {
     <div v-if="deleteTarget" class="modal-backdrop" @click.self="deleteTarget = null"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-title"><span class="dialog-icon">!</span><h2 id="delete-title">永久删除这张便签？</h2><p>“{{ deleteTarget.title || '无标题便签' }}”将立即从此设备移除，此操作无法撤销。</p><div><button type="button" @click="deleteTarget = null">取消</button><button class="confirm-danger" type="button" @click="permanentlyDelete">永久删除</button></div></section></div>
     <div v-if="clearTrashConfirm" class="modal-backdrop" @click.self="clearTrashConfirm = false"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-trash-title"><span class="dialog-icon">!</span><h2 id="clear-trash-title">清空所有删除项？</h2><p>最近删除中的 {{ notes.length }} 张便签将从此设备永久移除，此操作无法撤销。</p><div><button type="button" :disabled="clearingTrash" @click="clearTrashConfirm = false">取消</button><button class="confirm-danger" type="button" :disabled="clearingTrash" @click="clearTrash">{{ clearingTrash ? '正在清空…' : '清空删除项' }}</button></div></section></div>
 
+    <Teleport to="body">
+      <div v-if="contextMenu" ref="contextMenuEl" class="note-context-menu" :style="contextMenuStyle" role="menu" aria-label="便签操作">
+        <template v-if="scope === 'active'">
+          <button type="button" role="menuitem" @click="contextAction('edit')"><Pencil aria-hidden="true" />编辑</button>
+          <button type="button" role="menuitem" @click="contextAction('archive')"><ArchiveIcon aria-hidden="true" />归档</button>
+          <button type="button" role="menuitem" class="danger" @click="contextAction('delete')"><Trash2 aria-hidden="true" />删除</button>
+        </template>
+        <template v-else-if="scope === 'archived'">
+          <button type="button" role="menuitem" @click="contextAction('unarchive')"><RotateCcw aria-hidden="true" />恢复</button>
+          <button type="button" role="menuitem" class="danger" @click="contextAction('delete')"><Trash2 aria-hidden="true" />删除</button>
+        </template>
+        <template v-else>
+          <button type="button" role="menuitem" @click="contextAction('restore')"><RotateCcw aria-hidden="true" />恢复</button>
+          <button type="button" role="menuitem" class="danger" @click="contextAction('permanentlyDelete')"><Trash2 aria-hidden="true" />永久删除</button>
+        </template>
+      </div>
+    </Teleport>
   </main>
 </template>
