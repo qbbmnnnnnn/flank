@@ -195,10 +195,10 @@ onMounted(async () => {
   <main class="settings-app" :class="{ embedded }">
     <button v-if="embedded" class="settings-modal-close" type="button" aria-label="关闭设置" @click="closeSettings"><X /></button>
     <aside class="sidebar" aria-label="设置分类">
-      <div class="brand settings-brand">
+      <!-- <div class="brand settings-brand">
         <img src="/noty-logo.png" alt="" />
         <div><strong>NOTY</strong><small>灵感停靠站</small></div>
-      </div>
+      </div> -->
 
       <nav class="settings-nav">
         <button

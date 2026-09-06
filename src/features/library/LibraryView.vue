@@ -5,7 +5,7 @@ import { gsap } from "gsap";
 import {
   AlertCircle,
   Archive as ArchiveIcon,
-  Ellipsis,
+  Pencil,
   Grid2X2,
   List,
   Minus,
@@ -17,16 +17,16 @@ import {
   Trash2,
   X,
 } from "lucide-vue-next";
-import type { CreateNoteInput, NoteColor, NoteRecord, NoteScope, TextDirection } from "../../contracts/note";
+import type { NoteRecord, NoteScope } from "../../contracts/note";
 import { noteService } from "../../services/noteService";
 import SettingsView from "../settings/SettingsView.vue";
+import NoteEditor from "../../components/NoteEditor.vue";
 
 const scope = ref<NoteScope>("active");
 const query = ref("");
 const notes = ref<NoteRecord[]>([]);
 const selectedId = ref<string | null>(null);
 const loading = ref(false);
-const saving = ref(false);
 const error = ref("");
 
 const deleteTarget = ref<NoteRecord | null>(null);
@@ -63,9 +63,9 @@ const sections: Array<{ id: NoteScope; label: string; caption: string }> = [
 ];
 const counts = reactive<Record<NoteScope, number>>({ active: 0, archived: 0, deleted: 0 });
 const selected = computed(() => notes.value.find((note) => note.id === selectedId.value) ?? null);
-const draft = reactive<CreateNoteInput>({ title: "", body: "", color: "lemon", textDirection: "automatic" });
 const isNew = ref(false);
-const hasChanges = computed(() => isNew.value || (!!selected.value && (draft.title !== selected.value.title || draft.body !== selected.value.body || draft.color !== selected.value.color || draft.textDirection !== selected.value.textDirection)));
+const editorKey = ref("new");
+const noteEditor = ref<InstanceType<typeof NoteEditor> | null>(null);
 
 function noteTag(note: NoteRecord) {
   const tags = ["PRODUCT", "LIFE", "WORK", "IDEA", "READ", "PERSONAL"];
@@ -98,72 +98,84 @@ async function refreshCounts() {
   sections.forEach((section, index) => (counts[section.id] = result[index].length));
 }
 
-async function loadNotes(preferredId?: string) {
-  loading.value = true;
+async function loadNotes(preferredId?: string, options?: { silent?: boolean }) {
+  if (!options?.silent) loading.value = true;
   error.value = "";
   try {
     notes.value = await list(scope.value, query.value);
-    const nextId = preferredId && notes.value.some((note) => note.id === preferredId) ? preferredId : null;
-    selectNote(nextId);
+    const wanted = preferredId ?? selectedId.value;
+    const nextId = wanted && notes.value.some((note) => note.id === wanted) ? wanted : null;
+    selectedId.value = nextId;
     await refreshCounts();
   } catch {
     error.value = "无法读取本地便签，请稍后重试。";
     notes.value = [];
     selectedId.value = null;
   } finally {
-    loading.value = false;
+    if (!options?.silent) loading.value = false;
   }
 }
 
-function selectNote(id: string | null, open = false) {
+async function selectNote(id: string | null, open = false) {
+  if (id !== null && editorOpen.value && id !== selectedId.value && !(await closeEditor())) return;
   selectedId.value = id;
   isNew.value = false;
   editorOpen.value = open && id !== null;
-  const note = notes.value.find((item) => item.id === id);
-  if (note) Object.assign(draft, { title: note.title, body: note.body, color: note.color, textDirection: note.textDirection });
+  if (open && id !== null) editorKey.value = id;
 }
 
-function chooseScope(next: NoteScope) {
+async function chooseScope(next: NoteScope) {
   if (scope.value === next) return;
+  if (editorOpen.value && !(await closeEditor())) return;
   scope.value = next;
   query.value = "";
   void loadNotes();
 }
 
-function createNote() {
+async function createNote() {
   scope.value = "active";
   query.value = "";
+  if (editorOpen.value && !(await closeEditor())) return;
   selectedId.value = null;
   isNew.value = true;
   editorOpen.value = true;
-  Object.assign(draft, { title: "", body: "", color: "lemon" as NoteColor, textDirection: "automatic" as TextDirection });
-  void nextTick(() => document.querySelector<HTMLInputElement>(".note-title-input")?.focus());
+  editorKey.value = `new-${Date.now()}`;
+  await nextTick();
+  noteEditor.value?.focusTitle();
 }
 
-async function saveNote() {
-  if (!hasChanges.value || saving.value) return;
-  saving.value = true;
-  try {
-    let result: NoteRecord;
-    if (isDesktop) {
-      result = isNew.value
-        ? await noteService.create({ ...draft })
-        : await noteService.update({ ...draft, id: selected.value!.id, expectedRevision: selected.value!.revision });
-    } else if (isNew.value) {
-      result = { id: crypto.randomUUID(), ...draft, createdAtMs: Date.now(), updatedAtMs: Date.now(), archivedAtMs: null, deletedAtMs: null, sortKey: "0", revision: 1 };
-      demoNotes.value.unshift(result);
-    } else {
-      result = { ...selected.value!, ...draft, updatedAtMs: Date.now(), revision: selected.value!.revision + 1 };
-      demoNotes.value = demoNotes.value.map((note) => note.id === result.id ? result : note);
-    }
+async function closeEditor(): Promise<boolean> {
+  const result = noteEditor.value ? await noteEditor.value.flush() : "empty";
+  if (result === "error") return false;
+  editorOpen.value = false;
+  if (result === "empty") {
+    selectedId.value = null;
     isNew.value = false;
-    showToast("便签已保存");
-    await loadNotes(result.id);
-  } catch {
-    showToast("保存失败，便签可能已在其他窗口修改");
-  } finally {
-    saving.value = false;
   }
+  return true;
+}
+
+function onEditorSaved(payload: { note: NoteRecord; isNew: boolean }) {
+  if (!isDesktop) {
+    if (payload.isNew) demoNotes.value.unshift(payload.note);
+    else demoNotes.value = demoNotes.value.map((note) => note.id === payload.note.id ? payload.note : note);
+  }
+  if (payload.isNew) {
+    isNew.value = false;
+    selectedId.value = payload.note.id;
+    notes.value = [payload.note, ...notes.value.filter((note) => note.id !== payload.note.id)];
+    void refreshCounts();
+  } else {
+    notes.value = notes.value.map((note) => note.id === payload.note.id ? payload.note : note);
+  }
+}
+
+async function mutateSelected(action: "archive" | "delete") {
+  const result = await noteEditor.value?.flush();
+  if (result === "error") return;
+  const note = selected.value;
+  if (!note) return;
+  await mutate(note, action);
 }
 
 async function mutate(note: NoteRecord, action: "archive" | "unarchive" | "delete" | "restore") {
@@ -280,6 +292,54 @@ function taskProgress(body: string) {
   return `${done}/${tasks.length} 项完成`;
 }
 
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" })[character]!);
+}
+
+function renderInline(value: string) {
+  return escapeHtml(value)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/~~([^~]+)~~/g, "<del>$1</del>")
+    .replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+|mailto:[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+}
+
+function cardPreview(body: string) {
+  const parts: string[] = [];
+  for (const raw of body.split("\n")) {
+    const line = raw.trim();
+    if (!line) {
+      if (parts.length && parts[parts.length - 1] !== "") parts.push("");
+      continue;
+    }
+    const task = line.match(/^\s*(☐|☑)\s?(.*)$/) || line.match(/^\s*-\s*\[([ xX])\]\s?(.*)$/);
+    if (task) {
+      const checked = task[1] === "☑" || /x/i.test(task[1]);
+      parts.push(`<span class="cv-task${checked ? " done" : ""}"><i class="cv-box"></i><span>${renderInline(task[2] ?? "")}</span></span>`);
+      continue;
+    }
+    const heading = line.match(/^(#{1,3})\s+(.*)$/);
+    if (heading) {
+      parts.push(`<span class="cv-heading cv-h${heading[1].length}">${renderInline(heading[2])}</span>`);
+      continue;
+    }
+    const list = line.match(/^\s*[-*+]\s+(.*)$/);
+    if (list) {
+      parts.push(`<span class="cv-list">${renderInline(list[1])}</span>`);
+      continue;
+    }
+    const quote = line.match(/^>\s?(.*)$/);
+    if (quote) {
+      parts.push(`<span class="cv-quote">${renderInline(quote[1])}</span>`);
+      continue;
+    }
+    parts.push(renderInline(line));
+  }
+  while (parts.length && parts[parts.length - 1] === "") parts.pop();
+  return parts.join("<br>") || '<span class="cv-empty">空白便签</span>';
+}
+
 function retention(note: NoteRecord) {
   if (!note.deletedAtMs) return "";
   const days = Math.max(0, Math.ceil((note.deletedAtMs + 30 * 86400000 - Date.now()) / 86400000));
@@ -309,7 +369,7 @@ function handleGlobalKeydown(event: KeyboardEvent) {
     if (deleteTarget.value) deleteTarget.value = null;
     else if (clearTrashConfirm.value) clearTrashConfirm.value = false;
     else if (settingsOpen.value) settingsOpen.value = false;
-    else if (editorOpen.value) editorOpen.value = false;
+    else if (editorOpen.value) void closeEditor();
   }
 }
 
@@ -317,7 +377,7 @@ onMounted(async () => {
   await loadNotes();
   if (isDesktop) {
     const { listen } = await import("@tauri-apps/api/event");
-    unlistenNotesChanged = await listen("notes:changed", () => void loadNotes(selectedId.value ?? undefined));
+    unlistenNotesChanged = await listen("notes:changed", () => void loadNotes(undefined, { silent: true }));
   }
   window.addEventListener("keydown", handleGlobalKeydown);
   if (libraryRoot.value) {
@@ -343,7 +403,7 @@ onUnmounted(() => {
     <aside class="library-sidebar" aria-label="资料库分区">
       <div class="library-brand" data-tauri-drag-region>
         <img src="/noty-logo.png" alt="" />
-        <div><strong>NOTY</strong><small>灵感停靠站</small></div>
+        <div><strong>FLANK</strong><small>灵感停靠站</small></div>
       </div>
       <p class="library-kicker">LIBRARY</p>
       <nav class="library-nav">
@@ -381,7 +441,7 @@ onUnmounted(() => {
 
       <header class="index-header" :class="{ tall: scope !== 'active' }">
         <div>
-          <p :class="{ danger: scope === 'deleted' }">{{ scope === 'active' ? 'NOTES / 06' : scope === 'archived' ? 'ARCHIVE / 12' : 'TRASH / 03' }}</p>
+          <!-- <p :class="{ danger: scope === 'deleted' }">{{ scope === 'active' ? 'NOTES / 06' : scope === 'archived' ? 'ARCHIVE / 12' : 'TRASH / 03' }}</p> -->
           <h1>{{ scope === 'active' ? '今天想记点什么？' : scope === 'archived' ? '已归档' : '最近删除' }}</h1>
           <span>{{ scope === 'active' ? '把稍纵即逝的想法，变成随时可取用的便签。' : scope === 'archived' ? '暂时收起，不代表忘记。需要时随时恢复。' : '删除的便签会保留 30 天，之后自动永久清除。' }}</span>
         </div>
@@ -411,11 +471,12 @@ onUnmounted(() => {
 
       <div v-else-if="scope === 'active'" class="notes-scroll">
         <div class="recent-grid" :class="`mode-${viewMode}`">
-          <button v-for="note in notes" :key="note.id" class="note-card recent-card" :style="{ '--note': `var(--note-${note.color})` }" type="button" @click="selectNote(note.id, true)">
-            <Ellipsis class="more" aria-hidden="true" />
-            <b>{{ note.title || '无标题便签' }}</b><p>{{ note.body.replace(/[-*]\s*\[[ xX]\]\s*/g, '').replace(/\s+/g, ' ').slice(0, 76) || '空白便签' }}</p>
-            <small>{{ formatTime(note.updatedAtMs) }}</small>
-          </button>
+          <div v-for="note in notes" :key="note.id" class="note-card recent-card" :class="{ selected: selectedId === note.id }" :style="{ '--note': `var(--note-${note.color})` }" role="button" tabindex="0" :data-note-id="note.id" :aria-label="`便签：${note.title || '无标题便签'}`" @click="selectNote(note.id)" @keydown.enter.prevent="selectNote(note.id)" @keydown.space.prevent="selectNote(note.id)">
+            <button class="card-edit" type="button" :aria-label="`编辑便签：${note.title || '无标题便签'}`" title="编辑" @click.stop="selectNote(note.id, true)"><Pencil aria-hidden="true" /></button>
+            <b class="card-title">{{ note.title || '无标题便签' }}</b>
+            <p class="card-preview" v-html="cardPreview(note.body)"></p>
+            <small class="card-time">{{ formatTime(note.updatedAtMs) }}</small>
+          </div>
         </div>
         <p class="drag-hint">拖拽便签即可调整顺序　·　右键查看更多操作</p>
       </div>
@@ -433,23 +494,13 @@ onUnmounted(() => {
 
     <section v-if="editorOpen && (selected || isNew)" class="note-detail" aria-label="便签详情">
       <header class="detail-toolbar">
-        <button class="editor-close" type="button" aria-label="关闭便签详情" @click="editorOpen = false">×</button>
-        <span class="detail-status"><i :style="{ background: `var(--note-${draft.color})` }"></i>{{ isNew ? '新便签' : '便签详情' }}</span>
+        <button class="editor-close" type="button" aria-label="关闭便签详情" @click="closeEditor">×</button>
         <div v-if="selected" class="detail-actions">
-          <button v-if="scope === 'active'" type="button" @click="mutate(selected, 'archive')">归档</button>
-          <button v-else type="button" @click="mutate(selected, scope === 'archived' ? 'unarchive' : 'restore')">恢复</button>
-          <button v-if="scope !== 'deleted'" class="danger-action" type="button" @click="mutate(selected, 'delete')">删除</button>
+          <button type="button" @click="mutateSelected('archive')">归档</button>
+          <button class="danger-action" type="button" @click="mutateSelected('delete')">删除</button>
         </div>
       </header>
-      <div class="editor-wrap" :class="{ readonly: scope === 'deleted' }">
-        <input v-model="draft.title" class="note-title-input" type="text" maxlength="200" placeholder="无标题便签" :readonly="scope === 'deleted'" aria-label="便签标题">
-        <div class="note-meta">修改于 {{ formatTime(selected?.updatedAtMs ?? Date.now()) }}</div>
-        <textarea v-model="draft.body" placeholder="写下此刻想到的事…" :readonly="scope === 'deleted'" aria-label="便签正文"></textarea>
-      </div>
-      <footer class="detail-footer">
-        <div class="color-picker" role="group" aria-label="便签颜色"><button v-for="color in (['lemon','peach','rose','lilac','sky','mint'] as NoteColor[])" :key="color" :class="{ selected: draft.color === color }" :style="{ background: `var(--note-${color})` }" :disabled="scope === 'deleted'" type="button" :aria-label="`${color} 颜色`" @click="draft.color = color"></button></div>
-        <button v-if="scope !== 'deleted'" class="save-note-button" :disabled="!hasChanges || saving" type="button" @click="saveNote">{{ saving ? '保存中…' : hasChanges ? '保存更改' : '已保存' }}</button>
-      </footer>
+      <NoteEditor ref="noteEditor" :key="editorKey" :note="selected" @saved="onEditorSaved" />
     </section>
 
     <Transition name="modal-fade"><div v-if="settingsOpen" class="settings-modal-backdrop" @click.self="settingsOpen = false"><SettingsView embedded @close="settingsOpen = false" /></div></Transition>
