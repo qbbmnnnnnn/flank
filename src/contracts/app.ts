@@ -1,3 +1,5 @@
+import type { NoteColorOption } from "./note";
+
 export interface AppInfo {
   name: string;
   version: string;
@@ -23,6 +25,8 @@ export interface AppSettings {
   textDirection: "automatic" | "ltr" | "rtl";
   markdown: boolean;
   defaultColor: string;
+  /** User colors added to the new-note color pool. The six built-in colors live in code. */
+  customColors: readonly NoteColorOption[];
   automaticUpdates: boolean;
 }
 

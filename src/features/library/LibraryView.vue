@@ -21,6 +21,7 @@ import {
 } from "lucide-vue-next";
 import type { NoteRecord, NoteScope } from "../../contracts/note";
 import { noteService } from "../../services/noteService";
+import { notePaperStyle } from "../../services/noteColorService";
 import SettingsView from "../settings/SettingsView.vue";
 import NoteEditor from "../../components/NoteEditor.vue";
 
@@ -520,7 +521,7 @@ onUnmounted(() => {
 
       <div v-else-if="scope === 'active'" class="notes-scroll">
         <div class="recent-grid" :class="`mode-${viewMode}`">
-          <div v-for="note in notes" :key="note.id" class="note-card recent-card" :class="{ selected: selectedId === note.id }" :style="{ '--note': `var(--note-${note.color})` }" role="button" tabindex="0" :data-note-id="note.id" :aria-label="t('便签：{title}', { title: note.title || t('无标题便签') })" @click="selectNote(note.id)" @contextmenu.prevent="openContextMenu(note, $event)" @keydown.enter.prevent="selectNote(note.id)" @keydown.space.prevent="selectNote(note.id)">
+          <div v-for="note in notes" :key="note.id" class="note-card recent-card" :class="{ selected: selectedId === note.id }" :style="notePaperStyle(note.color)" role="button" tabindex="0" :data-note-id="note.id" :aria-label="t('便签：{title}', { title: note.title || t('无标题便签') })" @click="selectNote(note.id)" @contextmenu.prevent="openContextMenu(note, $event)" @keydown.enter.prevent="selectNote(note.id)" @keydown.space.prevent="selectNote(note.id)">
             <button class="card-edit" type="button" :aria-label="t('编辑便签：{title}', { title: note.title || t('无标题便签') })" :title="t('编辑')" @click.stop="selectNote(note.id, true)"><Pencil aria-hidden="true" /></button>
             <b class="card-title">{{ note.title || t('无标题便签') }}</b>
             <p class="card-preview" v-html="cardPreview(note.body)"></p>
@@ -532,7 +533,7 @@ onUnmounted(() => {
 
       <div v-else class="records-scroll" :class="scope">
         <div class="group-title"><h2>{{ scope === 'archived' ? t('归档记录') : t('待处理') }}</h2><span>{{ notes.length }} ITEMS</span></div>
-        <article v-for="note in notes" :key="note.id" class="record-card" :style="{ '--note': `var(--note-${note.color})` }" @contextmenu.prevent="openContextMenu(note, $event)">
+        <article v-for="note in notes" :key="note.id" class="record-card" :style="notePaperStyle(note.color)" @contextmenu.prevent="openContextMenu(note, $event)">
           <span class="record-color" :class="{ dot: scope === 'deleted' }"></span>
           <div><b>{{ note.title || t('无标题便签') }}</b><p class="card-preview" v-html="cardPreview(note.body)"></p><small v-if="scope === 'archived'">{{ t('归档于') }} {{ formatTime(note.archivedAtMs || note.updatedAtMs) }}　·　{{ noteTag(note) }}</small><small v-else class="days-left">{{ retention(note).toUpperCase() }}</small></div>
           <button type="button" @click="mutate(note, scope === 'archived' ? 'unarchive' : 'restore')">{{ scope === 'archived' ? t('恢复便签') : t('恢复') }}</button>

@@ -14,6 +14,18 @@ export function receiveNotification(message: string) {
   timer = setTimeout(dismissNotification, 4000);
 }
 
+/** Tauri rejects with a string, an Error, or the raw backend payload. */
+export function failureReason(cause: unknown): string {
+  if (typeof cause === "string") return cause;
+  if (cause instanceof Error) return cause.message;
+  try {
+    const text = JSON.stringify(cause);
+    return !text || text === "{}" ? "" : text;
+  } catch {
+    return "";
+  }
+}
+
 /** Cross-window messages are rendered only by the main window. */
 export function showNotification(message: string) {
   if (!("__TAURI_INTERNALS__" in window)) {

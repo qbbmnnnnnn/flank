@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { t } from '../../services/i18n';
-import { showNotification as showToast } from "../../services/notificationService";
+import { failureReason, showNotification as showToast } from "../../services/notificationService";
 import { dockLayout } from "../dock/layout";
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { isTauri } from "@tauri-apps/api/core";
@@ -9,19 +9,28 @@ import {
   ArrowLeft,
   Keyboard,
   PanelRight,
+  Pencil,
+  Plus,
   RefreshCw,
   Settings2,
   ShieldCheck,
-  StickyNote,
+  Trash2,
   X,
 } from "lucide-vue-next";
 import { useRouter } from "vue-router";
 
 import { useAppStore } from "../../app/stores/app";
 import type { AppSettings } from "../../contracts/app";
+import { MAX_CUSTOM_NOTE_COLORS, type NoteColorOption } from "../../contracts/note";
 import { appService } from "../../services/appService";
+import {
+  builtinNoteColors,
+  createNoteColorId,
+  isBuiltinNoteColor,
+  noteColorCss,
+} from "../../services/noteColorService";
 
-type SectionId = "general" | "shortcuts" | "dock" | "notes" | "privacy" | "updates";
+type SectionId = "general" | "shortcuts" | "dock" | "privacy" | "updates";
 
 const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
 const emit = defineEmits<{ close: [] }>();
@@ -64,6 +73,7 @@ let previous = { ...settings };
 function syncSavedSettings() {
   syncing = true;
   Object.assign(settings, savedSettings.value);
+  customColors.value = (settings.customColors ?? []).map((color) => ({ ...color }));
   previous = { ...settings };
   syncing = false;
 }
@@ -115,7 +125,11 @@ watch(settings, () => {
   const patch = Object.fromEntries(Object.entries(settings).filter(([key, value]) => value !== previous[key as keyof AppSettings])) as Partial<AppSettings>;
   previous = { ...settings };
   if (!Object.keys(patch).length) return;
-  void saveSettingsPatch(patch).catch(() => showToast(t('设置保存失败，已恢复为已保存的设置')));
+  void saveSettingsPatch(patch).catch((cause: unknown) => {
+    const reason = failureReason(cause);
+    console.error("Flank: saving settings failed", cause);
+    showToast(reason ? `${t('设置保存失败，已恢复为已保存的设置')} · ${reason}` : t('设置保存失败，已恢复为已保存的设置'));
+  });
 }, { deep: true, flush: "sync" });
 
 const shortcuts = ref<Shortcut[]>([
@@ -129,22 +143,49 @@ const shortcuts = ref<Shortcut[]>([
 const sections = [
   { id: "general", label: "通用", title: "通用设置", eyebrow: "GENERAL", subtitle: "定制 FLANK 的显示方式与启动行为。", caption: "外观与启动", icon: Settings2 },
   // { id: "shortcuts", label: "快捷键", title: "快捷键", eyebrow: "SHORTCUTS", subtitle: "管理在任意应用中生效的全局操作。", caption: "全局操作", icon: Keyboard },
-  { id: "dock", label: "便签栏", title: "便签栏", eyebrow: "DOCK", subtitle: "调整便签栏的位置、数量与交互方式。", caption: "位置与行为", icon: PanelRight },
-  { id: "notes", label: "便签", title: "便签", eyebrow: "NOTES", subtitle: "设置便签的编辑体验与默认外观。", caption: "编辑与外观", icon: StickyNote },
+  { id: "dock", label: "便签栏", title: "便签栏", eyebrow: "DOCK", subtitle: "调整便签栏的位置、数量，以及新建便签的默认外观。", caption: "位置与外观", icon: PanelRight },
   // { id: "privacy", label: "数据与隐私", title: "数据与隐私", eyebrow: "PRIVACY", subtitle: "管理本地数据、导入、导出与备份。", caption: "本地存储", icon: ShieldCheck },
   { id: "updates", label: "更新", title: "更新", eyebrow: "UPDATES", subtitle: "查看版本信息与更新偏好。", caption: "版本与发布", icon: RefreshCw },
 ] satisfies Array<{ id: SectionId; label: string; title: string; eyebrow: string; subtitle: string; caption: string; icon: unknown }>;
 
 const activeMeta = computed(() => sections.find((section) => section.id === activeSection.value)!);
 
-const colors = [
-  { id: "lemon", name: "Lemon" },
-  { id: "peach", name: "Peach" },
-  { id: "rose", name: "Rose" },
-  { id: "lilac", name: "Lilac" },
-  { id: "sky", name: "Sky" },
-  { id: "mint", name: "Mint" },
-];
+// New notes always take a random color from the pool; only its contents are editable.
+const customColors = ref<NoteColorOption[]>([]);
+const nextColorValue = ref("#a9e5d1");
+const colorPool = computed(() => [...builtinNoteColors, ...customColors.value]);
+const canAddColor = computed(() => customColors.value.length < MAX_CUSTOM_NOTE_COLORS);
+
+function swatch(color: NoteColorOption): string {
+  return color.value ?? noteColorCss(color.id);
+}
+
+function commitCustomColors() {
+  settings.customColors = customColors.value.map((color) => ({ ...color }));
+}
+
+function addCustomColor(event: Event) {
+  const value = (event.target as HTMLInputElement).value.toLowerCase();
+  if (!canAddColor.value) {
+    showToast(t('颜色池最多可添加 {count} 种颜色', { count: MAX_CUSTOM_NOTE_COLORS }));
+    return;
+  }
+  customColors.value = [...customColors.value, { id: createNoteColorId(), name: `${t('自定义')} ${customColors.value.length + 1}`, value }];
+  commitCustomColors();
+}
+
+function updateCustomColor(id: string, event: Event) {
+  const value = (event.target as HTMLInputElement).value.toLowerCase();
+  const target = customColors.value.find((color) => color.id === id);
+  if (!target) return;
+  target.value = value;
+  commitCustomColors();
+}
+
+function removeCustomColor(id: string) {
+  customColors.value = customColors.value.filter((color) => color.id !== id);
+  commitCustomColors();
+}
 
 
 
@@ -322,9 +363,6 @@ onUnmounted(() => {
             <div class="setting-row"><div class="setting-copy"><b>{{ t('全屏应用') }}</b><span>{{ t('播放视频、演示或游戏时的行为') }}</span></div><select v-model="settings.fullscreenBehavior"><option value="hide">{{ t('自动隐藏') }}</option><option value="show">{{ t('保持可见') }}</option></select></div>
             <div class="setting-row"><div class="setting-copy"><b>{{ t('召出时显示器') }}</b><span>{{ t('多显示器环境中的优先规则') }}</span></div><select v-model="settings.displayPreference"><option value="cursor">{{ t('鼠标所在屏幕') }}</option><option value="active">{{ t('活动窗口所在屏幕') }}</option><option value="primary">{{ t('主显示器') }}</option></select></div>
           </section> -->
-        </div>
-
-        <div v-else-if="activeSection === 'notes'" class="settings-page">
           <section class="settings-group">
             <div class="group-heading"><div><h2>{{ t('编辑体验') }}</h2><p>{{ t('设置所有新建和已有便签的阅读体验。') }}</p></div></div>
             <div class="setting-row"><div class="setting-copy"><b>{{ t('字体') }}</b><span>{{ t('正文和 Markdown 预览使用的字体') }}</span></div><select v-model="settings.font"><option value="system">{{ t('系统默认') }}</option><option value="serif">{{ t('衬线字体') }}</option><option value="mono">{{ t('等宽字体') }}</option></select></div>
@@ -333,9 +371,35 @@ onUnmounted(() => {
             <label class="setting-row clickable"><div class="setting-copy"><b>{{ t('启用 Markdown') }}</b><span>{{ t('支持标题、粗体、列表、任务与行内代码') }}</span></div><input v-model="settings.markdown" class="switch-input" type="checkbox"><span class="switch"></span></label>
           </section>
           <section class="settings-group color-settings">
-            <div class="group-heading"><div><h2>{{ t('新便签颜色') }}</h2><p>{{ t('新建时可继续在编辑器中选择颜色。') }}</p></div></div>
-            <label class="color-option"><input v-model="settings.defaultColor" value="random" type="radio"><span class="color-random"><i v-for="color in colors" :key="color.id" :style="{ background: `var(--note-${color.id})` }"></i></span><div><b>{{ t('每次随机选择') }}</b><small>{{ t('在 6 种 Flank 颜色中随机选取') }}</small></div><em>{{ t('推荐') }}</em></label>
-            <div class="color-grid"><label v-for="color in colors" :key="color.id" :class="{ selected: settings.defaultColor === color.id }"><input v-model="settings.defaultColor" :value="color.id" type="radio"><span :style="{ '--note-color': `var(--note-${color.id})` }"></span><b>{{ color.name }}</b></label></div>
+            <div class="group-heading"><div><h2>{{ t('新便签颜色') }}</h2><p>{{ t('新建便签会从颜色池中随机选取一种颜色，之后可在编辑器中更改。') }}</p></div><span class="pool-count">{{ customColors.length }} / {{ MAX_CUSTOM_NOTE_COLORS }}</span></div>
+            <div class="color-option">
+              <span class="color-random"><i v-for="color in colorPool" :key="color.id" :style="{ background: swatch(color) }"></i></span>
+              <div><b>{{ t('每次随机选择') }}</b><small>{{ t('颜色池共 {count} 种颜色，内置 6 种不可修改', { count: colorPool.length }) }}</small></div>
+              <em>{{ t('固定') }}</em>
+            </div>
+            <div class="color-pool">
+              <div v-for="color in colorPool" :key="color.id" class="pool-item" :class="{ custom: !isBuiltinNoteColor(color.id) }">
+                <span class="pool-chip" :style="{ background: swatch(color) }"></span>
+                <template v-if="isBuiltinNoteColor(color.id)">
+                  <b>{{ color.name }}</b><small class="pool-tag">{{ t('内置') }}</small>
+                </template>
+                <template v-else>
+                  <input v-model="color.name" class="pool-name" maxlength="24" :aria-label="t('颜色名称')" @change="commitCustomColors">
+                  <div class="pool-actions">
+                    <label class="pool-action" :title="t('编辑颜色')">
+                      <input type="color" :value="color.value" :aria-label="t('编辑颜色')" @change="updateCustomColor(color.id, $event)">
+                      <Pencil aria-hidden="true" />
+                    </label>
+                    <button class="pool-action danger" type="button" :title="t('删除颜色')" :aria-label="t('删除颜色')" @click="removeCustomColor(color.id)"><Trash2 aria-hidden="true" /></button>
+                  </div>
+                </template>
+              </div>
+              <label v-if="canAddColor" class="pool-item add">
+                <input type="color" :value="nextColorValue" :aria-label="t('添加颜色')" @change="addCustomColor($event)">
+                <span class="pool-chip add-chip"><Plus aria-hidden="true" /></span>
+                <b>{{ t('添加颜色') }}</b>
+              </label>
+            </div>
           </section>
         </div>
 
@@ -374,3 +438,26 @@ onUnmounted(() => {
 
   </main>
 </template>
+
+<style scoped>
+.pool-count { margin-left: auto; padding: 3px 9px; border-radius: 99px; color: var(--muted, #7b7590); background: var(--soft, #f4f2ef); font-size: 9px; font-weight: 750; }
+.color-option { cursor: default; }
+.color-pool { padding: 0 20px 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
+.pool-item { min-height: 88px; padding: 10px 8px; display: grid; place-items: center; align-content: center; gap: 6px; position: relative; border: 1px solid var(--border, #e5e1dd); border-radius: 11px; background: var(--surface, #fff); }
+.pool-item.custom { background: var(--soft, #fcfbf9); }
+.pool-chip { width: 30px; height: 30px; border-radius: 9px; box-shadow: 0 4px 8px rgba(54,47,40,.1), inset 0 1px rgba(255,255,255,.55); }
+.pool-item b { max-width: 100%; overflow: hidden; color: var(--muted, #77717b); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.pool-tag { color: var(--muted-2, #aaa5ad); font-size: 8px; }
+.pool-name { width: 100%; height: 24px; padding: 0 6px; border: 1px solid var(--border, #e5e1dd); border-radius: 7px; color: var(--text, #57525c); background: var(--surface, #fbfaf8); text-align: center; font-size: 9px; }
+.pool-name:focus { border-color: var(--accent, #8174d4); box-shadow: 0 0 0 3px rgba(101,88,200,.1); }
+.pool-actions { display: flex; gap: 4px; }
+.pool-action { width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid var(--border, #e5e1dd); border-radius: 7px; color: var(--muted, #8a858e); background: var(--surface, #fff); cursor: pointer; }
+.pool-action:hover { color: var(--text, #5f5964); border-color: var(--accent, #b9b0e4); }
+.pool-action.danger:hover { color: #c0392b; border-color: #e2b6b2; background: #fdf3f2; }
+.pool-action svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.pool-action input[type="color"], .pool-item.add input[type="color"] { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; pointer-events: none; }
+.pool-item.add { border-style: dashed; color: var(--muted, #8a858e); cursor: pointer; }
+.pool-item.add:hover { color: var(--accent, #6255be); border-color: var(--accent, #b9b0e4); background: var(--accent-soft, #faf8ff); }
+.add-chip { display: grid; place-items: center; color: inherit; background: transparent; border: 1px dashed currentColor; box-shadow: none; }
+.add-chip svg { width: 14px; height: 14px; stroke-width: 2; }
+</style>

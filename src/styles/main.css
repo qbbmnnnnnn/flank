@@ -13,15 +13,22 @@
   --accent: #6558c8;
   --accent-soft: #eeebff;
   --shadow: 0 20px 60px rgba(45, 41, 50, .09);
-  /* Note paper is authored in HSL so a theme only scales saturation/lightness and never shifts the hue. */
+  /* Note paper is authored in HSL so a theme only scales saturation/lightness and never shifts the hue.
+     The standalone h/s/l parts are also read by services/noteColorService.ts to decide paper contrast. */
   --note-saturation: 1;
   --note-lightness: 1;
-  --note-lemon: hsl(48 calc(100% * var(--note-saturation)) calc(74% * var(--note-lightness)));
-  --note-peach: hsl(12 calc(100% * var(--note-saturation)) calc(83% * var(--note-lightness)));
-  --note-rose: hsl(339 calc(75% * var(--note-saturation)) calc(84% * var(--note-lightness)));
-  --note-lilac: hsl(262 calc(100% * var(--note-saturation)) calc(88% * var(--note-lightness)));
-  --note-sky: hsl(210 calc(100% * var(--note-saturation)) calc(84% * var(--note-lightness)));
-  --note-mint: hsl(160 calc(54% * var(--note-saturation)) calc(78% * var(--note-lightness)));
+  --note-lemon-h: 48; --note-lemon-s: 100%; --note-lemon-l: 74%;
+  --note-peach-h: 12; --note-peach-s: 100%; --note-peach-l: 83%;
+  --note-rose-h: 339; --note-rose-s: 75%; --note-rose-l: 84%;
+  --note-lilac-h: 262; --note-lilac-s: 100%; --note-lilac-l: 88%;
+  --note-sky-h: 210; --note-sky-s: 100%; --note-sky-l: 84%;
+  --note-mint-h: 160; --note-mint-s: 54%; --note-mint-l: 78%;
+  --note-lemon: hsl(var(--note-lemon-h) calc(var(--note-lemon-s) * var(--note-saturation)) calc(var(--note-lemon-l) * var(--note-lightness)));
+  --note-peach: hsl(var(--note-peach-h) calc(var(--note-peach-s) * var(--note-saturation)) calc(var(--note-peach-l) * var(--note-lightness)));
+  --note-rose: hsl(var(--note-rose-h) calc(var(--note-rose-s) * var(--note-saturation)) calc(var(--note-rose-l) * var(--note-lightness)));
+  --note-lilac: hsl(var(--note-lilac-h) calc(var(--note-lilac-s) * var(--note-saturation)) calc(var(--note-lilac-l) * var(--note-lightness)));
+  --note-sky: hsl(var(--note-sky-h) calc(var(--note-sky-s) * var(--note-saturation)) calc(var(--note-sky-l) * var(--note-lightness)));
+  --note-mint: hsl(var(--note-mint-h) calc(var(--note-mint-s) * var(--note-saturation)) calc(var(--note-mint-l) * var(--note-lightness)));
 }
 
 * { box-sizing: border-box; }

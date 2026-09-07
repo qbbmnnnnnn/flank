@@ -3,11 +3,14 @@ import { t } from '../../services/i18n';
 import { showNotification } from "../../services/notificationService";
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { savedSettings } from "../../services/settingsService";
+import { failureReason } from "../../services/notificationService";
 import { guideCopy } from './guide';
 import { gsap } from "gsap";
+import MarkdownEditor from '../../components/MarkdownEditor.vue';
 
-import type { NoteColor } from "../../contracts/note";
+import type { NoteColorId } from "../../contracts/note";
 import { noteService } from "../../services/noteService";
+import { noteColorPool, notePaperStyle, pickRandomNoteColor } from "../../services/noteColorService";
 import {
   DOCK_BRIDGE,
   emitToDock,
@@ -29,10 +32,10 @@ type PreviewLine = {
 };
 
 const root = ref<HTMLElement | null>(null);
-const editorBody = ref<HTMLElement | null>(null);
+const editorBody = ref<InstanceType<typeof MarkdownEditor> | null>(null);
+const editorSession = ref(0);
 watch(() => savedSettings.value.language, () => {
   if (isPlaceholder.value && activeNote.value) activeNote.value = { ...activeNote.value, ...guideCopy() };
-  editorBody.value?.querySelectorAll('.editor-task-box').forEach((box) => box.setAttribute('aria-label', t(box.classList.contains('is-checked') ? '标记为未完成' : '标记为完成')));
 });
 
 const side = ref<AnchorSide>("right");
@@ -43,12 +46,12 @@ const activeNote = ref<Note | null>(null);
 const draftTarget = ref<Note | null>(null);
 const draftTitle = ref("");
 const draftBody = ref("");
-const draftColor = ref<NoteColor>("lemon");
+const draftColor = ref<NoteColorId>("lemon");
 const isNew = ref(false);
 const isPlaceholder = ref(false);
 const saveState = ref<"idle" | "typing" | "saving" | "saved" | "error">("idle");
 
-const palette: NoteColor[] = ["lemon", "peach", "rose", "lilac", "sky", "mint"]; 
+const palette = computed(() => noteColorPool(savedSettings.value));
 
 let saveTimer: number | undefined;
 let saveStateTimer: number | undefined;
@@ -60,7 +63,8 @@ let unlistenNotesChanged: (() => void) | undefined;
 let saveQueue: Promise<Note | null> = Promise.resolve(null);
 
 const previewLines = computed<PreviewLine[]>(() => parseMarkdown(activeNote.value?.body ?? ""));
-const paper = computed(() => noteColorCss(mode.value === "edit" ? draftColor.value : activeNote.value?.color ?? "lemon"));
+/** Paper plus the ink contrast decided from the rendered paper color. */
+const paperStyle = computed<Record<string, string>>(() => notePaperStyle(mode.value === "edit" ? draftColor.value : activeNote.value?.color ?? "lemon"));
 
 function isReducedMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -70,9 +74,13 @@ function inward() {
   return side.value === "left" ? 1 : -1;
 }
 
-function setSaveState(state: typeof saveState.value) {
+function setSaveState(state: typeof saveState.value, cause?: unknown) {
   window.clearTimeout(saveStateTimer);
-  if (state === "error" && saveState.value !== "error") showNotification(t('便签保存失败，请重试；当前编辑内容已保留'));
+  if (state === "error" && saveState.value !== "error") {
+    const reason = failureReason(cause);
+    const message = t('便签保存失败，请重试；当前编辑内容已保留');
+    showNotification(reason ? `${message} · ${reason}` : message);
+  }
   saveState.value = state;
   if (state === "saved") saveStateTimer = window.setTimeout(() => (saveState.value = "idle"), 1800);
 }
@@ -82,12 +90,18 @@ function requestClose() {
 }
 
 async function settlePanelWindow() {
-  if (!("__TAURI_INTERNALS__" in window)) return;
+  if (!("__TAURI_INTERNALS__" in window)) {
+    editorBody.value?.requestMeasure();
+    return;
+  }
   try {
     const { invoke } = await import("@tauri-apps/api/core");
     await invoke("settle_dock_panel", { anchorSide: side.value });
   } catch {
     // Keep the wide, transparent layout if native hit-region shaping fails.
+  } finally {
+    // Entrance transforms and native window settling change the text's screen coordinates.
+    editorBody.value?.requestMeasure();
   }
 }
 
@@ -171,12 +185,12 @@ async function handleOpen(payload: DockPanelOpenPayload) {
     isNew.value = true;
     draftTitle.value = "";
     draftBody.value = "";
-    draftColor.value = palette[Math.floor(Math.random() * palette.length)] ?? "lemon";
+    editorSession.value++;
+    draftColor.value = pickRandomNoteColor(savedSettings.value);
     setSaveState("idle");
     mode.value = "edit";
     open.value = true;
     await nextTick();
-    setEditorBodyValue("");
     root.value?.querySelector<HTMLInputElement>(".editor-title")?.focus();
     const panel = root.value?.querySelector<HTMLElement>(".note-panel");
     if (panel && wasClosed) playPanelEntrance(panel);
@@ -247,7 +261,6 @@ async function handleClose() {
 
 function scheduleSave() {
   if (mode.value !== "edit") return;
-  syncDraftBody();
   setSaveState("typing");
   window.clearTimeout(saveTimer);
   saveTimer = window.setTimeout(() => void flushSave(), 900);
@@ -260,9 +273,8 @@ function derivedTitle(body: string) {
 
 async function persistDraft(): Promise<Note | null> {
   window.clearTimeout(saveTimer);
-  syncDraftBody();
-  const body = draftBody.value.replace(/^\n+|\n+$/g, "");
-  if (!draftTitle.value.trim() && !body && isNew.value && !draftTarget.value) {
+  const body = draftBody.value;
+  if (!draftTitle.value.trim() && !body.trim() && isNew.value && !draftTarget.value) {
     setSaveState("idle");
     return null;
   }
@@ -288,8 +300,9 @@ async function persistDraft(): Promise<Note | null> {
     setSaveState("saved");
     await emitToDock(DOCK_BRIDGE.save, { note: saved, isNew: previous === null });
     return saved;
-  } catch {
-    setSaveState("error");
+  } catch (cause) {
+    console.error("Flank: saving the note failed", { color: draftColor.value, cause });
+    setSaveState("error", cause);
     return null;
   }
 }
@@ -307,11 +320,9 @@ function editNote() {
   draftColor.value = activeNote.value.color;
   isNew.value = false;
   setSaveState("idle");
+  editorSession.value++;
   mode.value = "edit";
-  nextTick(() => {
-    setEditorBodyValue(draftBody.value);
-    focusEditorLine(editorBody.value?.querySelector<HTMLElement>(".editor-line") ?? null, 0);
-  });
+  nextTick(() => editorBody.value?.focusStart());
 }
 
 async function finishEditing() {
@@ -333,265 +344,24 @@ async function finishEditing() {
 }
 
 // ---------------------------------------------------------------------------
-// Editor surface helpers (contenteditable)
+// Shared CodeMirror surface (also used by the library editor)
 // ---------------------------------------------------------------------------
 
-function focusBodyFromTitle() {
-  const firstLine = editorBody.value?.querySelector<HTMLElement>(":scope > .editor-line") ?? null;
-  focusEditorLine(firstLine, 0);
-}
-
-function createEditorLine(text = "", task = false, checked = false) {
-  const line = document.createElement("div");
-  line.className = `editor-line${task ? " is-task" : ""}`;
-  if (task) {
-    const checkbox = document.createElement("button");
-    checkbox.type = "button";
-    checkbox.className = `editor-task-box${checked ? " is-checked" : ""}`;
-    checkbox.contentEditable = "false";
-    checkbox.setAttribute("aria-checked", String(checked));
-    checkbox.setAttribute("aria-label", checked ? t('标记为未完成') : t('标记为完成'));
-    line.appendChild(checkbox);
-  }
-  const copy = document.createElement("span");
-  copy.className = "editor-line-copy";
-  copy.contentEditable = "true";
-  copy.spellcheck = true;
-  if (text) copy.textContent = text;
-  else copy.appendChild(document.createElement("br"));
-  line.appendChild(copy);
-  return line;
-}
-
-function setEditorBodyValue(value: string) {
-  if (!editorBody.value) return;
-  const fragment = document.createDocumentFragment();
-  const lines = value ? value.split("\n") : [""];
-  lines.forEach((raw) => {
-    const task = raw.match(/^\s*(☐|☑)\s?(.*)$/);
-    fragment.appendChild(createEditorLine(task ? task[2] : raw, Boolean(task), task?.[1] === "☑"));
-  });
-  editorBody.value.replaceChildren(fragment);
-  editorBody.value.classList.toggle("is-empty", !value);
-}
-
-function getEditorBodyValue() {
-  if (!editorBody.value) return draftBody.value;
-  return [...editorBody.value.querySelectorAll<HTMLElement>(":scope > .editor-line")].map((line) => {
-    const copy = line.querySelector<HTMLElement>(".editor-line-copy");
-    const text = (copy?.innerText || "").replace(/\n+$/g, "");
-    if (!line.classList.contains("is-task")) return text;
-    return `${line.querySelector(".editor-task-box")?.classList.contains("is-checked") ? "☑" : "☐"} ${text}`;
-  }).join("\n");
-}
-
-function syncDraftBody() {
-  if (mode.value !== "edit" || !editorBody.value) return;
-  draftBody.value = getEditorBodyValue();
-  editorBody.value.classList.toggle("is-empty", !draftBody.value);
-}
-
-function currentEditorLine() {
-  const selection = getSelection();
-  const anchor = selection?.anchorNode;
-  const node = anchor?.nodeType === Node.TEXT_NODE ? anchor.parentElement : anchor as HTMLElement | null;
-  return node?.closest<HTMLElement>(".editor-line") ?? null;
-}
-
-function lineCaretOffset(line: HTMLElement) {
-  const copy = line.querySelector<HTMLElement>(".editor-line-copy");
-  const selection = getSelection();
-  if (!copy || !selection?.rangeCount || !copy.contains(selection.anchorNode)) return (copy?.innerText || "").length;
-  const range = selection.getRangeAt(0).cloneRange();
-  range.selectNodeContents(copy);
-  range.setEnd(selection.anchorNode!, selection.anchorOffset);
-  return range.toString().length;
-}
-
-function focusEditorLine(line: HTMLElement | null, offset = 0) {
-  if (!line) return;
-  const copy = line.querySelector<HTMLElement>(".editor-line-copy");
-  if (!copy) return;
-  if (copy.querySelector("br")) copy.replaceChildren(document.createTextNode(""));
-  const node = copy.firstChild || copy.appendChild(document.createTextNode(""));
-  copy.focus();
-  const range = document.createRange();
-  range.setStart(node, Math.min(offset, node.textContent?.length ?? 0));
-  range.collapse(true);
-  const selection = getSelection();
-  selection?.removeAllRanges();
-  selection?.addRange(range);
-}
-
-function insertTask() {
-  let line = currentEditorLine();
-  if (!line) {
-    const blank = [...(editorBody.value?.querySelectorAll<HTMLElement>(":scope > .editor-line") ?? [])].find((item) => !(item.querySelector<HTMLElement>(".editor-line-copy")?.innerText || "").trim());
-    line = createEditorLine("", true);
-    if (blank) blank.replaceWith(line);
-    else editorBody.value?.appendChild(line);
-  } else if (!line.classList.contains("is-task") && !(line.querySelector<HTMLElement>(".editor-line-copy")?.innerText || "").trim()) {
-    const replacement = createEditorLine("", true);
-    line.replaceWith(replacement);
-    line = replacement;
-  } else {
-    const next = createEditorLine("", true);
-    line.after(next);
-    line = next;
-  }
-  focusEditorLine(line);
+function updateBody(body: string) {
+  draftBody.value = body;
   scheduleSave();
 }
 
-function applyMarkdown(format: "heading" | "bold" | "italic" | "list" | "code") {
-  const selection = getSelection();
-  let line = currentEditorLine();
-  if (!line) {
-    const lines = [...(editorBody.value?.querySelectorAll<HTMLElement>(":scope > .editor-line") ?? [])];
-    line = [...lines].reverse().find((item) => (item.querySelector<HTMLElement>(".editor-line-copy")?.innerText || "").trim()) ?? lines[0] ?? null;
-    focusEditorLine(line, (line?.querySelector<HTMLElement>(".editor-line-copy")?.innerText || "").length);
-  }
-  if (!line || !selection) return;
-  const copy = line.querySelector<HTMLElement>(".editor-line-copy");
-  if (!copy) return;
-
-  if (format === "heading" || format === "list") {
-    const prefix = format === "heading" ? "## " : "- ";
-    const current = (copy.innerText || "").replace(/\n+$/g, "");
-    const existing = format === "heading" ? /^#{1,3}\s+/ : /^\s*[-*+]\s+/;
-    const match = current.match(existing);
-    const offset = lineCaretOffset(line);
-    const nextText = match ? current.slice(match[0].length) : prefix + current;
-    copy.textContent = nextText;
-    focusEditorLine(line, match ? Math.max(0, offset - match[0].length) : offset + prefix.length);
-  } else {
-    const formats = { bold: ["**", "**"], italic: ["*", "*"], code: ["`", "`"] } as const;
-    const [prefix, suffix] = formats[format];
-    const range = selection.rangeCount ? selection.getRangeAt(0) : null;
-    if (!range || !editorBody.value?.contains(range.commonAncestorContainer)) return;
-    const selected = selection.toString();
-    range.deleteContents();
-    const node = document.createTextNode(`${prefix}${selected}${suffix}`);
-    range.insertNode(node);
-    if (selected) {
-      range.setStart(node, prefix.length);
-      range.setEnd(node, prefix.length + selected.length);
-    } else {
-      range.setStart(node, prefix.length);
-      range.collapse(true);
-    }
-    selection.removeAllRanges();
-    selection.addRange(range);
-  }
-  copy.focus();
-  scheduleSave();
-}
-
-function onEditorKeydown(event: KeyboardEvent) {
-  const line = currentEditorLine();
-  if (!line) return;
-  const copy = line.querySelector<HTMLElement>(".editor-line-copy");
-  const text = (copy?.innerText || "").replace(/\n+$/g, "");
-  const offset = lineCaretOffset(line);
-  if (event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
+function onTitleKeydown(event: KeyboardEvent) {
+  if (event.isComposing || event.keyCode === 229) return;
+  if (event.key === 'Enter') {
     event.preventDefault();
-    const list = !line.classList.contains("is-task") && text.match(/^(\s*[-*+]\s+)/);
-    if (line.classList.contains("is-task") && !text.trim()) {
-      const replacement = createEditorLine("");
-      line.replaceWith(replacement);
-      focusEditorLine(replacement);
-    } else if (list && !text.slice(list[1].length).trim()) {
-      if (copy) copy.replaceChildren(document.createElement("br"));
-      focusEditorLine(line, 0);
-    } else {
-      const before = text.slice(0, offset);
-      const after = text.slice(offset);
-      if (copy) {
-        copy.textContent = before;
-        if (!before) copy.appendChild(document.createElement("br"));
-      }
-      const next = createEditorLine(`${list ? list[1] : ""}${after}`, line.classList.contains("is-task"));
-      line.after(next);
-      focusEditorLine(next, list ? list[1].length : 0);
-    }
-    scheduleSave();
-    return;
+    editorBody.value?.focusStart();
   }
-  if (event.key === "Backspace" && offset === 0) {
-    const previous = line.previousElementSibling as HTMLElement | null;
-    if (previous?.classList.contains("editor-line")) {
-      event.preventDefault();
-      const previousCopy = previous.querySelector<HTMLElement>(".editor-line-copy");
-      const previousText = (previousCopy?.innerText || "").replace(/\n+$/g, "");
-      if (previousCopy) previousCopy.textContent = previousText + text;
-      line.remove();
-      focusEditorLine(previous, previousText.length);
-      scheduleSave();
-    } else if (line.classList.contains("is-task") && !text) {
-      event.preventDefault();
-      const replacement = createEditorLine("");
-      line.replaceWith(replacement);
-      focusEditorLine(replacement, 0);
-      scheduleSave();
-    }
-  }
-}
-
-function onEditorPaste(event: ClipboardEvent) {
-  event.preventDefault();
-  const text = event.clipboardData?.getData("text/plain").replace(/\r/g, "") ?? "";
-  const line = currentEditorLine();
-  if (!line || !text.includes("\n")) {
-    document.execCommand("insertText", false, text);
-    scheduleSave();
-    return;
-  }
-  const copy = line.querySelector<HTMLElement>(".editor-line-copy");
-  const original = (copy?.innerText || "").replace(/\n+$/g, "");
-  const offset = lineCaretOffset(line);
-  const parts = text.split("\n");
-  if (copy) copy.textContent = original.slice(0, offset) + (parts.shift() ?? "");
-  let cursor = line;
-  parts.forEach((part, index) => {
-    const raw = index === parts.length - 1 ? part + original.slice(offset) : part;
-    const task = raw.match(/^\s*(☐|☑)\s?(.*)$/);
-    const next = createEditorLine(task ? task[2] : raw, Boolean(task), task?.[1] === "☑");
-    cursor.after(next);
-    cursor = next;
-  });
-  focusEditorLine(cursor, Math.max(0, (cursor.querySelector<HTMLElement>(".editor-line-copy")?.innerText || "").length - original.slice(offset).length));
-  scheduleSave();
-}
-
-function onEditorPointerDown(event: PointerEvent) {
-  if ((event.target as HTMLElement).closest(".editor-task-box")) event.preventDefault();
-}
-
-function onEditorClick(event: MouseEvent) {
-  const target = event.target as HTMLElement;
-  const checkbox = target.closest<HTMLElement>(".editor-task-box");
-  if (checkbox) {
-    const checked = checkbox.classList.toggle("is-checked");
-    checkbox.setAttribute("aria-checked", String(checked));
-    checkbox.setAttribute("aria-label", checked ? t('标记为未完成') : t('标记为完成'));
-    scheduleSave();
-    return;
-  }
-
-  const lines = [...(editorBody.value?.querySelectorAll<HTMLElement>(":scope > .editor-line") ?? [])];
-  const clickedLine = target.closest<HTMLElement>(".editor-line");
-  if (clickedLine) {
-    if ((clickedLine.querySelector<HTMLElement>(".editor-line-copy")?.innerText || "").length) return;
-    focusEditorLine(clickedLine, 0);
-    return;
-  }
-
-  const destination = lines.at(-1) ?? null;
-  const offset = (destination?.querySelector<HTMLElement>(".editor-line-copy")?.innerText || "").replace(/\n+$/g, "").length;
-  focusEditorLine(destination, offset);
 }
 
 function onWindowKeydown(event: KeyboardEvent) {
+  if (event.isComposing || event.keyCode === 229) return;
   if (event.key === "Escape") requestClose();
   if (mode.value === "edit" && event.ctrlKey && event.key === "Enter") {
     event.preventDefault();
@@ -645,8 +415,9 @@ async function toggleTask(index: number) {
       : { ...current, body, updatedAtMs: Date.now(), revision: current.revision + 1 };
     activeNote.value = saved;
     await emitToDock(DOCK_BRIDGE.save, { note: saved, isNew: false });
-  } catch {
-    setSaveState("error");
+  } catch (cause) {
+    console.error("Flank: toggling the task failed", { color: current.color, cause });
+    setSaveState("error", cause);
   }
 }
 
@@ -701,7 +472,7 @@ onUnmounted(() => {
 <template>
   <main ref="root" class="dock-panel-window" :class="[`dock-${side}`, { open, 'edge-staged': edgeStaged }]">
     <button v-if="open" class="panel-dismiss-layer" type="button" :aria-label="t('关闭便签')" @click="requestClose"></button>
-    <article v-if="open && mode !== 'closed'" class="note-panel" :class="[mode, { placeholder: isPlaceholder }]" :style="{ '--paper': paper }">
+    <article v-if="open && mode !== 'closed'" class="note-panel" :class="[mode, { placeholder: isPlaceholder }]" :style="paperStyle">
       <template v-if="mode === 'preview' && activeNote">
         <header class="panel-header">
           <h1>{{ activeNote.title }}</h1>
@@ -722,19 +493,19 @@ onUnmounted(() => {
       <template v-else>
         <header class="editor-header">
           <div><b>{{ isNew ? t('新便签') : t('编辑便签') }}</b><span class="save-state" :class="saveState"><i></i>{{ saveState === "saving" ? t('自动保存中…') : saveState === "saved" ? t('已自动保存') : saveState === "error" ? t('保存失败') : t('自动保存') }}</span></div>
-          <div v-if="isNew" class="palette"><button v-for="color in palette" :key="color" type="button" :class="{ selected: draftColor === color }" :style="{ background: noteColorCss(color) }" :aria-label="t('选择颜色 {color}', { color })" @click="draftColor = color; scheduleSave()"></button></div>
+          <div v-if="isNew" class="palette"><button v-for="color in palette" :key="color.id" type="button" :class="{ selected: draftColor === color.id }" :style="{ background: noteColorCss(color.id) }" :aria-label="t('选择颜色 {color}', { color: color.name })" @click="draftColor = color.id; scheduleSave()"></button></div>
         </header>
-        <input v-model="draftTitle" class="editor-title" maxlength="28" :placeholder="t('标题')" @input="scheduleSave" @keydown.enter.prevent="focusBodyFromTitle">
+        <input v-model="draftTitle" class="editor-title" maxlength="28" :placeholder="t('标题')" @input="scheduleSave" @keydown="onTitleKeydown">
         <div class="editor-body-shell">
-          <div ref="editorBody" class="editor-body is-empty" role="textbox" aria-multiline="true" :aria-label="t('便签内容，支持 Markdown')" :data-placeholder="t('随便写点什么。。。')" @input="scheduleSave" @keydown="onEditorKeydown" @paste="onEditorPaste" @pointerdown="onEditorPointerDown" @click="onEditorClick"></div>
+          <MarkdownEditor ref="editorBody" :key="editorSession" class="editor-body" :model-value="draftBody" @update:model-value="updateBody" />
         </div>
-        <footer class="format-bar" @pointerdown.prevent>
-          <button type="button" :title="t('插入任务')" @click="insertTask"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m7.5 12 3 3 6-7"/></svg></button><i></i>
-          <button type="button" :title="t('标题')" @click="applyMarkdown('heading')">H</button>
-          <button type="button" :title="t('粗体（在星号中输入）')" @click="applyMarkdown('bold')"><b>B</b></button>
-          <button type="button" :title="t('斜体（选中文字，或点击后直接输入）')" @click="applyMarkdown('italic')"><em>I</em></button>
-          <button type="button" :title="t('切换列表')" @click="applyMarkdown('list')"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg></button>
-          <button type="button" :title="t('行内代码（选中文字，或点击后直接输入）')" @click="applyMarkdown('code')">&lt;/&gt;</button>
+        <footer class="format-bar" @mousedown.prevent>
+          <button type="button" :title="t('插入任务')" @click="editorBody?.insertTask()"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m7.5 12 3 3 6-7"/></svg></button><i></i>
+          <button type="button" :title="t('标题')" @click="editorBody?.format('heading')">H</button>
+          <button type="button" :title="t('粗体（在星号中输入）')" @click="editorBody?.format('bold')"><b>B</b></button>
+          <button type="button" :title="t('斜体（选中文字，或点击后直接输入）')" @click="editorBody?.format('italic')"><em>I</em></button>
+          <button type="button" :title="t('切换列表')" @click="editorBody?.format('list')"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg></button>
+          <button type="button" :title="t('行内代码（选中文字，或点击后直接输入）')" @click="editorBody?.format('code')">&lt;/&gt;</button>
         </footer>
       </template>
     </article>
@@ -745,14 +516,14 @@ onUnmounted(() => {
 .dock-panel-window{width:100vw;height:100vh;position:relative;overflow:hidden;background:transparent;pointer-events:none;user-select:none;-webkit-user-select:none;font-family:"Noty Display","Microsoft YaHei",Geist,"Segoe UI",sans-serif}
 .note-panel,.note-panel *{pointer-events:auto}
 .panel-dismiss-layer{position:absolute;z-index:2;inset:0;padding:0;border:0;background:transparent;pointer-events:auto;cursor:default}
-.note-panel{position:absolute;z-index:3;top:50%;right:0;width:380px;overflow:hidden;will-change:transform,opacity;border:1px solid rgba(255,255,255,.28);border-radius:20px;color:#2c2930;background:var(--paper,#ffe78a);box-shadow:none;transform:translateY(-50%);transform-origin:right center}.dock-left .note-panel{left:0;right:auto;transform-origin:left center}.edge-staged.dock-right .note-panel{right:104px}.edge-staged.dock-left .note-panel{left:104px}.note-panel::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(145deg,rgba(255,255,255,.26),transparent 26%,rgba(107,73,25,.05))}
+.note-panel{position:absolute;z-index:3;top:50%;right:0;width:380px;overflow:hidden;will-change:transform,opacity;border:1px solid rgba(255,255,255,.28);border-radius:20px;color:var(--paper-ink,#2c2930);background:var(--paper,#ffe78a);box-shadow:none;transform:translateY(-50%);transform-origin:right center}.dock-left .note-panel{left:0;right:auto;transform-origin:left center}.edge-staged.dock-right .note-panel{right:104px}.edge-staged.dock-left .note-panel{left:104px}.note-panel::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(145deg,rgba(255,255,255,.26),transparent 26%,rgba(107,73,25,.05))}
 .note-panel.preview{height:min(490px,72vh)}.note-panel.edit{height:min(560px,78vh)}
-.panel-header{position:relative;z-index:1;height:64px;padding:0 15px 0 19px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(70,55,30,.11)}.panel-header h1{min-width:0;margin:0;overflow:hidden;color:#29262b;font-size:22px;line-height:1.2;letter-spacing:-.025em;text-overflow:ellipsis;white-space:nowrap}.panel-actions{display:flex;gap:6px}.panel-actions button,.panel-close{width:30px;height:30px;padding:0;display:grid;place-items:center;border:0;border-radius:50%;color:rgba(40,35,31,.58);background:rgba(255,255,255,.22);cursor:pointer;transition:background .18s ease,transform .18s ease}.panel-actions button:hover,.panel-close:hover{background:rgba(255,255,255,.42);transform:scale(1.06)}.panel-actions svg,.panel-close svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.preview-body{position:relative;z-index:1;height:calc(100% - 64px);padding:18px 22px 30px;overflow-y:auto;font-size:17px;line-height:1.85;scrollbar-width:thin;scrollbar-color:rgba(70,55,30,.22) transparent}.preview-body p{min-height:1.7em;margin:2px 0}.preview-body h1,.preview-body h2,.preview-body h3{margin:19px 0 8px;line-height:1.3}.preview-body h1{font-size:23px}.preview-body h2{font-size:20px}.preview-body h3{font-size:17px}.preview-body :deep(code){padding:2px 5px;border-radius:5px;background:rgba(255,255,255,.28);font-family:"Cascadia Code",Consolas,monospace;font-size:.9em}.preview-body :deep(a){color:#315f9f;text-decoration-thickness:1px;text-underline-offset:2px}.preview-body blockquote{margin:8px 0;padding-left:12px;border-left:3px solid rgba(54,48,53,.3);color:rgba(54,48,53,.72)}
-.preview-task,.preview-list{display:flex;align-items:flex-start;gap:9px;margin:5px 0}.preview-task button{width:19px;height:19px;flex:0 0 auto;margin-top:6px;padding:0;display:grid;place-items:center;border:1.6px solid rgba(54,48,53,.48);border-radius:6px;color:#fff;background:rgba(255,255,255,.2);cursor:pointer}.preview-task.done button{border-color:#3d985c;background:#4cab69}.preview-task.done button::after{content:"✓";font-size:13px;font-weight:800;line-height:1}.preview-task.done span{opacity:.55;text-decoration:line-through}.preview-list i{width:5px;height:5px;flex:0 0 auto;margin:10px 5px 0 6px;border-radius:50%;background:currentColor;opacity:.58}
-.editor-header{position:relative;z-index:1;height:56px;padding:0 14px 0 19px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid rgba(70,55,30,.11)}.editor-header>div:first-child{display:flex;align-items:center;gap:9px;white-space:nowrap}.editor-header b{font-size:13px}.save-state{display:inline-flex;align-items:center;gap:6px;color:rgba(45,39,34,.58);font-size:11px;font-weight:650;transition:opacity .18s ease}.save-state.idle,.save-state.typing{opacity:0}.save-state i{width:6px;height:6px;border-radius:50%;background:rgba(45,39,34,.28)}.save-state.saving i{background:#4e7fc9;animation:panel-pulse .7s ease-in-out infinite alternate}.save-state.saved i{background:#3e9b5d}.save-state.error{color:#a33f3f}.save-state.error i{background:#d34f4f}.palette{margin-left:auto;display:flex;gap:7px}.palette button{width:18px;height:18px;padding:0;border:2px solid rgba(255,255,255,.62);border-radius:50%;box-shadow:none;cursor:pointer;transition:transform .16s ease}.palette button:hover{transform:scale(1.16)}.palette button.selected{border-color:rgba(43,38,35,.7);transform:scale(.88)}
-.editor-title{position:relative;z-index:1;width:100%;height:78px;padding:20px 22px 10px;border:0;outline:0;color:#29262b;background:transparent;font-size:27px;font-weight:700;line-height:1.2;letter-spacing:-.035em}.editor-title::placeholder{color:rgba(45,39,34,.4)}.editor-body-shell{position:relative;z-index:1;height:calc(100% - 188px);min-height:0}.editor-title,.editor-body{user-select:text;-webkit-user-select:text}.editor-body{position:absolute;inset:0;padding:10px 22px 20px;overflow-y:auto;outline:0;font-size:17px;line-height:1.85;scrollbar-width:thin;scrollbar-color:rgba(70,55,30,.28) transparent}.editor-body.is-empty::before{content:attr(data-placeholder);position:absolute;left:22px;top:10px;color:rgba(45,39,34,.4);pointer-events:none}.editor-body :deep(.editor-line){min-height:31.45px;display:block;overflow-wrap:anywhere;white-space:pre-wrap}.editor-body :deep(.editor-line.is-task){display:grid;grid-template-columns:19px minmax(0,1fr);align-items:start;gap:9px}.editor-body :deep(.editor-line-copy){min-width:0;outline:0;overflow-wrap:anywhere;white-space:pre-wrap}.editor-body :deep(.editor-task-box){width:19px;height:19px;margin-top:6px;padding:0;display:grid;place-items:center;border:1.6px solid rgba(54,48,53,.5);border-radius:6px;color:#fff;background:transparent;cursor:pointer}.editor-body :deep(.editor-task-box.is-checked){border-color:#3d985c;background:#4cab69}.editor-body :deep(.editor-task-box.is-checked::after){content:"✓";font-size:13px;font-weight:800;line-height:1}
-.format-bar{position:absolute;z-index:2;left:0;right:0;bottom:0;height:54px;padding:0 18px;display:flex;align-items:center;gap:5px;border-top:1px solid rgba(70,55,30,.1);background:rgba(255,255,255,.12)}.format-bar button{width:32px;height:32px;padding:0;display:grid;place-items:center;border:0;border-radius:8px;color:rgba(43,38,42,.66);background:transparent;cursor:pointer;font-weight:750}.format-bar button:hover{color:#29242a;background:rgba(255,255,255,.36)}.format-bar svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.format-bar>i{width:1px;height:20px;margin:0 3px;background:rgba(70,55,30,.13)}.format-bar>span{margin-left:auto;color:rgba(45,39,34,.5);font-size:10px;white-space:nowrap}
+.panel-header{position:relative;z-index:1;height:64px;padding:0 15px 0 19px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(70,55,30,.11)}.panel-header h1{min-width:0;margin:0;overflow:hidden;color:var(--paper-ink,#29262b);font-size:22px;line-height:1.2;letter-spacing:-.025em;text-overflow:ellipsis;white-space:nowrap;user-select:text;-webkit-user-select:text}.panel-actions{display:flex;gap:6px}.panel-actions button,.panel-close{width:30px;height:30px;padding:0;display:grid;place-items:center;border:0;border-radius:50%;color:var(--paper-ink-soft,rgba(40,35,31,.58));background:rgba(255,255,255,.22);cursor:pointer;transition:background .18s ease,transform .18s ease}.panel-actions button:hover,.panel-close:hover{background:rgba(255,255,255,.42);transform:scale(1.06)}.panel-actions svg,.panel-close svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.preview-body{position:relative;z-index:1;height:calc(100% - 64px);padding:18px 22px 30px;overflow-y:auto;font-size:17px;line-height:1.85;user-select:text;-webkit-user-select:text;scrollbar-width:thin;scrollbar-color:rgba(70,55,30,.22) transparent}.preview-body p{min-height:1.7em;margin:2px 0}.preview-body h1,.preview-body h2,.preview-body h3{margin:19px 0 8px;line-height:1.3}.preview-body h1{font-size:23px}.preview-body h2{font-size:20px}.preview-body h3{font-size:17px}.preview-body :deep(code){padding:2px 5px;border-radius:5px;background:rgba(255,255,255,.28);font-family:"Cascadia Code",Consolas,monospace;font-size:.9em}.preview-body :deep(a){color:#315f9f;text-decoration-thickness:1px;text-underline-offset:2px}.preview-body blockquote{margin:8px 0;padding-left:12px;border-left:3px solid var(--paper-ink-soft,rgba(54,48,53,.3));color:var(--paper-ink-soft,rgba(54,48,53,.72))}
+.preview-task,.preview-list{display:flex;align-items:flex-start;gap:9px;margin:5px 0}.preview-task button{width:19px;height:19px;flex:0 0 auto;margin-top:6px;padding:0;display:grid;place-items:center;border:1.6px solid var(--paper-ink-soft,rgba(54,48,53,.48));border-radius:6px;color:var(--paper-ink,#fff);background:rgba(255,255,255,.2);cursor:pointer}.preview-task.done button{border-color:#3d985c;background:#4cab69}.preview-task.done button::after{content:"✓";font-size:13px;font-weight:800;line-height:1}.preview-task.done span{opacity:.55;text-decoration:line-through}.preview-list i{width:5px;height:5px;flex:0 0 auto;margin:10px 5px 0 6px;border-radius:50%;background:currentColor;opacity:.58}
+.editor-header{position:relative;z-index:1;height:56px;padding:0 14px 0 19px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid rgba(70,55,30,.11)}.editor-header>div:first-child{display:flex;align-items:center;gap:9px;white-space:nowrap}.editor-header b{font-size:13px}.save-state{display:inline-flex;align-items:center;gap:6px;color:var(--paper-ink-soft,rgba(45,39,34,.58));font-size:11px;font-weight:650;transition:opacity .18s ease}.save-state.idle,.save-state.typing{opacity:0}.save-state i{width:6px;height:6px;border-radius:50%;background:var(--paper-ink-soft,rgba(45,39,34,.28))}.save-state.saving i{background:#4e7fc9;animation:panel-pulse .7s ease-in-out infinite alternate}.save-state.saved i{background:#3e9b5d}.save-state.error{color:#a33f3f}.save-state.error i{background:#d34f4f}.palette{margin-left:auto;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:7px;max-width:250px}.palette button{width:18px;height:18px;padding:0;border:2px solid rgba(255,255,255,.62);border-radius:50%;box-shadow:none;cursor:pointer;transition:transform .16s ease}.palette button:hover{transform:scale(1.16)}.palette button.selected{border-color:rgba(43,38,35,.7);transform:scale(.88)}
+.editor-title{position:relative;z-index:1;width:100%;height:78px;padding:20px 22px 10px;border:0;outline:0;color:var(--paper-ink,#29262b);background:transparent;font-size:27px;font-weight:700;line-height:1.2;letter-spacing:-.035em}.editor-title::placeholder{color:var(--paper-ink-soft,rgba(45,39,34,.4))}.editor-body-shell{position:relative;z-index:1;height:calc(100% - 188px);min-height:0}.editor-title,.editor-body{user-select:text;-webkit-user-select:text}.editor-body{position:absolute;inset:0;font-size:17px;line-height:1.85;--editor-padding-top:10px;--editor-padding-x:22px;--editor-placeholder:var(--paper-ink-soft,rgba(45,39,34,.4));--editor-scrollbar:rgba(70,55,30,.28)}
+.format-bar{position:absolute;z-index:2;left:0;right:0;bottom:0;height:54px;padding:0 18px;display:flex;align-items:center;gap:5px;border-top:1px solid rgba(70,55,30,.1);background:rgba(255,255,255,.12)}.format-bar button{width:32px;height:32px;padding:0;display:grid;place-items:center;border:0;border-radius:8px;color:var(--paper-ink-soft,rgba(43,38,42,.66));background:transparent;cursor:pointer;font-weight:750}.format-bar button:hover{color:#29242a;background:rgba(255,255,255,.36)}.format-bar svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.format-bar>i{width:1px;height:20px;margin:0 3px;background:rgba(70,55,30,.13)}.format-bar>span{margin-left:auto;color:rgba(45,39,34,.5);font-size:10px;white-space:nowrap}
 @keyframes panel-pulse{to{opacity:.35;transform:scale(.72)}}
 @media(max-width:500px){.palette{gap:4px}.palette button{width:14px;height:14px}.format-bar>span{display:none}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 </style>

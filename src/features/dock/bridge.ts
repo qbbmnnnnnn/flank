@@ -1,25 +1,12 @@
 // Lightweight cross-webview contract between the Dock rail and the Dock panel.
 // Notes use the same persisted record shape as the main library.
 
-import type { NoteColor, NoteRecord } from "../../contracts/note";
+import type { NoteRecord } from "../../contracts/note";
 
 export type Note = NoteRecord;
 
-// Fallbacks only: the shared `--note-*` custom properties are the single source
-// of truth, so the Dock, the panel and the main window always agree and the dark
-// theme can dim every paper without changing its hue.
-const NOTE_COLORS: Record<NoteColor, string> = {
-  lemon: "#FFE57A",
-  peach: "#FFB8A7",
-  rose: "#F5B8CD",
-  lilac: "#D8C1FF",
-  sky: "#AED6FF",
-  mint: "#A9E5D1",
-};
-
-export function noteColorCss(color: NoteColor): string {
-  return `var(--note-${color}, ${NOTE_COLORS[color]})`;
-}
+// Built-in and user colors both resolve through the shared `--note-*` properties.
+export { noteColorCss } from "../../services/noteColorService";
 
 export type AnchorSide = "left" | "right";
 

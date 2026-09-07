@@ -8,6 +8,7 @@ import "./styles/library.css";
 import "./styles/appearance.css";
 import { initializeSettings, flushSettings, disposeSettings } from "./services/settingsService";
 import { installAppearance } from "./services/appearanceService";
+import { installNoteColors } from "./services/noteColorService";
 import { isTauri, invoke } from "@tauri-apps/api/core";
 
 // Apply transparency before Vue/router mounting so native Dock surfaces never
@@ -21,6 +22,7 @@ async function bootstrap() {
   // Read authoritative persisted settings before mounting any application window.
   await initializeSettings();
   const stopAppearance = installAppearance();
+  const stopNoteColors = installNoteColors();
   let stopClose: (() => void) | undefined;
   if (isTauri()) {
     const { listen } = await import("@tauri-apps/api/event");
@@ -39,6 +41,6 @@ async function bootstrap() {
   createApp(App).use(createPinia()).use(router).mount("#app");
   await router.isReady();
   if (isTauri()) await invoke("frontend_ready");
-  if (import.meta.hot) import.meta.hot.dispose(() => { stopClose?.(); stopAppearance(); disposeSettings(); });
+  if (import.meta.hot) import.meta.hot.dispose(() => { stopClose?.(); stopAppearance(); stopNoteColors(); disposeSettings(); });
 }
 void bootstrap();

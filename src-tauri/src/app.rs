@@ -10,6 +10,14 @@ use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 use crate::infrastructure::sqlite::{Database, DatabaseError};
 
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomColor {
+    pub id: String,
+    pub name: String,
+    pub value: String,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AppSettings {
@@ -31,6 +39,8 @@ pub struct AppSettings {
     pub text_direction: String,
     pub markdown: bool,
     pub default_color: String,
+    /// User colors added to the new-note color pool; the six built-in colors live in the UI.
+    pub custom_colors: Vec<CustomColor>,
     pub automatic_updates: bool,
 }
 
@@ -55,6 +65,7 @@ impl Default for AppSettings {
             text_direction: "automatic".into(),
             markdown: true,
             default_color: "random".into(),
+            custom_colors: Vec::new(),
             automatic_updates: true,
         }
     }

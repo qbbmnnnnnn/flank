@@ -54,8 +54,8 @@
 :root[data-theme="dark"] .new-note-button { background:#246ada; color:#fff; box-shadow:0 5px 0 #253958; }
 :root[data-theme="dark"] :is(.clear-trash-button,.delete-forever,.danger-action,.trash-alert) { background:#402633; color:var(--danger); }
 :root[data-theme="dark"] .recent-card { box-shadow:3px 5px 0 #0d1119; }
-/* Keep dark text legible on the original colored paper, including Markdown headings. */
-:root[data-theme="dark"] .note-card { --text:#10213b; color:var(--text); }
+/* Keep card text legible on the dimmed paper, including Markdown headings. */
+:root[data-theme="dark"] .note-card { --text:var(--note-ink,#10213b); color:var(--text); }
 :root[data-theme="dark"] .window-controls button.window-close:hover { background:#e54858; color:white; }
 :root[data-theme="dark"] .settings-app,
 :root[data-theme="dark"] .settings-modal-backdrop .settings-app.embedded { background:var(--surface); color:var(--text); }

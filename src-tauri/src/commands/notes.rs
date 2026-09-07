@@ -11,6 +11,14 @@ use crate::{
 const COLORS: [&str; 6] = ["lemon", "peach", "rose", "lilac", "sky", "mint"];
 const DIRECTIONS: [&str; 3] = ["automatic", "ltr", "rtl"];
 
+/// Accepts the six built-in colors plus user colors added from the settings pool.
+fn is_valid_color(color: &str) -> bool {
+    COLORS.contains(&color)
+        || (color.starts_with("custom-")
+            && color.len() <= 40
+            && color.chars().all(|character| character.is_ascii_alphanumeric() || character == '-'))
+}
+
 fn validate_note(title: &str, body: &str, color: &str, direction: &str) -> Result<(), AppError> {
     if title.chars().count() > 200 {
         return Err(AppError::validation("标题不能超过 200 个字符"));
@@ -18,7 +26,7 @@ fn validate_note(title: &str, body: &str, color: &str, direction: &str) -> Resul
     if body.len() > 2 * 1024 * 1024 {
         return Err(AppError::validation("便签内容不能超过 2 MB"));
     }
-    if !COLORS.contains(&color) {
+    if !is_valid_color(color) {
         return Err(AppError::validation("不支持的便签颜色"));
     }
     if !DIRECTIONS.contains(&direction) {
