@@ -23,6 +23,7 @@ import { useAppStore } from "../../app/stores/app";
 import type { AppSettings } from "../../contracts/app";
 import { MAX_CUSTOM_NOTE_COLORS, type NoteColorOption } from "../../contracts/note";
 import { appService } from "../../services/appService";
+import { noteFontOptions, noteFontStack } from "../../contracts/fonts";
 import {
   builtinNoteColors,
   createNoteColorId,
@@ -368,7 +369,7 @@ onUnmounted(() => {
           </section> -->
           <section class="settings-group">
             <div class="group-heading"><div><h2>{{ t('编辑体验') }}</h2><p>{{ t('设置所有新建和已有便签的阅读体验。') }}</p></div></div>
-            <div class="setting-row"><div class="setting-copy"><b>{{ t('字体') }}</b><span>{{ t('正文和 Markdown 预览使用的字体') }}</span></div><select v-model="settings.font"><option value="system">{{ t('系统默认') }}</option><option value="serif">{{ t('衬线字体') }}</option><option value="mono">{{ t('等宽字体') }}</option></select></div>
+            <div class="setting-row"><div class="setting-copy"><b>{{ t('字体') }}</b><span>{{ t('便签正文、Markdown 预览与整个界面统一使用的字体') }}</span></div><div class="font-picker"><select v-model="settings.font" class="font-select" :style="{ fontFamily: noteFontStack(settings.font) }"><option v-for="option in noteFontOptions" :key="option.id" :value="option.id" :style="{ fontFamily: option.stack }">{{ t(option.name) }}</option></select><p class="font-sample" :style="{ fontFamily: noteFontStack(settings.font) }">{{ t('便签正文 Aa 123') }}</p></div></div>
             <div class="setting-row"><div class="setting-copy"><b>{{ t('正文字号') }}</b><span>{{ settings.fontSize }} px</span></div><input v-model="settings.fontSize" class="range short" type="range" min="13" max="22"></div>
             <div class="setting-row"><div class="setting-copy"><b>{{ t('默认文字方向') }}</b><span>{{ t('支持 Arabic / Hebrew 基础 RTL') }}</span></div><select v-model="settings.textDirection"><option value="automatic">{{ t('自动检测') }}</option><option value="ltr">{{ t('从左到右') }}</option><option value="rtl">{{ t('从右到左') }}</option></select></div>
             <label class="setting-row clickable"><div class="setting-copy"><b>{{ t('启用 Markdown') }}</b><span>{{ t('支持标题、粗体、列表、任务与行内代码') }}</span></div><input v-model="settings.markdown" class="switch-input" type="checkbox"><span class="switch"></span></label>
@@ -443,6 +444,11 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.font-picker { display: grid; gap: 8px; }
+/* CJK font names are wider than the classic three options. */
+.font-select { min-width: 178px; }
+/* Renders in the selected face so a pick is confirmed without leaving the row. */
+.font-sample { margin: 0; color: var(--muted, #9a959e); font-size: 16px; line-height: 1.3; text-align: center; white-space: nowrap; }
 .pool-count { margin-left: auto; padding: 3px 9px; border-radius: 99px; color: var(--muted, #7b7590); background: var(--soft, #f4f2ef); font-size: 9px; font-weight: 750; }
 .color-option { cursor: default; }
 .color-pool { padding: 0 20px 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }

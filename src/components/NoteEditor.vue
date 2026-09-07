@@ -139,11 +139,11 @@ onBeforeUnmount(() => {
 .palette button{width:18px;height:18px;padding:0;border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 1px #cbd5e1;cursor:pointer;transition:transform .16s ease}
 .palette button:hover{transform:scale(1.16)}
 .palette button.selected{box-shadow:0 0 0 2px var(--accent);transform:scale(.88)}
-.editor-title{width:100%;height:72px;flex:0 0 72px;padding:18px 24px 8px;border:0;outline:0;color:var(--text);background:transparent;font-family:var(--display);font-size:26px;line-height:1.2}
+.editor-title{width:100%;height:72px;flex:0 0 72px;padding:18px 24px 8px;border:0;outline:0;color:var(--text);background:transparent;font-family:var(--note-font,var(--display));font-size:26px;line-height:1.2}
 .editor-title::placeholder{color:#a8b6c9}
 .editor-body-shell{flex:1;min-height:0;position:relative}
 .editor-title,.editor-body{user-select:text;-webkit-user-select:text}
-.editor-body{position:absolute;inset:0;color:#425674;font-family:var(--display);font-size:18px;line-height:1.75}
+.editor-body{position:absolute;inset:0;color:#425674;font-family:var(--note-font,var(--display));font-size:18px;line-height:1.75}
 .format-bar{flex:0 0 54px;padding:0 18px;display:flex;align-items:center;gap:5px;border-top:1px solid var(--border);background:#f8fafc}
 .format-bar button{width:32px;height:32px;padding:0;display:grid;place-items:center;border:0;border-radius:8px;color:#64748b;background:transparent;cursor:pointer;font-weight:750}
 .format-bar button:hover{color:var(--text);background:#eaf2ff}

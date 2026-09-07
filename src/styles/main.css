@@ -1,5 +1,5 @@
 :root {
-  font-family: Inter, "Segoe UI Variable", "Segoe UI", "PingFang SC", system-ui, sans-serif;
+  font-family: var(--display, Inter, "Segoe UI Variable", "Segoe UI", "PingFang SC", system-ui, sans-serif);
   color: #29272f;
   background: #eeece8;
   font-synthesis: none;
@@ -44,7 +44,7 @@ button { color: inherit; }
 .brand { height: 58px; padding: 0 11px; display: flex; align-items: center; gap: 12px; }
 .settings-brand img { width: 42px; height: 42px; object-fit: cover; border-radius: 13px; }
 .settings-brand strong { font-family: Impact, "Arial Narrow", sans-serif; font-size: 21px; letter-spacing: -.02em; }
-.settings-brand small { font-family: "Noty Display", "Microsoft YaHei", sans-serif; }
+.settings-brand small { font-family: var(--display); }
 .brand-mark, .app-icon { position: relative; width: 40px; height: 40px; flex: 0 0 auto; }
 .brand-mark span, .app-icon span { position: absolute; inset: 5px 4px 3px 8px; border-radius: 8px 2px 8px 8px; background: var(--note-lemon); box-shadow: 0 5px 12px rgba(111, 84, 12, .14), inset 0 1px rgba(255,255,255,.75); transform: rotate(-5deg); }
 .brand-mark span:nth-child(2), .app-icon span:nth-child(2) { inset: 3px 7px 5px 5px; background: var(--note-peach); transform: rotate(5deg); }
@@ -165,8 +165,8 @@ select:focus { border-color: #8174d4; box-shadow: 0 0 0 3px rgba(101,88,200,.1);
 .quick-access-icon { width:56px;height:56px;display:grid;place-items:center;border-radius:50%;color:#fff;background:#0062ff; }
 .quick-access-icon svg { width:24px;height:24px; }
 .quick-access-card>div { display:grid;gap:8px; }
-.quick-access-card b { color:#10213b;font-family:"Noty Display","Microsoft YaHei",sans-serif;font-size:19px;font-weight:400; }
-.quick-access-card small { color:#526781;font-family:"Noty Display","Microsoft YaHei",sans-serif;font-size:13px; }
+.quick-access-card b { color:#10213b;font-family:var(--display);font-size:19px;font-weight:400; }
+.quick-access-card small { color:#526781;font-family:var(--display);font-size:13px; }
 .quick-access-card>kbd { min-width:120px;height:46px;border:0;border-radius:13px;color:#0062ff;background:#fff;box-shadow:none;font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600; }
 .settings-version { margin:18px 0 0;color:#94a3b8;font-family:"IBM Plex Mono",monospace;font-size:10px; }
 .color-settings { padding-bottom: 20px; }

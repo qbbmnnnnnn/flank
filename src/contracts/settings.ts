@@ -1,4 +1,5 @@
 import type { AppSettings } from "./app";
+import { isNoteFontId, DEFAULT_NOTE_FONT } from "./fonts";
 import {
   CUSTOM_NOTE_COLOR_PREFIX,
   MAX_CUSTOM_NOTE_COLORS,
@@ -9,7 +10,7 @@ export const defaultSettings: AppSettings = {
   language: "zh-CN", theme: "system", launchAtLogin: false, closeBehavior: "background",
   dockEnabled: true, dockVisibleCount: 5, dockSide: "right", verticalPosition: 50,
   dockSize: "medium", hoverAnimation: true, actionDelay: 1, fullscreenBehavior: "hide",
-  displayPreference: "cursor", font: "system", fontSize: 16, textDirection: "automatic",
+  displayPreference: "cursor", font: DEFAULT_NOTE_FONT, fontSize: 16, textDirection: "automatic",
   markdown: true, defaultColor: "random", customColors: [], automaticUpdates: true,
 };
 
@@ -41,6 +42,7 @@ export function normalizeSettings(value: Partial<AppSettings>): AppSettings {
     theme: ["system", "light", "dark"].includes(value.theme ?? "") ? value.theme! : "system",
     closeBehavior: value.closeBehavior === "quit" ? "quit" : "background",
     dockSize: ["small", "medium", "large"].includes(value.dockSize ?? "") ? value.dockSize! : "medium",
+    font: isNoteFontId(value.font) ? value.font! : DEFAULT_NOTE_FONT,
     customColors: normalizeCustomColors(value.customColors),
   };
 }
