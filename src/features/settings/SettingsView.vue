@@ -67,8 +67,16 @@ function syncSavedSettings() {
   previous = { ...settings };
   syncing = false;
 }
+let savedToastTimer: ReturnType<typeof setTimeout> | undefined;
 watch(savedSettings, () => { if (!settingsPending.value) syncSavedSettings(); }, { deep: true });
-watch(settingsPending, (count) => { if (!count) syncSavedSettings(); });
+watch(settingsPending, (count, previous) => {
+  if (!count) syncSavedSettings();
+  clearTimeout(savedToastTimer);
+  if (count || !previous) return;
+  savedToastTimer = setTimeout(() => {
+    if (!settingsPending.value && !settingsError.value) showToast(t('设置已保存'));
+  }, 500);
+});
 
 const dockCountWarning = computed(() => settings.dockVisibleCount > recommendedDockCount.value);
 
@@ -99,6 +107,7 @@ async function updateDockRecommendation() {
 async function loadSettings() {
   await initializeSettings();
   syncSavedSettings();
+  if (settingsError.value) showToast(t(settingsError.value));
 }
 
 watch(settings, () => {
@@ -180,7 +189,10 @@ onMounted(async () => {
   await nextTick();
   if (props.embedded) settingsRoot.value?.querySelector<HTMLElement>('.settings-modal-close')?.focus();
 });
-onUnmounted(() => { if (props.embedded && returnFocus?.isConnected) returnFocus.focus(); });
+onUnmounted(() => {
+  clearTimeout(savedToastTimer);
+  if (props.embedded && returnFocus?.isConnected) returnFocus.focus();
+});
 </script>
 
 <template>
@@ -235,10 +247,6 @@ onUnmounted(() => { if (props.embedded && returnFocus?.isConnected) returnFocus.
         </button>
       </header>
 
-      <p class="settings-save-state" role="status" aria-live="polite">
-        {{ t(settingsError) || (settingsPending ? t('正在保存设置…') : settingsLoaded ? t('设置已保存，下次启动自动应用') : t('正在读取设置…')) }}
-        <button v-if="!settingsLoaded" type="button" @click="loadSettings">{{ t('重试') }}</button>
-      </p>
       <fieldset class="settings-fields" :disabled="!settingsLoaded">
       <div class="content-scroll">
         <div v-if="activeSection === 'general'" class="settings-page general-page">
@@ -300,20 +308,20 @@ onUnmounted(() => { if (props.embedded && returnFocus?.isConnected) returnFocus.
               <div class="setting-copy"><b>{{ t('屏幕边缘') }}</b><span>{{ t('固定在所选屏幕边缘的居中位置') }}</span></div>
               <div class="segmented"><button :class="{ selected: settings.dockSide === 'left' }" type="button" @click="settings.dockSide = 'left'">{{ t('左侧') }}</button><button :class="{ selected: settings.dockSide === 'right' }" type="button" @click="settings.dockSide = 'right'">{{ t('右侧') }}</button></div>
             </div>
-            <div class="setting-row">
+            <!-- <div class="setting-row">
               <div class="setting-copy"><b>{{ t('垂直位置') }}</b><span>{{ t('始终居中，随便签栏高度自动调整') }}</span></div>
-            </div>
+            </div> -->
             <div class="setting-row">
               <div class="setting-copy"><b>{{ t('便签栏大小') }}</b><span>{{ t('不会改变便签正文的字体大小') }}</span></div>
               <select v-model="settings.dockSize"><option value="small">{{ t('紧凑') }}</option><option value="medium">{{ t('标准') }}</option><option value="large">{{ t('宽松') }}</option></select>
             </div>
           </section>
-          <section class="settings-group">
+          <!-- <section class="settings-group">
             <label class="setting-row clickable"><div class="setting-copy"><b>{{ t('悬停动画') }}</b><span>{{ t('按指针距离放大当前便签和相邻便签') }}</span></div><input v-model="settings.hoverAnimation" class="switch-input" type="checkbox"><span class="switch"></span></label>
             <div class="setting-row"><div class="setting-copy"><b>{{ t('快捷操作延迟') }}</b><span>{{ t('持续悬停后显示归档与删除') }}</span></div><select v-model="settings.actionDelay"><option :value="0.6">{{ t('0.6 秒') }}</option><option :value="1">{{ t('1 秒') }}</option><option :value="1.5">{{ t('1.5 秒') }}</option></select></div>
             <div class="setting-row"><div class="setting-copy"><b>{{ t('全屏应用') }}</b><span>{{ t('播放视频、演示或游戏时的行为') }}</span></div><select v-model="settings.fullscreenBehavior"><option value="hide">{{ t('自动隐藏') }}</option><option value="show">{{ t('保持可见') }}</option></select></div>
             <div class="setting-row"><div class="setting-copy"><b>{{ t('召出时显示器') }}</b><span>{{ t('多显示器环境中的优先规则') }}</span></div><select v-model="settings.displayPreference"><option value="cursor">{{ t('鼠标所在屏幕') }}</option><option value="active">{{ t('活动窗口所在屏幕') }}</option><option value="primary">{{ t('主显示器') }}</option></select></div>
-          </section>
+          </section> -->
         </div>
 
         <div v-else-if="activeSection === 'notes'" class="settings-page">

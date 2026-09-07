@@ -9,7 +9,7 @@ export const messages: Record<string, string> = {
   "本地数据已就绪": "Local data ready",
   "显示便签栏": "Show Dock",
   "正在保存设置…": "Saving settings…",
-  "设置已保存，下次启动自动应用": "Settings saved · restored on next launch",
+  "设置已保存": "Settings saved",
   "正在读取设置…": "Loading settings…",
   "设置读取失败，请重试": "Could not load settings. Please retry.",
   "设置保存失败，已恢复为已保存的设置": "Save failed. Restored saved settings.",
