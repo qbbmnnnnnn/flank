@@ -3,13 +3,17 @@ export type DockSize = "small" | "medium" | "large";
 /** Per-size rail, card and action-button metrics in logical pixels. `medium` is the original design. */
 const RAIL_WIDTH: Record<DockSize, number> = { small: 88, medium: 104, large: 120 };
 /**
- * A card overhangs the window by `|tabMargin|` and shows only its first
- * `VISIBLE_TITLE_STRIP` pixels while idle, so `tabWidth - |tabMargin|` must stay
- * equal to that strip. The overhang also has to outlast the largest inward
- * travel (`MAX_PEEK * scale`) or the card detaches from the screen edge on hover.
+ * Width of the card's leading strip — the sliver of paper left of the dashed
+ * fold that stays on screen while the card is idle.
  */
-const TAB_WIDTH: Record<DockSize, number> = { small: 84, medium: 88, large: 100 };
-const TAB_MARGIN: Record<DockSize, number> = { small: -44, medium: -48, large: -60 };
+const LEAD_STRIP: Record<DockSize, number> = { small: 32, medium: 38, large: 44 };
+/**
+ * How far the card overhangs the window on the screen-edge side. It has to
+ * outlast the largest inward travel (`MAX_PEEK * scale`) or the card detaches
+ * from the screen edge on hover, but it also must not exceed
+ * `MAX_PEEK * scale + actionEdge`, otherwise the action buttons stay clipped.
+ */
+const TAB_OVERHANG: Record<DockSize, number> = { small: 44, medium: 48, large: 60 };
 const NOTE_HEIGHT: Record<DockSize, { regular: number; compact: number }> = {
   small: { regular: 110, compact: 92 },
   medium: { regular: 126, compact: 104 },
@@ -23,13 +27,16 @@ const TITLE_SIZE: Record<DockSize, { regular: number; compact: number }> = {
 const ACTION_BTN: Record<DockSize, number> = { small: 22, medium: 26, large: 30 };
 const ACTION_ICON: Record<DockSize, number> = { small: 12, medium: 14, large: 16 };
 const ACTION_GAP: Record<DockSize, number> = { small: 5, medium: 7, large: 9 };
-const ACTION_EDGE: Record<DockSize, number> = { small: 5, medium: 6, large: 7 };
+const ACTION_EDGE: Record<DockSize, number> = { small: 6, medium: 6, large: 7 };
 const ACTION_SPINE: Record<DockSize, number> = { small: 6, medium: 7, large: 8 };
 
 const BASE_RAIL_WIDTH = RAIL_WIDTH.medium;
 
-/** Width of the title strip that stays on screen while a card is idle. */
-export const VISIBLE_TITLE_STRIP = 40;
+/** The dashed fold sits this far past the leading strip so it never peeks out while idle. */
+const FOLD_MARGIN = 4;
+/** Breathing room between the vertical title column and the screen edge. */
+const TITLE_EDGE = 2;
+
 /** Largest inward travel of a card: 42px full hover + 4px hover offset. */
 export const MAX_PEEK = 46;
 
@@ -47,18 +54,18 @@ export function dockMetrics(screenHeight: number, size: DockSize = "medium") {
   // A single scale anchors both axes so hover offsets and influence radii
   // stay proportional to the rail width and card height simultaneously.
   const scale = railWidth / BASE_RAIL_WIDTH;
-  const tabWidth = TAB_WIDTH[size] ?? TAB_WIDTH.medium;
+  const leadStrip = LEAD_STRIP[size] ?? LEAD_STRIP.medium;
+  const overhang = TAB_OVERHANG[size] ?? TAB_OVERHANG.medium;
   return {
     compact,
     railWidth,
-    tabWidth,
-    tabMargin: TAB_MARGIN[size] ?? TAB_MARGIN.medium,
-    /**
-     * Distance from the card's leading edge to the dashed fold. It must stay
-     * beyond the visible strip so the fold never peeks out while idle, while
-     * keeping the original centred look on the wider cards.
-     */
-    spineOffset: Math.max(VISIBLE_TITLE_STRIP + 4, tabWidth / 2),
+    /** Only the leading strip is on screen while the card is idle. */
+    leadStrip,
+    tabWidth: leadStrip + overhang,
+    tabMargin: -overhang,
+    /** Distance from the card's leading edge to the dashed fold. */
+    spineOffset: leadStrip + FOLD_MARGIN,
+    titleWidth: leadStrip - TITLE_EDGE,
     noteHeight,
     titleSize: TITLE_SIZE[size]?.[variant] ?? TITLE_SIZE.medium[variant],
     gap,

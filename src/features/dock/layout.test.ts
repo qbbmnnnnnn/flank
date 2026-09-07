@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dockLayout, dockMetrics, MAX_PEEK, VISIBLE_TITLE_STRIP, type DockSize } from "./layout";
+import { dockLayout, dockMetrics, MAX_PEEK, type DockSize } from "./layout";
 
 const SIZES = ["small", "medium", "large"] as DockSize[];
 
@@ -65,7 +65,7 @@ describe("Dock height", () => {
       expect(icons[i]).toBeGreaterThan(icons[i - 1]);
     }
     expect(rails[1]).toBe(104);
-    expect(tabs[1]).toBe(88);
+    expect(tabs[1]).toBe(38 + 48);
     expect(buttons[1]).toBe(26);
     expect(icons[1]).toBe(14);
     // The hover scale tracks the rail so the peek distance scales too.
@@ -78,14 +78,30 @@ describe("Dock height", () => {
       for (const height of [768, 1080, 1440]) {
         const m = dockMetrics(height, size);
         // Idle state only reveals the leading strip of the card.
-        const visibleStrip = m.tabWidth + m.tabMargin;
-        expect(visibleStrip).toBe(VISIBLE_TITLE_STRIP);
+        expect(m.tabWidth + m.tabMargin).toBe(m.leadStrip);
         // The fold must sit beyond that strip, otherwise it peeks out while idle.
-        expect(m.spineOffset).toBeGreaterThan(visibleStrip);
-        // The card must still overhang the window after the largest inward travel.
+        expect(m.spineOffset).toBeGreaterThan(m.leadStrip);
+        // The title column stays inside the strip yet wide enough for its glyphs.
+        expect(m.titleWidth).toBeLessThan(m.leadStrip);
+        expect(m.titleWidth).toBeGreaterThanOrEqual(m.titleSize + 4);
+        // The card must still overhang the window after the largest inward travel…
         expect(m.tabMargin + MAX_PEEK * m.scale).toBeLessThan(0);
+        // …but not so far that the action buttons stay clipped off screen.
+        expect(-m.tabMargin).toBeLessThanOrEqual(MAX_PEEK * m.scale + m.actionEdge);
       }
     }
+  });
+
+  it("narrows the strip left of the fold as the dock shrinks", () => {
+    const strips = SIZES.map(size => dockMetrics(1080, size).leadStrip);
+    const folds = SIZES.map(size => dockMetrics(1080, size).spineOffset);
+    for (let i = 1; i < SIZES.length; i++) {
+      expect(strips[i]).toBeGreaterThan(strips[i - 1]);
+      expect(folds[i]).toBeGreaterThan(folds[i - 1]);
+    }
+    // Every size stays narrower than the original fixed 40px strip.
+    expect(Math.max(...strips)).toBeLessThanOrEqual(44);
+    expect(Math.min(...folds)).toBeLessThan(44);
   });
 
   it("keeps medium as the default and fits fewer cards when they grow", () => {
