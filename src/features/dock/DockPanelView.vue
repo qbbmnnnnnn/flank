@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { t } from '../../services/i18n';
 import { showNotification } from "../../services/notificationService";
-import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { savedSettings } from "../../services/settingsService";
+import { guideCopy } from './guide';
 import { gsap } from "gsap";
 
 import type { NoteColor } from "../../contracts/note";
@@ -27,6 +30,10 @@ type PreviewLine = {
 
 const root = ref<HTMLElement | null>(null);
 const editorBody = ref<HTMLElement | null>(null);
+watch(() => savedSettings.value.language, () => {
+  if (isPlaceholder.value && activeNote.value) activeNote.value = { ...activeNote.value, ...guideCopy() };
+  editorBody.value?.querySelectorAll('.editor-task-box').forEach((box) => box.setAttribute('aria-label', t(box.classList.contains('is-checked') ? '标记为未完成' : '标记为完成')));
+});
 
 const side = ref<AnchorSide>("right");
 const open = ref(false);
@@ -65,7 +72,7 @@ function inward() {
 
 function setSaveState(state: typeof saveState.value) {
   window.clearTimeout(saveStateTimer);
-  if (state === "error" && saveState.value !== "error") showNotification("便签保存失败，请重试；当前编辑内容已保留");
+  if (state === "error" && saveState.value !== "error") showNotification(t('便签保存失败，请重试；当前编辑内容已保留'));
   saveState.value = state;
   if (state === "saved") saveStateTimer = window.setTimeout(() => (saveState.value = "idle"), 1800);
 }
@@ -261,7 +268,7 @@ async function persistDraft(): Promise<Note | null> {
   }
 
   setSaveState("saving");
-  const title = draftTitle.value.trim() || derivedTitle(body) || "未命名便签";
+  const title = draftTitle.value.trim() || derivedTitle(body) || t('未命名便签');
   const previous = draftTarget.value;
   try {
     let saved: Note;
@@ -343,7 +350,7 @@ function createEditorLine(text = "", task = false, checked = false) {
     checkbox.className = `editor-task-box${checked ? " is-checked" : ""}`;
     checkbox.contentEditable = "false";
     checkbox.setAttribute("aria-checked", String(checked));
-    checkbox.setAttribute("aria-label", checked ? "标记为未完成" : "标记为完成");
+    checkbox.setAttribute("aria-label", checked ? t('标记为未完成') : t('标记为完成'));
     line.appendChild(checkbox);
   }
   const copy = document.createElement("span");
@@ -566,7 +573,7 @@ function onEditorClick(event: MouseEvent) {
   if (checkbox) {
     const checked = checkbox.classList.toggle("is-checked");
     checkbox.setAttribute("aria-checked", String(checked));
-    checkbox.setAttribute("aria-label", checked ? "标记为未完成" : "标记为完成");
+    checkbox.setAttribute("aria-label", checked ? t('标记为未完成') : t('标记为完成'));
     scheduleSave();
     return;
   }
@@ -693,19 +700,19 @@ onUnmounted(() => {
 
 <template>
   <main ref="root" class="dock-panel-window" :class="[`dock-${side}`, { open, 'edge-staged': edgeStaged }]">
-    <button v-if="open" class="panel-dismiss-layer" type="button" aria-label="关闭便签" @click="requestClose"></button>
+    <button v-if="open" class="panel-dismiss-layer" type="button" :aria-label="t('关闭便签')" @click="requestClose"></button>
     <article v-if="open && mode !== 'closed'" class="note-panel" :class="[mode, { placeholder: isPlaceholder }]" :style="{ '--paper': paper }">
       <template v-if="mode === 'preview' && activeNote">
         <header class="panel-header">
           <h1>{{ activeNote.title }}</h1>
           <div v-if="!isPlaceholder" class="panel-actions">
-            <button type="button" aria-label="编辑便签" title="编辑" @click="editNote"><svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg></button>
+            <button type="button" :aria-label="t('编辑便签')" :title="t('编辑')" @click="editNote"><svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg></button>
           </div>
         </header>
         <div class="preview-body">
           <template v-for="line in previewLines" :key="line.index">
             <component :is="`h${line.level}`" v-if="line.kind === 'heading'" v-html="line.html" />
-            <div v-else-if="line.kind === 'task'" class="preview-task" :class="{ done: line.checked }"><button type="button" :disabled="isPlaceholder" :aria-label="line.checked ? '标记未完成' : '标记完成'" @click="void toggleTask(line.index)"></button><span v-html="line.html"></span></div>
+            <div v-else-if="line.kind === 'task'" class="preview-task" :class="{ done: line.checked }"><button type="button" :disabled="isPlaceholder" :aria-label="line.checked ? t('标记未完成') : t('标记完成')" @click="void toggleTask(line.index)"></button><span v-html="line.html"></span></div>
             <div v-else-if="line.kind === 'list'" class="preview-list"><i></i><span v-html="line.html"></span></div>
             <blockquote v-else-if="line.kind === 'quote'" v-html="line.html" />
             <p v-else v-html="line.html || '&nbsp;'" />
@@ -714,20 +721,20 @@ onUnmounted(() => {
       </template>
       <template v-else>
         <header class="editor-header">
-          <div><b>{{ isNew ? "新便签" : "编辑便签" }}</b><span class="save-state" :class="saveState"><i></i>{{ saveState === "saving" ? "自动保存中…" : saveState === "saved" ? "已自动保存" : saveState === "error" ? "保存失败" : "自动保存" }}</span></div>
-          <div v-if="isNew" class="palette"><button v-for="color in palette" :key="color" type="button" :class="{ selected: draftColor === color }" :style="{ background: noteColorCss(color) }" :aria-label="`选择颜色 ${color}`" @click="draftColor = color; scheduleSave()"></button></div>
+          <div><b>{{ isNew ? t('新便签') : t('编辑便签') }}</b><span class="save-state" :class="saveState"><i></i>{{ saveState === "saving" ? t('自动保存中…') : saveState === "saved" ? t('已自动保存') : saveState === "error" ? t('保存失败') : t('自动保存') }}</span></div>
+          <div v-if="isNew" class="palette"><button v-for="color in palette" :key="color" type="button" :class="{ selected: draftColor === color }" :style="{ background: noteColorCss(color) }" :aria-label="t('选择颜色 {color}', { color })" @click="draftColor = color; scheduleSave()"></button></div>
         </header>
-        <input v-model="draftTitle" class="editor-title" maxlength="28" placeholder="标题" @input="scheduleSave" @keydown.enter.prevent="focusBodyFromTitle">
+        <input v-model="draftTitle" class="editor-title" maxlength="28" :placeholder="t('标题')" @input="scheduleSave" @keydown.enter.prevent="focusBodyFromTitle">
         <div class="editor-body-shell">
-          <div ref="editorBody" class="editor-body is-empty" role="textbox" aria-multiline="true" aria-label="便签内容，支持 Markdown" data-placeholder="随便写点什么。。。" @input="scheduleSave" @keydown="onEditorKeydown" @paste="onEditorPaste" @pointerdown="onEditorPointerDown" @click="onEditorClick"></div>
+          <div ref="editorBody" class="editor-body is-empty" role="textbox" aria-multiline="true" :aria-label="t('便签内容，支持 Markdown')" :data-placeholder="t('随便写点什么。。。')" @input="scheduleSave" @keydown="onEditorKeydown" @paste="onEditorPaste" @pointerdown="onEditorPointerDown" @click="onEditorClick"></div>
         </div>
         <footer class="format-bar" @pointerdown.prevent>
-          <button type="button" title="插入任务" @click="insertTask"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m7.5 12 3 3 6-7"/></svg></button><i></i>
-          <button type="button" title="标题" @click="applyMarkdown('heading')">H</button>
-          <button type="button" title="粗体（在星号中输入）" @click="applyMarkdown('bold')"><b>B</b></button>
-          <button type="button" title="斜体（选中文字，或点击后直接输入）" @click="applyMarkdown('italic')"><em>I</em></button>
-          <button type="button" title="切换列表" @click="applyMarkdown('list')"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg></button>
-          <button type="button" title="行内代码（选中文字，或点击后直接输入）" @click="applyMarkdown('code')">&lt;/&gt;</button>
+          <button type="button" :title="t('插入任务')" @click="insertTask"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m7.5 12 3 3 6-7"/></svg></button><i></i>
+          <button type="button" :title="t('标题')" @click="applyMarkdown('heading')">H</button>
+          <button type="button" :title="t('粗体（在星号中输入）')" @click="applyMarkdown('bold')"><b>B</b></button>
+          <button type="button" :title="t('斜体（选中文字，或点击后直接输入）')" @click="applyMarkdown('italic')"><em>I</em></button>
+          <button type="button" :title="t('切换列表')" @click="applyMarkdown('list')"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg></button>
+          <button type="button" :title="t('行内代码（选中文字，或点击后直接输入）')" @click="applyMarkdown('code')">&lt;/&gt;</button>
         </footer>
       </template>
     </article>

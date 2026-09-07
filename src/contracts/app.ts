@@ -6,6 +6,7 @@ export interface AppInfo {
 
 export interface AppSettings {
   language: string;
+  theme: "system" | "light" | "dark";
   launchAtLogin: boolean;
   closeBehavior: "background" | "quit";
   dockEnabled: boolean;

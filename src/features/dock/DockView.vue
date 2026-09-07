@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { t } from '../../services/i18n';
+import { guideCopy } from './guide';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { gsap } from "gsap";
 import { showNotification as showToast, showNotification as showLocalToast } from "../../services/notificationService";
@@ -35,10 +37,9 @@ const previewNotes: Note[] = [
 }));
 const notes = ref<Note[]>(isTauriRuntime() ? [] : previewNotes);
 const GUIDE_NOTE_ID = "__flank_dock_guide__";
-const guideNote: Note = {
+const guideNote = computed<Note>(() => ({
   id: GUIDE_NOTE_ID,
-  title: "使用指南",
-  body: "## 欢迎使用 Flank\n\n把常用内容放在屏幕边缘，需要时随手打开。\n\n- 单击便签：预览，再次单击进入编辑\n- 悬停约 1 秒：显示归档和删除操作\n- 点击下方 ＋：新建便签\n- Dock 栏固定在屏幕边缘居中，位置可在设置中切换\n- 支持 Markdown 与任务清单\n\n创建第一张便签后，本指南会自动隐藏。",
+  ...guideCopy(),
   color: "lemon",
   createdAtMs: 0,
   updatedAtMs: 0,
@@ -47,8 +48,8 @@ const guideNote: Note = {
   sortKey: "",
   textDirection: "automatic",
   revision: 0,
-};
-const displayNotes = computed(() => notes.value.length > 0 ? notes.value : [guideNote]);
+}));
+const displayNotes = computed(() => notes.value.length > 0 ? notes.value : [guideNote.value]);
 
 const controlsVisible = ref(false);
 const actionNote = ref<string | null>(null);
@@ -102,7 +103,7 @@ async function loadDockNotes() {
     // hover animation. Keep its creation controls exposed until a note exists.
     if (notes.value.length === 0) showControls();
   } catch {
-    showLocalToast("无法读取本地便签");
+    showLocalToast(t('无法读取本地便签'));
   }
 }
 
@@ -183,7 +184,7 @@ async function invokeTauri<T>(command: string, args?: Record<string, unknown>): 
 
 async function showDockPanel(anchorSide: "left" | "right") {
   if (!("__TAURI_INTERNALS__" in window)) {
-    showLocalToast("便签面板需在桌面应用中查看");
+    showLocalToast(t('便签面板需在桌面应用中查看'));
     return;
   }
   await invokeTauri("show_dock_panel", { anchorSide });
@@ -408,9 +409,9 @@ async function archiveNote(note: Note) {
     notes.value = notes.value.filter((item) => item.id !== note.id);
     quickSetters.delete(findTab(note.id) as HTMLElement);
     if (activeNoteId.value === note.id) await closePanel();
-    showToast(`“${note.title}”已归档`);
+    showToast(t('“{title}”已归档', { title: note.title }));
   } catch {
-    showToast("归档失败，便签可能已在其他窗口修改");
+    showToast(t('归档失败，便签可能已在其他窗口修改'));
     await loadDockNotes();
   }
 }
@@ -421,9 +422,9 @@ async function deleteNote(note: Note) {
     notes.value = notes.value.filter((item) => item.id !== note.id);
     quickSetters.delete(findTab(note.id) as HTMLElement);
     if (activeNoteId.value === note.id) await closePanel();
-    showToast(`“${note.title}”已移到废纸篓`);
+    showToast(t('“{title}”已移到废纸篓', { title: note.title }));
   } catch {
-    showToast("删除失败，便签可能已在其他窗口修改");
+    showToast(t('删除失败，便签可能已在其他窗口修改'));
     await loadDockNotes();
   }
 }
@@ -462,7 +463,7 @@ async function openSettings() {
   try {
     await appService.showMainWindow();
   } catch {
-    showToast("无法打开主窗口，请重试");
+    showToast(t('无法打开主窗口，请重试'));
   }
 }
 
@@ -550,17 +551,17 @@ onUnmounted(() => {
 
 <template>
   <main ref="root" class="dock-window" :class="[`dock-${side}`, { 'screen-compact': compact }]" :style="{ '--screen-height': `${screenHeight}px`, '--list-target': `${listTargetHeight}px`, '--note-gap': `${layout.gap}px`, '--note-margin-top': `${layout.marginTop}px` }" @keydown="onRootKeydown" @pointerdown="onRootPointerDown">
-    <aside class="dock-rail" :class="{ 'controls-visible': controlsVisible }" aria-label="便签栏" @pointermove="onRailMove" @pointerleave="onRailLeave">
+    <aside class="dock-rail" :class="{ 'controls-visible': controlsVisible }" :aria-label="t('便签栏')" @pointermove="onRailMove" @pointerleave="onRailLeave">
       <div class="note-list-shell" :class="{ 'overflow-top': canScrollUp, 'overflow-bottom': canScrollDown }">
         <div ref="noteList" class="note-list" @scroll="updateScrollEdges" @pointerenter="showControls">
-        <div v-for="note in displayNotes" :key="note.id" class="note-tab" :class="{ active: activeNoteId === note.id, actions: actionNote === note.id, guide: note.id === GUIDE_NOTE_ID }" :data-id="note.id" role="button" tabindex="0" draggable="false" :aria-label="`打开${note.title}`" @pointerenter="beginHover(note)" @pointerleave="endHover(note)" @click="openNote(note)" @keydown.enter.prevent="openNote(note)" @keydown.space.prevent="openNote(note)">
-          <span class="paper" :style="{ '--paper': noteColorCss(note.color) }"><span class="title">{{ displayTitle(note.title) }}</span><span v-if="note.id !== GUIDE_NOTE_ID" class="quick-actions"><button type="button" title="归档" aria-label="归档" @click.stop="archiveNote(note)"><svg viewBox="0 0 24 24"><path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6"/></svg></button><button type="button" title="删除" aria-label="删除" @click.stop="deleteNote(note)"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></button></span></span>
+        <div v-for="note in displayNotes" :key="note.id" class="note-tab" :class="{ active: activeNoteId === note.id, actions: actionNote === note.id, guide: note.id === GUIDE_NOTE_ID }" :data-id="note.id" role="button" tabindex="0" draggable="false" :aria-label="t('打开{title}', { title: note.title })" @pointerenter="beginHover(note)" @pointerleave="endHover(note)" @click="openNote(note)" @keydown.enter.prevent="openNote(note)" @keydown.space.prevent="openNote(note)">
+          <span class="paper" :style="{ '--paper': noteColorCss(note.color) }"><span class="title">{{ displayTitle(note.title) }}</span><span v-if="note.id !== GUIDE_NOTE_ID" class="quick-actions"><button type="button" :title="t('归档')" :aria-label="t('归档')" @click.stop="archiveNote(note)"><svg viewBox="0 0 24 24"><path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6"/></svg></button><button type="button" :title="t('删除')" :aria-label="t('删除')" @click.stop="deleteNote(note)"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></button></span></span>
         </div>
         </div>
       </div>
       <div class="rail-controls"><span class="separator"></span>
-        <button class="adaptive-control" :class="{ selected: isNewNotePending }" data-control="add" type="button" aria-label="新建便签" :aria-pressed="isNewNotePending ? 'true' : 'false'" @click="createNote"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
-        <button class="adaptive-control" :class="{ selected: settingsSelected }" data-control="settings" type="button" aria-label="打开设置" @click="openSettings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.17.38.38.73.6 1 .28.34.67.54 1.1.6H21v4h-.09A1.7 1.7 0 0 0 19.4 15Z"/></svg></button>
+        <button class="adaptive-control" :class="{ selected: isNewNotePending }" data-control="add" type="button" :aria-label="t('新建便签')" :aria-pressed="isNewNotePending ? 'true' : 'false'" @click="createNote"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+        <button class="adaptive-control" :class="{ selected: settingsSelected }" data-control="settings" type="button" :aria-label="t('打开设置')" @click="openSettings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.17.38.38.73.6 1 .28.34.67.54 1.1.6H21v4h-.09A1.7 1.7 0 0 0 19.4 15Z"/></svg></button>
       </div>
     </aside>
 

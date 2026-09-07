@@ -1,0 +1,85 @@
+/* Shared settings layout. The content area remains the only settings scroller. */
+.settings-fields { display:flex; flex:1; min-width:0; min-height:0; margin:0; padding:0; border:0; }
+.settings-fields > .content-scroll { width:100%; }
+.settings-save-state { flex:none; margin:0; padding:10px 28px; color:var(--muted); font-size:12px; line-height:1.5; border-bottom:1px solid var(--border); }
+.settings-save-state button { margin-left:12px; color:var(--accent); background:transparent; border:0; cursor:pointer; }
+.settings-app button:focus-visible, .settings-app input:focus-visible, .settings-app select:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+.switch-input:focus-visible + .switch { outline:2px solid var(--accent); outline-offset:3px; }
+.switch-input:disabled + .switch { opacity:.45; cursor:not-allowed; }
+.settings-app .setting-row { flex-wrap:wrap; gap:12px 20px; }
+.settings-app .setting-copy { flex:1 1 140px; }
+.settings-app .setting-copy + select { max-width:100%; }
+.settings-modal-backdrop .settings-app.embedded .appearance-group,
+.settings-modal-backdrop .settings-app.embedded .startup-group { height:auto; }
+.settings-modal-backdrop .settings-app.embedded .startup-group select { width:auto; max-width:100%; }
+.settings-app .content-header { height:auto; min-height:105px; flex-basis:auto; gap:20px; }
+:root:lang(en) { --display:Geist,"Segoe UI",sans-serif; }
+:root:lang(en) .index-header h1 { font-size:30px; }
+:root:lang(en) .index-header > div > span { font-size:14px; max-width:540px; line-height:1.5; }
+:root:lang(en) .library-nav-item { font-size:15px; }
+:root:lang(en) .library-brand small { font-size:11px; }
+:root:lang(en) .settings-app .library-link { height:auto; min-height:42px; text-align:left; }
+@media(max-width:1050px) {
+  .settings-modal-backdrop .settings-app.embedded .content-header { padding:24px 26px; height:auto; min-height:126px; flex-basis:auto; }
+  .settings-modal-backdrop .settings-app.embedded .settings-page { padding:24px; }
+}
+@media(max-width:760px) {
+  .settings-modal-backdrop .settings-app.embedded { width:calc(100vw - 32px); grid-template-columns:180px minmax(0,1fr); height:calc(100vh - 32px); }
+  .settings-modal-backdrop .settings-app.embedded .sidebar { padding:20px 10px; }
+  .settings-modal-backdrop .settings-app.embedded .nav-item { padding:8px 10px; }
+  .settings-modal-backdrop .settings-app.embedded .settings-page { padding:18px; }
+  .settings-modal-backdrop .settings-app.embedded .content-header { padding-right:54px; }
+  .settings-modal-backdrop .settings-app.embedded .segmented { min-width:0; width:100%; }
+  .settings-app .setting-row { padding:14px 18px; }
+  :root:lang(en) .index-header h1 { font-size:24px; }
+  :root:lang(en) .index-header > div > span { max-width:300px; font-size:12px; }
+}
+
+/* Semantic dark palette. Paper colors are deliberately unchanged. */
+:root[data-theme="dark"] {
+  --canvas:#141922; --surface:#1c2330; --surface-subtle:#222b39;
+  --text:#e4ebf5; --ink:#e4ebf5; --muted:#a6b4c8; --muted-2:#8799b2;
+  --border:#354157; --line:#354157; --soft:#222b39;
+  --accent:#79aaff; --accent-soft:#273d60; --danger:#ff8097;
+  color:var(--text); background:var(--canvas);
+}
+:root[data-theme="dark"] body:not(.dock-document) { background:var(--canvas); }
+:root[data-theme="dark"] :is(.library-sidebar,.library-search,.view-switch,.archive-filter,.record-card,.note-detail,.confirm-dialog,.note-context-menu) { background:var(--surface); color:var(--text); border-color:var(--border); }
+:root[data-theme="dark"] :is(.library-brand small,.library-nav-item,.settings-entry,.window-controls button,.archive-filter,.library-link,.editor-close) { color:var(--text); }
+:root[data-theme="dark"] :is(.library-nav-item:hover,.settings-entry:hover,.window-controls button:hover,.note-context-menu button:hover,.detail-footer,.editor-close) { background:var(--surface-subtle); }
+:root[data-theme="dark"] :is(.index-header > div > span,.record-card p,.record-card small,.library-kicker,.detail-status,.confirm-dialog p) { color:var(--muted); }
+:root[data-theme="dark"] .section-icon { color:var(--muted); background:var(--surface-subtle); }
+:root[data-theme="dark"] .new-note-button { background:#246ada; color:#fff; box-shadow:0 5px 0 #253958; }
+:root[data-theme="dark"] :is(.clear-trash-button,.delete-forever,.danger-action,.trash-alert) { background:#402633; color:var(--danger); }
+:root[data-theme="dark"] .recent-card { box-shadow:3px 5px 0 #0d1119; }
+/* Keep dark text legible on the original colored paper, including Markdown headings. */
+:root[data-theme="dark"] .note-card { --text:#10213b; color:var(--text); }
+:root[data-theme="dark"] .window-controls button.window-close:hover { background:#e54858; color:white; }
+:root[data-theme="dark"] .settings-app,
+:root[data-theme="dark"] .settings-modal-backdrop .settings-app.embedded { background:var(--surface); color:var(--text); }
+:root[data-theme="dark"] .settings-app .sidebar,
+:root[data-theme="dark"] .settings-modal-backdrop .settings-app.embedded .sidebar { background:var(--canvas); border-color:var(--border); }
+:root[data-theme="dark"] .settings-app :is(.settings-main,.content-header,.content-scroll),
+:root[data-theme="dark"] .settings-modal-backdrop .settings-app.embedded :is(.settings-main,.content-header,.content-scroll) { background:var(--surface); border-color:var(--border); }
+:root[data-theme="dark"] .settings-app :is(.settings-group,.group-heading,.update-hero,.dock-preview-card),
+:root[data-theme="dark"] .settings-modal-backdrop .settings-app.embedded :is(.settings-group,.group-heading) { background:var(--surface-subtle); border-color:var(--border); }
+:root[data-theme="dark"] .settings-app :is(.setting-row,.shortcut-row) { border-color:var(--border); }
+:root[data-theme="dark"] .settings-app :is(.setting-copy b,.group-heading h2,.nav-item,.library-link),
+:root[data-theme="dark"] .settings-modal-backdrop .settings-app.embedded .nav-item { color:var(--text); }
+:root[data-theme="dark"] .settings-app :is(.setting-copy span,.group-heading p,.content-subtitle,.nav-item small,.page-intro p,.notice span,.preview-copy p),
+:root[data-theme="dark"] .settings-modal-backdrop .settings-app.embedded :is(.content-subtitle,.nav-item small) { color:var(--muted); }
+:root[data-theme="dark"] .settings-app :is(select,kbd,.key-recorder,.secondary-button,.dock-launch),
+:root[data-theme="dark"] .settings-modal-backdrop .settings-app.embedded :is(select,.library-link) { color:var(--text); background:var(--surface); border-color:var(--border); box-shadow:none; }
+:root[data-theme="dark"] .settings-app .segmented,
+:root[data-theme="dark"] .settings-modal-backdrop .settings-app.embedded .segmented { background:var(--canvas); border-color:var(--border); }
+:root[data-theme="dark"] .settings-app .segmented button { color:var(--muted); }
+:root[data-theme="dark"] .settings-app :is(.segmented button.selected,.nav-item.active),
+:root[data-theme="dark"] .settings-modal-backdrop .settings-app.embedded :is(.segmented button.selected,.nav-item.active) { background:var(--accent-soft); color:var(--accent); box-shadow:none; }
+:root[data-theme="dark"] .settings-app :is(.notice,.color-grid label.selected) { background:var(--accent-soft); border-color:var(--border); }
+:root[data-theme="dark"] .settings-app .nav-item:hover { background:var(--surface-subtle); }
+:root[data-theme="dark"] .settings-app .text-button { color:var(--accent); }
+/* Main editor uses the app surface; floating Dock paper keeps its original colors. */
+:root[data-theme="dark"] .note-editor .editor-body { color:var(--text); }
+:root[data-theme="dark"] .note-editor :is(.editor-heading b,.format-bar button) { color:var(--muted); }
+:root[data-theme="dark"] .note-editor .format-bar { background:var(--surface-subtle); }
+:root[data-theme="dark"] .note-editor .editor-task-box { border-color:var(--muted); }

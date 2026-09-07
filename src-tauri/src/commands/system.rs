@@ -27,46 +27,50 @@ pub async fn get_app_info(state: State<'_, AppState>) -> Result<AppInfo, AppErro
 }
 
 #[tauri::command]
-pub async fn get_settings(state: State<'_, AppState>) -> Result<AppSettings, AppError> {
-    Ok(state
-        .settings
-        .read()
-        .expect("settings lock poisoned")
-        .clone())
+pub async fn get_settings(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<AppSettings, AppError> {
+    let _guard = state.settings_save_lock.lock().await;
+    let mut settings = state.settings.read().expect("settings lock poisoned").clone();
+    // Show the actual OS state if startup registration could not be restored.
+    settings.launch_at_login = app.autolaunch().is_enabled().map_err(|error| AppError {
+        code: "autostart_error", message: error.to_string(), retryable: true,
+    })?;
+    Ok(settings)
 }
 
 #[tauri::command]
 pub async fn save_settings(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
-    settings: AppSettings,
+    settings: Option<AppSettings>,
+    patch: Option<serde_json::Value>,
 ) -> Result<AppSettings, AppError> {
-    let value = serde_json::to_string(&settings).expect("AppSettings must serialize");
-    state.database.save_setting("app", &value).await?;
-
-    if settings.launch_at_login {
-        app.autolaunch().enable().map_err(|error| AppError {
-            code: "autostart_error",
-            message: error.to_string(),
-            retryable: true,
-        })?;
-    } else {
-        app.autolaunch().disable().map_err(|error| AppError {
-            code: "autostart_error",
-            message: error.to_string(),
-            retryable: true,
-        })?;
+    let _guard = state.settings_save_lock.lock().await;
+    let previous = state.settings.read().expect("settings lock poisoned").clone();
+    let settings = merge_settings(&previous, settings, patch)?;
+    let autostart_error = |error: tauri_plugin_autostart::Error| AppError {
+        code: "autostart_error", message: error.to_string(), retryable: true,
+    };
+    let was_enabled = app.autolaunch().is_enabled().map_err(autostart_error)?;
+    let apply_autostart = |enabled| {
+        if enabled { app.autolaunch().enable() } else { app.autolaunch().disable() }
+    };
+    if was_enabled != settings.launch_at_login {
+        apply_autostart(settings.launch_at_login).map_err(autostart_error)?;
     }
-
+    let value = serde_json::to_string(&settings).expect("AppSettings must serialize");
+    if let Err(error) = state.database.save_setting("app", &value).await {
+        if was_enabled != settings.launch_at_login {
+            apply_autostart(was_enabled).map_err(autostart_error)?;
+        }
+        return Err(error.into());
+    }
     *state.settings.write().expect("settings lock poisoned") = settings.clone();
     let _ = app.emit("settings-updated", &settings);
+    crate::app::update_status_language(&app, &settings.language);
+    if previous.dock_enabled != settings.dock_enabled {
     if let Some(dock) = app.get_webview_window("dock") {
         if settings.dock_enabled {
-            dock.show().map_err(|error| AppError {
-                code: "window_error",
-                message: error.to_string(),
-                retryable: true,
-            })?;
+            let _ = dock.show();
         } else {
             let _ = app.emit_to("dock", "dock:hidden", ());
             let _ = dock.hide();
@@ -75,7 +79,48 @@ pub async fn save_settings(
             }
         }
     }
+    }
     Ok(settings)
+}
+
+fn merge_settings(previous: &AppSettings, settings: Option<AppSettings>, patch: Option<serde_json::Value>) -> Result<AppSettings, AppError> {
+    let result = match (settings, patch) {
+        (Some(settings), None) => settings,
+        (None, Some(serde_json::Value::Object(patch))) => {
+            let mut value = serde_json::to_value(previous).expect("settings serialize");
+            let object = value.as_object_mut().expect("settings object");
+            for (key, value) in patch {
+                if !object.contains_key(&key) { return Err(AppError::validation("Unknown setting")); }
+                object.insert(key, value);
+            }
+            serde_json::from_value(value).map_err(|error| AppError::validation(error.to_string()))?
+        }
+        _ => return Err(AppError::validation("Supply settings or a settings patch")),
+    };
+    if !["zh-CN", "en-US"].contains(&result.language.as_str())
+        || !["system", "light", "dark"].contains(&result.theme.as_str())
+        || !["background", "quit"].contains(&result.close_behavior.as_str()) {
+        return Err(AppError::validation("Unsupported general setting"));
+    }
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn frontend_ready(window: tauri::WebviewWindow) -> Result<(), String> {
+    if window.label() == "main" && !std::env::args().any(|arg| arg == "--background") {
+        window.show().map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn close_main_window(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let _guard = state.settings_save_lock.lock().await;
+    let background = state.settings.read().map_err(|error| error.to_string())?.close_behavior == "background";
+    if background {
+        if let Some(main) = app.get_webview_window("main") { main.hide().map_err(|error| error.to_string())?; }
+    } else { app.exit(0); }
+    Ok(())
 }
 
 #[tauri::command]
@@ -517,4 +562,54 @@ fn sample_luminance_impl(points: &[ScreenPoint]) -> Vec<Option<f64>> {
 #[cfg(not(target_os = "windows"))]
 fn sample_luminance_impl(points: &[ScreenPoint]) -> Vec<Option<f64>> {
     vec![None; points.len()]
+}
+
+#[cfg(test)]
+mod settings_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn old_saved_settings_get_safe_defaults() {
+        let settings: AppSettings = serde_json::from_value(json!({"language":"en-US","closeBehavior":"quit","launchAtLogin":true})).unwrap();
+        assert_eq!(settings.theme, "system");
+        assert_eq!(settings.close_behavior, "quit");
+        assert!(settings.launch_at_login);
+    }
+
+    #[test]
+    fn patches_preserve_other_windows_changes() {
+        let first = merge_settings(&AppSettings::default(), None, Some(json!({"theme":"dark","language":"en-US"}))).unwrap();
+        let second = merge_settings(&first, None, Some(json!({"closeBehavior":"quit","launchAtLogin":true}))).unwrap();
+        let restored: AppSettings = serde_json::from_str(&serde_json::to_string(&second).unwrap()).unwrap();
+        assert_eq!(restored.theme, "dark");
+        assert_eq!(restored.language, "en-US");
+        assert_eq!(restored.close_behavior, "quit");
+        assert!(restored.launch_at_login);
+    }
+
+    #[tokio::test]
+    async fn all_general_preferences_survive_database_reopen() {
+        let directory = tempfile::tempdir().unwrap();
+        let saved = merge_settings(&AppSettings::default(), None, Some(json!({
+            "language":"en-US", "theme":"dark", "launchAtLogin":true, "closeBehavior":"quit"
+        }))).unwrap();
+        {
+            let database = crate::infrastructure::sqlite::Database::open(directory.path()).await.unwrap();
+            database.save_setting("app", &serde_json::to_string(&saved).unwrap()).await.unwrap();
+        }
+        let reopened = crate::infrastructure::sqlite::Database::open(directory.path()).await.unwrap();
+        let restored: AppSettings = serde_json::from_str(&reopened.setting("app").await.unwrap().unwrap()).unwrap();
+        assert_eq!(restored.language, "en-US");
+        assert_eq!(restored.theme, "dark");
+        assert!(restored.launch_at_login);
+        assert_eq!(restored.close_behavior, "quit");
+    }
+
+    #[test]
+    fn rejects_invalid_general_preferences() {
+        for patch in [json!({"language":"ja-JP"}), json!({"theme":"neon"}), json!({"closeBehavior":"destroy"}), json!({"unknown":true}), json!({"launchAtLogin":"yes"})] {
+            assert!(merge_settings(&AppSettings::default(), None, Some(patch)).is_err());
+        }
+    }
 }

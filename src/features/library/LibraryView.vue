@@ -1,4 +1,5 @@
 ﻿<script setup lang="ts">
+import { t, formatRelativeTime } from '../../services/i18n';
 import { showNotification as showToast } from "../../services/notificationService";
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { gsap } from "gsap";
@@ -116,7 +117,7 @@ async function loadNotes(preferredId?: string, options?: { silent?: boolean }) {
     selectedId.value = nextId;
     await refreshCounts();
   } catch {
-    error.value = "无法读取本地便签，请稍后重试。";
+    error.value = t('无法读取本地便签，请稍后重试。');
     notes.value = [];
     selectedId.value = null;
   } finally {
@@ -203,11 +204,11 @@ async function mutate(note: NoteRecord, action: "archive" | "unarchive" | "delet
         revision: item.revision + 1,
       });
     }
-    showToast(action === "archive" ? "已归档" : action === "unarchive" ? "已恢复到展示中" : action === "delete" ? "已移到最近删除" : note.archivedAtMs ? "已恢复到归档" : "已恢复到展示中");
+    showToast(action === "archive" ? t('已归档') : action === "unarchive" ? t('已恢复到展示中') : action === "delete" ? t('已移到最近删除') : note.archivedAtMs ? t('已恢复到归档') : t('已恢复到展示中'));
     editorOpen.value = false;
     await loadNotes();
   } catch {
-    showToast("操作失败，请刷新后重试");
+    showToast(t('操作失败，请刷新后重试'));
   }
 }
 
@@ -218,11 +219,11 @@ async function permanentlyDelete() {
     if (isDesktop) await noteService.permanentlyDelete({ id: note.id, expectedRevision: note.revision });
     else demoNotes.value = demoNotes.value.filter((item) => item.id !== note.id);
     deleteTarget.value = null;
-    showToast("便签已永久删除");
+    showToast(t('便签已永久删除'));
     await loadNotes();
   } catch {
     deleteTarget.value = null;
-    showToast("永久删除失败，请刷新后重试");
+    showToast(t('永久删除失败，请刷新后重试'));
   }
 }
 
@@ -239,11 +240,11 @@ async function clearTrash() {
       demoNotes.value = demoNotes.value.filter((note) => !deletedIds.has(note.id));
     }
     clearTrashConfirm.value = false;
-    showToast("已清空删除项");
+    showToast(t('已清空删除项'));
     await loadNotes();
   } catch {
     clearTrashConfirm.value = false;
-    showToast("清空失败，请刷新后重试");
+    showToast(t('清空失败，请刷新后重试'));
     await loadNotes();
   } finally {
     clearingTrash.value = false;
@@ -285,14 +286,7 @@ function resetCardFocus() {
 
 
 
-function formatTime(value: number) {
-  const diff = Date.now() - value;
-  if (diff < 60000) return "刚刚";
-  if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`;
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`;
-  if (diff < 86400000 * 7) return `${Math.floor(diff / 86400000)} 天前`;
-  return new Intl.DateTimeFormat("zh-CN", { month: "short", day: "numeric" }).format(value);
-}
+const formatTime = formatRelativeTime;
 
 function taskProgress(body: string) {
   const tasks = [...body.matchAll(/^\s*[-*]?\s*\[([ xX])\]/gm)];
@@ -346,13 +340,13 @@ function cardPreview(body: string) {
     parts.push(renderInline(line));
   }
   while (parts.length && parts[parts.length - 1] === "") parts.pop();
-  return parts.join("<br>") || '<span class="cv-empty">空白便签</span>';
+  return parts.join("<br>") || `<span class="cv-empty">${t('空白便签')}</span>`;
 }
 
 function retention(note: NoteRecord) {
   if (!note.deletedAtMs) return "";
   const days = Math.max(0, Math.ceil((note.deletedAtMs + 30 * 86400000 - Date.now()) / 86400000));
-  return days === 0 ? "即将永久删除" : `${days} 天后永久删除`;
+  return days === 0 ? t('即将永久删除') : t('{days} 天后永久删除', { days });
 }
 
 function openContextMenu(note: NoteRecord, event: MouseEvent) {
@@ -455,10 +449,10 @@ onUnmounted(() => {
 
 <template>
   <main ref="libraryRoot" class="library-app">
-    <aside class="library-sidebar" aria-label="资料库分区">
+    <aside class="library-sidebar" :aria-label="t('资料库分区')">
       <div class="library-brand" data-tauri-drag-region>
         <img src="/noty-logo.png" alt="" />
-        <div><strong>FLANK</strong><small>灵感停靠站</small></div>
+        <div><strong>FLANK</strong><small>{{ t('灵感停靠站') }}</small></div>
       </div>
       <p class="library-kicker">LIBRARY</p>
       <nav class="library-nav">
@@ -468,7 +462,7 @@ onUnmounted(() => {
             <ArchiveIcon v-else-if="section.id === 'archived'" />
             <Trash2 v-else />
           </span>
-          <span>{{ section.id === 'active' ? '全部便签' : section.label }}</span><em>{{ counts[section.id] }}</em>
+          <span>{{ section.id === 'active' ? t('全部便签') : t(section.label) }}</span><em>{{ counts[section.id] }}</em>
         </button>
       </nav>
       <!-- <div class="workspace-block">
@@ -482,101 +476,101 @@ onUnmounted(() => {
       </div> -->
       <button type="button" class="settings-entry" @click="settingsOpen = true">
         <Settings aria-hidden="true" />
-        <span>设置</span>
+        <span>{{ t('设置') }}</span>
       </button>
     </aside>
 
     <section class="library-surface">
       <div class="window-drag-region" data-tauri-drag-region></div>
-      <div class="window-controls" aria-label="窗口控制">
-        <button type="button" aria-label="最小化" @click="controlWindow('minimize')"><Minus /></button>
-        <button type="button" aria-label="最大化或还原" @click="controlWindow('maximize')"><Square /></button>
-        <button class="window-close" type="button" aria-label="关闭" @click="controlWindow('close')"><X /></button>
+      <div class="window-controls" :aria-label="t('窗口控制')">
+        <button type="button" :aria-label="t('最小化')" @click="controlWindow('minimize')"><Minus /></button>
+        <button type="button" :aria-label="t('最大化或还原')" @click="controlWindow('maximize')"><Square /></button>
+        <button class="window-close" type="button" :aria-label="t('关闭')" @click="controlWindow('close')"><X /></button>
       </div>
 
       <header class="index-header" :class="{ tall: scope !== 'active' }">
         <div>
           <!-- <p :class="{ danger: scope === 'deleted' }">{{ scope === 'active' ? 'NOTES / 06' : scope === 'archived' ? 'ARCHIVE / 12' : 'TRASH / 03' }}</p> -->
-          <h1>{{ scope === 'active' ? '今天想记点什么？' : scope === 'archived' ? '已归档' : '最近删除' }}</h1>
-          <span>{{ scope === 'active' ? '把稍纵即逝的想法，变成随时可取用的便签。' : scope === 'archived' ? '暂时收起，不代表忘记。需要时随时恢复。' : '删除的便签会保留 30 天，之后自动永久清除。' }}</span>
+          <h1>{{ scope === 'active' ? t('今天想记点什么？') : scope === 'archived' ? t('已归档') : t('最近删除') }}</h1>
+          <span>{{ scope === 'active' ? t('把稍纵即逝的想法，变成随时可取用的便签。') : scope === 'archived' ? t('暂时收起，不代表忘记。需要时随时恢复。') : t('删除的便签会保留 30 天，之后自动永久清除。') }}</span>
         </div>
-        <button v-if="scope === 'active'" class="new-note-button" type="button" @click="createNote"><Plus aria-hidden="true" />新建便签</button>
-        <button v-else-if="scope === 'deleted'" class="clear-trash-button" type="button" @click="clearTrashConfirm = true">清空删除项</button>
+        <button v-if="scope === 'active'" class="new-note-button" type="button" @click="createNote"><Plus aria-hidden="true" />{{ t('新建便签') }}</button>
+        <button v-else-if="scope === 'deleted'" class="clear-trash-button" type="button" @click="clearTrashConfirm = true">{{ t('清空删除项') }}</button>
       </header>
 
       <div v-if="scope !== 'deleted'" class="home-toolbar" :class="{ 'archive-toolbar': scope === 'archived' }">
         <label class="library-search">
           <Search aria-hidden="true" />
-          <input ref="searchInput" v-model="query" type="search" placeholder="搜索标题、正文或标签…" aria-label="搜索标题、正文或标签">
+          <input ref="searchInput" v-model="query" type="search" :placeholder="t('搜索标题、正文或标签…')" :aria-label="t('搜索标题、正文或标签')">
           <kbd>⌘ K</kbd>
         </label>
         <template v-if="scope === 'active'">
-          <div class="view-switch" role="group" aria-label="便签展示方式">
-            <button type="button" :class="{ active: viewMode === 'grid' }" aria-label="卡片视图" @click="setViewMode('grid')"><Grid2X2 /></button>
-            <button type="button" :class="{ active: viewMode === 'list' }" aria-label="列表视图" @click="setViewMode('list')"><List /></button>
+          <div class="view-switch" role="group" :aria-label="t('便签展示方式')">
+            <button type="button" :class="{ active: viewMode === 'grid' }" :aria-label="t('卡片视图')" @click="setViewMode('grid')"><Grid2X2 /></button>
+            <button type="button" :class="{ active: viewMode === 'list' }" :aria-label="t('列表视图')" @click="setViewMode('list')"><List /></button>
           </div>
         </template>
-        <div v-else class="archive-filter">按归档时间 · 最新优先</div>
+        <div v-else class="archive-filter">{{ t('按归档时间 · 最新优先') }}</div>
       </div>
-      <div v-else class="trash-alert"><AlertCircle aria-hidden="true" /><div><b>最早的一条便签将在 6 天后永久删除</b><small>你可以在倒计时结束前恢复它。</small></div></div>
+      <div v-else class="trash-alert"><AlertCircle aria-hidden="true" /><div><b>{{ t('最早的一条便签将在 6 天后永久删除') }}</b><small>{{ t('你可以在倒计时结束前恢复它。') }}</small></div></div>
 
-      <div v-if="loading" class="library-state"><span class="state-spinner"></span><b>正在读取本地便签</b></div>
-      <div v-else-if="error" class="library-state"><b>{{ error }}</b><button type="button" @click="loadNotes()">重试</button></div>
-      <div v-else-if="!notes.length" class="library-state"><b>{{ query ? '没有匹配的便签' : '这里还没有便签' }}</b><p>试试新建一张便签，或切换到其他资料库。</p></div>
+      <div v-if="loading" class="library-state"><span class="state-spinner"></span><b>{{ t('正在读取本地便签') }}</b></div>
+      <div v-else-if="error" class="library-state"><b>{{ error }}</b><button type="button" @click="loadNotes()">{{ t('重试') }}</button></div>
+      <div v-else-if="!notes.length" class="library-state"><b>{{ query ? t('没有匹配的便签') : t('这里还没有便签') }}</b><p>{{ t('试试新建一张便签，或切换到其他资料库。') }}</p></div>
 
       <div v-else-if="scope === 'active'" class="notes-scroll">
         <div class="recent-grid" :class="`mode-${viewMode}`">
-          <div v-for="note in notes" :key="note.id" class="note-card recent-card" :class="{ selected: selectedId === note.id }" :style="{ '--note': `var(--note-${note.color})` }" role="button" tabindex="0" :data-note-id="note.id" :aria-label="`便签：${note.title || '无标题便签'}`" @click="selectNote(note.id)" @contextmenu.prevent="openContextMenu(note, $event)" @keydown.enter.prevent="selectNote(note.id)" @keydown.space.prevent="selectNote(note.id)">
-            <button class="card-edit" type="button" :aria-label="`编辑便签：${note.title || '无标题便签'}`" title="编辑" @click.stop="selectNote(note.id, true)"><Pencil aria-hidden="true" /></button>
-            <b class="card-title">{{ note.title || '无标题便签' }}</b>
+          <div v-for="note in notes" :key="note.id" class="note-card recent-card" :class="{ selected: selectedId === note.id }" :style="{ '--note': `var(--note-${note.color})` }" role="button" tabindex="0" :data-note-id="note.id" :aria-label="t('便签：{title}', { title: note.title || t('无标题便签') })" @click="selectNote(note.id)" @contextmenu.prevent="openContextMenu(note, $event)" @keydown.enter.prevent="selectNote(note.id)" @keydown.space.prevent="selectNote(note.id)">
+            <button class="card-edit" type="button" :aria-label="t('编辑便签：{title}', { title: note.title || t('无标题便签') })" :title="t('编辑')" @click.stop="selectNote(note.id, true)"><Pencil aria-hidden="true" /></button>
+            <b class="card-title">{{ note.title || t('无标题便签') }}</b>
             <p class="card-preview" v-html="cardPreview(note.body)"></p>
             <small class="card-time">{{ formatTime(note.updatedAtMs) }}</small>
           </div>
         </div>
-        <p class="drag-hint">拖拽便签即可调整顺序　·　右键查看更多操作</p>
+        <p class="drag-hint">{{ t('拖拽便签即可调整顺序　·　右键查看更多操作') }}</p>
       </div>
 
       <div v-else class="records-scroll" :class="scope">
-        <div class="group-title"><h2>{{ scope === 'archived' ? '归档记录' : '待处理' }}</h2><span>{{ notes.length }} ITEMS</span></div>
+        <div class="group-title"><h2>{{ scope === 'archived' ? t('归档记录') : t('待处理') }}</h2><span>{{ notes.length }} ITEMS</span></div>
         <article v-for="note in notes" :key="note.id" class="record-card" :style="{ '--note': `var(--note-${note.color})` }" @contextmenu.prevent="openContextMenu(note, $event)">
           <span class="record-color" :class="{ dot: scope === 'deleted' }"></span>
-          <div><b>{{ note.title || '无标题便签' }}</b><p class="card-preview" v-html="cardPreview(note.body)"></p><small v-if="scope === 'archived'">归档于 {{ formatTime(note.archivedAtMs || note.updatedAtMs) }}　·　{{ noteTag(note) }}</small><small v-else class="days-left">{{ retention(note).toUpperCase() }}</small></div>
-          <button type="button" @click="mutate(note, scope === 'archived' ? 'unarchive' : 'restore')">{{ scope === 'archived' ? '恢复便签' : '恢复' }}</button>
-          <button v-if="scope === 'deleted'" class="delete-forever" type="button" @click="deleteTarget = note">永久删除</button>
-          <button v-else-if="scope === 'archived'" class="delete-forever" type="button" @click="mutate(note, 'delete')">删除</button>
+          <div><b>{{ note.title || t('无标题便签') }}</b><p class="card-preview" v-html="cardPreview(note.body)"></p><small v-if="scope === 'archived'">{{ t('归档于') }} {{ formatTime(note.archivedAtMs || note.updatedAtMs) }}　·　{{ noteTag(note) }}</small><small v-else class="days-left">{{ retention(note).toUpperCase() }}</small></div>
+          <button type="button" @click="mutate(note, scope === 'archived' ? 'unarchive' : 'restore')">{{ scope === 'archived' ? t('恢复便签') : t('恢复') }}</button>
+          <button v-if="scope === 'deleted'" class="delete-forever" type="button" @click="deleteTarget = note">{{ t('永久删除') }}</button>
+          <button v-else-if="scope === 'archived'" class="delete-forever" type="button" @click="mutate(note, 'delete')">{{ t('删除') }}</button>
         </article>
       </div>
     </section>
 
-    <section v-if="editorOpen && (selected || isNew)" class="note-detail" aria-label="便签详情">
+    <section v-if="editorOpen && (selected || isNew)" class="note-detail" :aria-label="t('便签详情')">
       <header class="detail-toolbar">
-        <button class="editor-close" type="button" aria-label="关闭便签详情" @click="closeEditor">×</button>
+        <button class="editor-close" type="button" :aria-label="t('关闭便签详情')" @click="closeEditor">×</button>
         <div v-if="selected" class="detail-actions">
-          <button type="button" @click="mutateSelected('archive')">归档</button>
-          <button class="danger-action" type="button" @click="mutateSelected('delete')">删除</button>
+          <button type="button" @click="mutateSelected('archive')">{{ t('归档') }}</button>
+          <button class="danger-action" type="button" @click="mutateSelected('delete')">{{ t('删除') }}</button>
         </div>
       </header>
       <NoteEditor ref="noteEditor" :key="editorKey" :note="selected" @saved="onEditorSaved" />
     </section>
 
     <Transition name="modal-fade"><div v-if="settingsOpen" class="settings-modal-backdrop" @click.self="settingsOpen = false"><SettingsView embedded @close="settingsOpen = false" /></div></Transition>
-    <div v-if="deleteTarget" class="modal-backdrop" @click.self="deleteTarget = null"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-title"><span class="dialog-icon">!</span><h2 id="delete-title">永久删除这张便签？</h2><p>“{{ deleteTarget.title || '无标题便签' }}”将立即从此设备移除，此操作无法撤销。</p><div><button type="button" @click="deleteTarget = null">取消</button><button class="confirm-danger" type="button" @click="permanentlyDelete">永久删除</button></div></section></div>
-    <div v-if="clearTrashConfirm" class="modal-backdrop" @click.self="clearTrashConfirm = false"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-trash-title"><span class="dialog-icon">!</span><h2 id="clear-trash-title">清空所有删除项？</h2><p>最近删除中的 {{ notes.length }} 张便签将从此设备永久移除，此操作无法撤销。</p><div><button type="button" :disabled="clearingTrash" @click="clearTrashConfirm = false">取消</button><button class="confirm-danger" type="button" :disabled="clearingTrash" @click="clearTrash">{{ clearingTrash ? '正在清空…' : '清空删除项' }}</button></div></section></div>
+    <div v-if="deleteTarget" class="modal-backdrop" @click.self="deleteTarget = null"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-title"><span class="dialog-icon">!</span><h2 id="delete-title">{{ t('永久删除这张便签？') }}</h2><p>{{ t('“{title}”将立即从此设备移除，此操作无法撤销。', { title: deleteTarget.title || t('无标题便签') }) }}</p><div><button type="button" @click="deleteTarget = null">{{ t('取消') }}</button><button class="confirm-danger" type="button" @click="permanentlyDelete">{{ t('永久删除') }}</button></div></section></div>
+    <div v-if="clearTrashConfirm" class="modal-backdrop" @click.self="clearTrashConfirm = false"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-trash-title"><span class="dialog-icon">!</span><h2 id="clear-trash-title">{{ t('清空所有删除项？') }}</h2><p>{{ t('最近删除中的 {count} 张便签将从此设备永久移除，此操作无法撤销。', { count: notes.length }) }}</p><div><button type="button" :disabled="clearingTrash" @click="clearTrashConfirm = false">{{ t('取消') }}</button><button class="confirm-danger" type="button" :disabled="clearingTrash" @click="clearTrash">{{ clearingTrash ? t('正在清空…') : t('清空删除项') }}</button></div></section></div>
 
     <Teleport to="body">
-      <div v-if="contextMenu" ref="contextMenuEl" class="note-context-menu" :style="contextMenuStyle" role="menu" aria-label="便签操作">
+      <div v-if="contextMenu" ref="contextMenuEl" class="note-context-menu" :style="contextMenuStyle" role="menu" :aria-label="t('便签操作')">
         <template v-if="scope === 'active'">
-          <button type="button" role="menuitem" @click="contextAction('edit')"><Pencil aria-hidden="true" />编辑</button>
-          <button type="button" role="menuitem" @click="contextAction('archive')"><ArchiveIcon aria-hidden="true" />归档</button>
-          <button type="button" role="menuitem" class="danger" @click="contextAction('delete')"><Trash2 aria-hidden="true" />删除</button>
+          <button type="button" role="menuitem" @click="contextAction('edit')"><Pencil aria-hidden="true" />{{ t('编辑') }}</button>
+          <button type="button" role="menuitem" @click="contextAction('archive')"><ArchiveIcon aria-hidden="true" />{{ t('归档') }}</button>
+          <button type="button" role="menuitem" class="danger" @click="contextAction('delete')"><Trash2 aria-hidden="true" />{{ t('删除') }}</button>
         </template>
         <template v-else-if="scope === 'archived'">
-          <button type="button" role="menuitem" @click="contextAction('unarchive')"><RotateCcw aria-hidden="true" />恢复</button>
-          <button type="button" role="menuitem" class="danger" @click="contextAction('delete')"><Trash2 aria-hidden="true" />删除</button>
+          <button type="button" role="menuitem" @click="contextAction('unarchive')"><RotateCcw aria-hidden="true" />{{ t('恢复') }}</button>
+          <button type="button" role="menuitem" class="danger" @click="contextAction('delete')"><Trash2 aria-hidden="true" />{{ t('删除') }}</button>
         </template>
         <template v-else>
-          <button type="button" role="menuitem" @click="contextAction('restore')"><RotateCcw aria-hidden="true" />恢复</button>
-          <button type="button" role="menuitem" class="danger" @click="contextAction('permanentlyDelete')"><Trash2 aria-hidden="true" />永久删除</button>
+          <button type="button" role="menuitem" @click="contextAction('restore')"><RotateCcw aria-hidden="true" />{{ t('恢复') }}</button>
+          <button type="button" role="menuitem" class="danger" @click="contextAction('permanentlyDelete')"><Trash2 aria-hidden="true" />{{ t('永久删除') }}</button>
         </template>
       </div>
     </Teleport>

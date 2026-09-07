@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { t } from '../services/i18n';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { savedSettings } from "../services/settingsService";
 
 import type { NoteColor, NoteRecord } from "../contracts/note";
 import { noteService } from "../services/noteService";
@@ -20,6 +22,9 @@ const palette: NoteColor[] = ["lemon", "peach", "rose", "lilac", "sky", "mint"];
 const root = ref<HTMLElement | null>(null);
 const editorBody = ref<HTMLElement | null>(null);
 const titleInput = ref<HTMLInputElement | null>(null);
+watch(() => savedSettings.value.language, () => {
+  editorBody.value?.querySelectorAll('.editor-task-box').forEach((box) => box.setAttribute('aria-label', t(box.classList.contains('is-checked') ? '标记为未完成' : '标记为完成')));
+});
 
 const draftTarget = ref<NoteRecord | null>(props.note);
 const draftTitle = ref(props.note?.title ?? "");
@@ -65,7 +70,7 @@ async function persistDraft(): Promise<NoteRecord | null> {
   }
 
   setSaveState("saving");
-  const title = draftTitle.value.trim() || derivedTitle(body) || "未命名便签";
+  const title = draftTitle.value.trim() || derivedTitle(body) || t('未命名便签');
   const previous = draftTarget.value;
   try {
     let saved: NoteRecord;
@@ -134,7 +139,7 @@ function createEditorLine(text = "", task = false, checked = false) {
     checkbox.className = `editor-task-box${checked ? " is-checked" : ""}`;
     checkbox.contentEditable = "false";
     checkbox.setAttribute("aria-checked", String(checked));
-    checkbox.setAttribute("aria-label", checked ? "标记为未完成" : "标记为完成");
+    checkbox.setAttribute("aria-label", checked ? t('标记为未完成') : t('标记为完成'));
     line.appendChild(checkbox);
   }
   const copy = document.createElement("span");
@@ -364,7 +369,7 @@ function onEditorClick(event: MouseEvent) {
   if (checkbox) {
     const checked = checkbox.classList.toggle("is-checked");
     checkbox.setAttribute("aria-checked", String(checked));
-    checkbox.setAttribute("aria-label", checked ? "标记为未完成" : "标记为完成");
+    checkbox.setAttribute("aria-label", checked ? t('标记为未完成') : t('标记为完成'));
     scheduleSave();
     return;
   }
@@ -400,24 +405,24 @@ onBeforeUnmount(() => {
   <div ref="root" class="note-editor">
     <header class="editor-header">
       <div class="editor-heading">
-        <b>{{ isNewSession ? "新便签" : "编辑便签" }}</b>
-        <span class="save-state" :class="saveState"><i></i>{{ saveStateLabel }}</span>
+        <b>{{ isNewSession ? t('新便签') : t('编辑便签') }}</b>
+        <span class="save-state" :class="saveState"><i></i>{{ t(saveStateLabel) }}</span>
       </div>
       <div v-if="isNewSession" class="palette">
-        <button v-for="color in palette" :key="color" type="button" :class="{ selected: draftColor === color }" :style="{ background: `var(--note-${color})` }" :aria-label="`选择颜色 ${color}`" @click="draftColor = color; scheduleSave()"></button>
+        <button v-for="color in palette" :key="color" type="button" :class="{ selected: draftColor === color }" :style="{ background: `var(--note-${color})` }" :aria-label="t('选择颜色 {color}', { color })" @click="draftColor = color; scheduleSave()"></button>
       </div>
     </header>
-    <input ref="titleInput" v-model="draftTitle" class="editor-title" maxlength="28" placeholder="标题" aria-label="便签标题" @input="scheduleSave" @keydown="onTitleKeydown">
+    <input ref="titleInput" v-model="draftTitle" class="editor-title" maxlength="28" :placeholder="t('标题')" :aria-label="t('便签标题')" @input="scheduleSave" @keydown="onTitleKeydown">
     <div class="editor-body-shell">
-      <div ref="editorBody" class="editor-body is-empty" role="textbox" aria-multiline="true" aria-label="便签内容，支持 Markdown" data-placeholder="随便写点什么。。。" @input="scheduleSave" @keydown="onEditorKeydown" @paste="onEditorPaste" @pointerdown="onEditorPointerDown" @click="onEditorClick"></div>
+      <div ref="editorBody" class="editor-body is-empty" role="textbox" aria-multiline="true" :aria-label="t('便签内容，支持 Markdown')" :data-placeholder="t('随便写点什么。。。')" @input="scheduleSave" @keydown="onEditorKeydown" @paste="onEditorPaste" @pointerdown="onEditorPointerDown" @click="onEditorClick"></div>
     </div>
     <footer class="format-bar" @pointerdown.prevent>
-      <button type="button" title="插入任务" @click="insertTask"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m7.5 12 3 3 6-7"/></svg></button><i></i>
-      <button type="button" title="标题" @click="applyMarkdown('heading')">H</button>
-      <button type="button" title="粗体（在星号中输入）" @click="applyMarkdown('bold')"><b>B</b></button>
-      <button type="button" title="斜体（选中文字，或点击后直接输入）" @click="applyMarkdown('italic')"><em>I</em></button>
-      <button type="button" title="切换列表" @click="applyMarkdown('list')"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg></button>
-      <button type="button" title="行内代码（选中文字，或点击后直接输入）" @click="applyMarkdown('code')">&lt;/&gt;</button>
+      <button type="button" :title="t('插入任务')" @click="insertTask"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m7.5 12 3 3 6-7"/></svg></button><i></i>
+      <button type="button" :title="t('标题')" @click="applyMarkdown('heading')">H</button>
+      <button type="button" :title="t('粗体（在星号中输入）')" @click="applyMarkdown('bold')"><b>B</b></button>
+      <button type="button" :title="t('斜体（选中文字，或点击后直接输入）')" @click="applyMarkdown('italic')"><em>I</em></button>
+      <button type="button" :title="t('切换列表')" @click="applyMarkdown('list')"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg></button>
+      <button type="button" :title="t('行内代码（选中文字，或点击后直接输入）')" @click="applyMarkdown('code')">&lt;/&gt;</button>
     </footer>
   </div>
 </template>

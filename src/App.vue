@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from './services/i18n';
 import { onMounted, onUnmounted } from "vue";
 import { RouterView, useRouter, useRoute } from "vue-router";
 import { notification, receiveNotification, dismissNotification } from "./services/notificationService";
@@ -32,7 +33,7 @@ onUnmounted(() => {
   <RouterView />
   <div v-if="notification && !route.path.startsWith('/dock')" class="main-notification" role="status" aria-live="polite">
     <span>{{ notification }}</span>
-    <button type="button" aria-label="关闭提示" @click="dismissNotification">×</button>
+    <button type="button" :aria-label="t('关闭提示')" @click="dismissNotification">×</button>
   </div>
 </template>
 

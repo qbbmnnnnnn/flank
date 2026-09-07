@@ -6,7 +6,7 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager,
 };
-use tauri_plugin_autostart::MacosLauncher;
+use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 use crate::infrastructure::sqlite::{Database, DatabaseError};
 
@@ -14,6 +14,7 @@ use crate::infrastructure::sqlite::{Database, DatabaseError};
 #[serde(rename_all = "camelCase", default)]
 pub struct AppSettings {
     pub language: String,
+    pub theme: String,
     pub launch_at_login: bool,
     pub close_behavior: String,
     pub dock_enabled: bool,
@@ -37,6 +38,7 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             language: "zh-CN".into(),
+            theme: "system".into(),
             launch_at_login: false,
             close_behavior: "background".into(),
             dock_enabled: true,
@@ -61,6 +63,7 @@ impl Default for AppSettings {
 pub struct AppState {
     pub database: Database,
     pub settings: RwLock<AppSettings>,
+    pub settings_save_lock: tauri::async_runtime::Mutex<()>,
 }
 
 fn show_main(app: &tauri::AppHandle, route: Option<&str>) {
@@ -95,14 +98,27 @@ fn create_note_from_status_entry(app: &tauri::AppHandle) {
     }
 }
 
+fn status_menu(app: &tauri::AppHandle, language: &str) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+    let labels = match language {
+        "en-US" => ["Open main window", "Show / hide Dock", "New note", "Quit FLANK"],
+        _ => ["打开主窗口", "显示 / 隐藏便签栏", "新建便签", "退出 FLANK"],
+    };
+    let open = MenuItemBuilder::with_id("open-main", labels[0]).build(app)?;
+    let dock = MenuItemBuilder::with_id("toggle-dock", labels[1]).build(app)?;
+    let new_note = MenuItemBuilder::with_id("new-note", labels[2]).build(app)?;
+    let quit = MenuItemBuilder::with_id("quit", labels[3]).build(app)?;
+    MenuBuilder::new(app).items(&[&open, &dock, &new_note, &quit]).build()
+}
+
+pub fn update_status_language(app: &tauri::AppHandle, language: &str) {
+    if let (Some(tray), Ok(menu)) = (app.tray_by_id("flank-status"), status_menu(app, language)) {
+        let _ = tray.set_menu(Some(menu));
+    }
+}
+
 fn install_status_entry(app: &mut tauri::App) -> tauri::Result<()> {
-    let open = MenuItemBuilder::with_id("open-main", "打开主窗口").build(app)?;
-    let dock = MenuItemBuilder::with_id("toggle-dock", "显示 / 隐藏 Dock 栏").build(app)?;
-    let new_note = MenuItemBuilder::with_id("new-note", "新建便签").build(app)?;
-    let quit = MenuItemBuilder::with_id("quit", "退出 Flank").build(app)?;
-    let menu = MenuBuilder::new(app)
-        .items(&[&open, &dock, &new_note, &quit])
-        .build()?;
+    let language = app.state::<AppState>().settings.read().expect("settings lock poisoned").language.clone();
+    let menu = status_menu(app.handle(), &language)?;
 
     let mut tray = TrayIconBuilder::with_id("flank-status")
         .menu(&menu)
@@ -142,9 +158,12 @@ pub fn run() {
             let app_data_dir = app.path().app_data_dir()?;
             let database = tauri::async_runtime::block_on(Database::open(&app_data_dir))
                 .map_err(|error: DatabaseError| Box::<dyn std::error::Error>::from(error))?;
-            let settings = tauri::async_runtime::block_on(database.setting("app"))?
+            let mut settings = tauri::async_runtime::block_on(database.setting("app"))?
                 .and_then(|value| serde_json::from_str::<AppSettings>(&value).ok())
                 .unwrap_or_default();
+            if !["zh-CN", "en-US"].contains(&settings.language.as_str()) { settings.language = "zh-CN".into(); }
+            if !["system", "light", "dark"].contains(&settings.theme.as_str()) { settings.theme = "system".into(); }
+            if !["background", "quit"].contains(&settings.close_behavior.as_str()) { settings.close_behavior = "background".into(); }
             let now_ms = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
@@ -154,8 +173,12 @@ pub fn run() {
             app.manage(AppState {
                 database,
                 settings: RwLock::new(settings.clone()),
+                settings_save_lock: tauri::async_runtime::Mutex::new(()),
             });
             install_status_entry(app)?;
+            // Reapply the persisted login preference, independently of opening Settings.
+            let autostart = if settings.launch_at_login { app.autolaunch().enable() } else { app.autolaunch().disable() };
+            if let Err(error) = autostart { eprintln!("Could not restore login startup: {error}"); }
 
             // Keep the compact Dock flush with the primary screen edge on first launch.
             if let Some(dock) = app.get_webview_window("dock") {
@@ -185,20 +208,10 @@ pub fn run() {
                 let app_handle = app.handle().clone();
                 main.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                        let background = app_handle
-                            .state::<AppState>()
-                            .settings
-                            .read()
-                            .map(|settings| settings.close_behavior == "background")
-                            .unwrap_or(true);
-                        if background {
-                            api.prevent_close();
-                            if let Some(main) = app_handle.get_webview_window("main") {
-                                let _ = main.hide();
-                            }
-                        } else {
-                            app_handle.exit(0);
-                        }
+                        // The frontend drains its settings queue before invoking close_main_window.
+                        // This also covers Alt+F4, not just the custom titlebar close button.
+                        api.prevent_close();
+                        let _ = app_handle.emit_to("main", "main:close-requested", ());
                     }
                 });
             }
@@ -216,6 +229,8 @@ pub fn run() {
             crate::commands::notes::permanently_delete_note,
             crate::commands::system::get_app_info,
             crate::commands::system::get_settings,
+            crate::commands::system::frontend_ready,
+            crate::commands::system::close_main_window,
             crate::commands::system::save_settings,
             crate::commands::system::show_main_window,
             crate::commands::system::toggle_dock_window,
