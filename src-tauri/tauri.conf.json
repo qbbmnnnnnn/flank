@@ -28,7 +28,7 @@
         "url": "index.html#/dock",
         "width": 104,
         "height": 720,
-        "minWidth": 104,
+        "minWidth": 80,
         "minHeight": 1,
         "decorations": false,
         "transparent": true,

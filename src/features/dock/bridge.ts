@@ -20,12 +20,18 @@ export interface DockPanelOpenPayload {
   sameNote: boolean;
   /** A Dock-only usage guide that must never be persisted or edited. */
   isPlaceholder?: boolean;
+  /** Current rail width in logical pixels so the panel can offset its paper to sit beside the rail. */
+  dockRailWidth: number;
 }
 
 export interface DockPanelSavePayload {
   note: Note;
   /** True on the first save of a brand-new note. */
   isNew: boolean;
+}
+
+export interface DockRailResizePayload {
+  railWidth: number;
 }
 
 export const DOCK_BRIDGE = {
@@ -36,6 +42,7 @@ export const DOCK_BRIDGE = {
   requestClose: "dock-panel:request-close",
   createNote: "dock:create-note",
   hidden: "dock:hidden",
+  railResize: "dock:rail-resize",
 } as const;
 
 export function isTauriRuntime(): boolean {

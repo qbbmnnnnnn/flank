@@ -4,7 +4,7 @@ import { guideCopy } from './guide';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { gsap } from "gsap";
 import { showNotification as showToast, showNotification as showLocalToast } from "../../services/notificationService";
-import { dockLayout } from "./layout";
+import { dockLayout, type DockSize } from "./layout";
 
 import type { AppSettings } from "../../contracts/app";
 import { appService } from "../../services/appService";
@@ -84,8 +84,10 @@ const quickSetters = new Map<HTMLElement, { x: (value: number) => void; scaleX: 
 
 const compact = computed(() => screenHeight.value <= 800);
 const visibleCount = ref(5);
-const layout = computed(() => dockLayout(displayNotes.value.length, visibleCount.value, screenHeight.value));
+const dockSize = ref<DockSize>("medium");
+const layout = computed(() => dockLayout(displayNotes.value.length, visibleCount.value, screenHeight.value, dockSize.value));
 const listTargetHeight = computed(() => layout.value.listHeight);
+const peekScale = computed(() => layout.value.scale);
 let layoutQueue = Promise.resolve();
 let unlistenScale: (() => void) | undefined;
 let unlistenSettings: (() => void) | undefined;
@@ -110,6 +112,7 @@ async function loadDockNotes() {
 async function applyDockSettings(settings: AppSettings) {
   visibleCount.value = settings.dockVisibleCount;
   side.value = settings.dockSide;
+  dockSize.value = settings.dockSize;
   await resizeDock();
 }
 
@@ -120,8 +123,9 @@ function resizeDock() {
     if (!win) return;
     await updateDisplayMetrics();
     const { LogicalSize } = await import("@tauri-apps/api/dpi");
-    await win.setSize(new LogicalSize(104, layout.value.windowHeight));
+    await win.setSize(new LogicalSize(layout.value.railWidth, layout.value.windowHeight));
     await snapNativeWindow();
+    await emitToPanel(DOCK_BRIDGE.railResize, { railWidth: layout.value.railWidth });
   }).catch((error) => console.error("Unable to size Dock", error));
   return layoutQueue;
 }
@@ -201,7 +205,7 @@ async function openNote(note: Note) {
     suppressBlurUntil = Date.now() + 260;
     window.clearTimeout(pendingCloseTimer);
     await showDockPanel(side.value);
-    await emitToPanel(DOCK_BRIDGE.open, { note, anchorSide: side.value, isNew: false, sameNote: true, isPlaceholder });
+    await emitToPanel(DOCK_BRIDGE.open, { note, anchorSide: side.value, isNew: false, sameNote: true, isPlaceholder, dockRailWidth: layout.value.railWidth });
     return;
   }
 
@@ -212,7 +216,7 @@ async function openNote(note: Note) {
   window.clearTimeout(pendingCloseTimer);
   panelToken += 1;
   await showDockPanel(side.value);
-  await emitToPanel(DOCK_BRIDGE.open, { note, anchorSide: side.value, isNew: false, sameNote: false, isPlaceholder });
+  await emitToPanel(DOCK_BRIDGE.open, { note, anchorSide: side.value, isNew: false, sameNote: false, isPlaceholder, dockRailWidth: layout.value.railWidth });
 }
 
 async function createNote() {
@@ -228,7 +232,7 @@ async function createNote() {
   window.clearTimeout(pendingCloseTimer);
   panelToken += 1;
   await showDockPanel(side.value);
-  await emitToPanel(DOCK_BRIDGE.open, { note: null, anchorSide: side.value, isNew: true, sameNote: false, isPlaceholder: false });
+  await emitToPanel(DOCK_BRIDGE.open, { note: null, anchorSide: side.value, isNew: true, sameNote: false, isPlaceholder: false, dockRailWidth: layout.value.railWidth });
 }
 
 async function closePanel() {
@@ -290,6 +294,7 @@ function findTab(id: string) {
 function onRailMove(event: PointerEvent) {
   showControls();
   const direction = inward();
+  const peek = peekScale.value;
   const hovered = (event.target as HTMLElement).closest<HTMLElement>(".note-tab");
   const tabs = [...(root.value?.querySelectorAll<HTMLElement>(".note-tab") ?? [])];
   let nearest: HTMLElement | null = null;
@@ -298,13 +303,13 @@ function onRailMove(event: PointerEvent) {
   for (const tab of tabs) {
     const rect = tab.getBoundingClientRect();
     const distance = Math.abs(event.clientY - (rect.top + rect.height / 2));
-    const influence = gsap.utils.clamp(0, 1, 1 - distance / 132);
+    const influence = gsap.utils.clamp(0, 1, 1 - distance / (132 * peek));
     const scale = 1 + influence * .14;
-    let x = gsap.utils.mapRange(0, 1, 0, 24 * direction, influence);
-    if (tab.dataset.id === activeNoteId.value) x += 20 * direction;
+    let x = gsap.utils.mapRange(0, 1, 0, 24 * peek * direction, influence);
+    if (tab.dataset.id === activeNoteId.value) x += 20 * peek * direction;
     if (tab === hovered && tab.dataset.id) {
-      x = gsap.utils.mapRange(0, 1, 0, 4 * direction, influence);
-      x += (actionNote.value === tab.dataset.id ? 42 : 20) * direction;
+      x = gsap.utils.mapRange(0, 1, 0, 4 * peek * direction, influence);
+      x += (actionNote.value === tab.dataset.id ? 42 : 20) * peek * direction;
     }
     quickSetters.get(tab)?.scaleX(scale);
     quickSetters.get(tab)?.scaleY(scale);
@@ -314,7 +319,7 @@ function onRailMove(event: PointerEvent) {
       nearestDistance = distance;
     }
   }
-  tabs.forEach((tab) => tab.classList.toggle("nearest", tab === nearest && nearestDistance < 58));
+  tabs.forEach((tab) => tab.classList.toggle("nearest", tab === nearest && nearestDistance < 58 * peek));
 }
 
 function resetRail() {
@@ -323,7 +328,7 @@ function resetRail() {
   root.value?.querySelectorAll<HTMLElement>(".note-tab").forEach((tab) => {
     quickSetters.get(tab)?.scaleX(1);
     quickSetters.get(tab)?.scaleY(1);
-    quickSetters.get(tab)?.x(tab.dataset.id === activeNoteId.value ? 20 * inward() : 0);
+    quickSetters.get(tab)?.x(tab.dataset.id === activeNoteId.value ? 20 * peekScale.value * inward() : 0);
     tab.classList.remove("nearest");
   });
 }
@@ -332,13 +337,13 @@ function beginHover(note: Note) {
   window.clearTimeout(hoverTimers.get(note.id));
   peekNote.value = note.id;
   const tab = findTab(note.id);
-  if (tab) quickSetters.get(tab)?.x(20 * inward());
+  if (tab) quickSetters.get(tab)?.x(20 * peekScale.value * inward());
   if (note.id === GUIDE_NOTE_ID) return;
   const timer = window.setTimeout(() => {
     if (peekNote.value !== note.id) return;
     actionNote.value = note.id;
     const current = findTab(note.id);
-    if (current) quickSetters.get(current)?.x(42 * inward());
+    if (current) quickSetters.get(current)?.x(42 * peekScale.value * inward());
   }, 1000);
   hoverTimers.set(note.id, timer);
 }
@@ -348,7 +353,7 @@ function endHover(note: Note) {
   if (peekNote.value === note.id) peekNote.value = null;
   if (actionNote.value === note.id) actionNote.value = null;
   const tab = findTab(note.id);
-  if (tab) quickSetters.get(tab)?.x(note.id === activeNoteId.value ? 20 * inward() : 0);
+  if (tab) quickSetters.get(tab)?.x(note.id === activeNoteId.value ? 20 * peekScale.value * inward() : 0);
 }
 
 function controlElements() {
@@ -440,7 +445,7 @@ async function snapNativeWindow() {
     const [{ monitorFromPoint }, { PhysicalPosition }, position, size, scaleFactor] = await Promise.all([
       import("@tauri-apps/api/window"), import("@tauri-apps/api/dpi"), win.outerPosition(), win.outerSize(), win.scaleFactor(),
     ]);
-    const railWidth = 104 * scaleFactor;
+    const railWidth = size.width;
     const centerX = position.x + (side.value === "right" ? size.width - railWidth / 2 : railWidth / 2);
     const centerY = position.y + size.height / 2;
     const monitor = await monitorFromPoint(centerX, centerY);
@@ -478,7 +483,7 @@ function onRootPointerDown(event: PointerEvent) {
   void closePanel();
 }
 
-watch([listTargetHeight, side, screenHeight], () => void resizeDock());
+watch([listTargetHeight, side, screenHeight, dockSize], () => void resizeDock());
 
 watch(() => notes.value.length, (count) => {
   void nextTick(() => {
@@ -550,7 +555,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main ref="root" class="dock-window" :class="[`dock-${side}`, { 'screen-compact': compact }]" :style="{ '--screen-height': `${screenHeight}px`, '--list-target': `${listTargetHeight}px`, '--note-gap': `${layout.gap}px`, '--note-margin-top': `${layout.marginTop}px` }" @keydown="onRootKeydown" @pointerdown="onRootPointerDown">
+  <main ref="root" class="dock-window" :class="[`dock-${side}`, { 'screen-compact': compact }]" :style="{ '--screen-height': `${screenHeight}px`, '--list-target': `${listTargetHeight}px`, '--note-gap': `${layout.gap}px`, '--note-margin-top': `${layout.marginTop}px`, '--note-height': `${layout.noteHeight}px`, '--title-size': `${layout.titleSize}px`, '--rail': `${layout.railWidth}px`, '--tab-width': `${layout.tabWidth}px`, '--tab-margin': `${layout.tabMargin}px`, '--spine': `${layout.spineOffset}px`, '--action-btn': `${layout.actionBtn}px`, '--action-icon': `${layout.actionIcon}px`, '--action-gap': `${layout.actionGap}px`, '--action-edge': `${layout.actionEdge}px`, '--action-spine': `${layout.actionSpine}px` }" @keydown="onRootKeydown" @pointerdown="onRootPointerDown">
     <aside class="dock-rail" :class="{ 'controls-visible': controlsVisible }" :aria-label="t('便签栏')" @pointermove="onRailMove" @pointerleave="onRailLeave">
       <div class="note-list-shell" :class="{ 'overflow-top': canScrollUp, 'overflow-bottom': canScrollDown }">
         <div ref="noteList" class="note-list" @scroll="updateScrollEdges" @pointerenter="showControls">
@@ -570,11 +575,11 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.dock-window{--rail:104px;--ease:cubic-bezier(.22,1,.36,1);width:100vw;height:100vh;position:relative;overflow:hidden;color:#29262b;background:transparent;pointer-events:none;user-select:none;-webkit-user-select:none;font-family:"Noty Display","Microsoft YaHei",Geist,"Segoe UI",sans-serif}.dock-window svg,.note-tab,.paper{-webkit-user-drag:none}.note-tab,.rail-controls>button{pointer-events:auto}.dock-rail{position:absolute;z-index:5;top:50%;right:0;width:var(--rail);height:calc(var(--list-target) + 114px);padding:3px 0;display:flex;flex-direction:column;align-items:flex-end;transform:translateY(-50%);perspective:700px;pointer-events:none}.dock-left .dock-rail{left:0;right:auto;align-items:flex-start}
-.note-list-shell{position:relative;width:100%;min-height:0;height:var(--list-target);flex:0 0 var(--list-target);overflow:hidden;pointer-events:none}.note-list{width:100%;height:100%;max-height:none;padding:14px 0;pointer-events:none;display:flex;flex-direction:column;align-items:flex-end;gap:var(--note-gap);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scroll-behavior:smooth;scrollbar-width:none}.note-list::-webkit-scrollbar{display:none}.dock-left .note-list{align-items:flex-start}.note-tab{position:relative;width:88px;height:126px;flex:0 0 126px;margin:0 -48px 0 0;padding:0;border:0;color:#302c2e;background:transparent;cursor:pointer;transform-origin:right center;will-change:transform;rotate:var(--tilt,0deg)}.note-tab+.note-tab{margin-top:var(--note-margin-top)}.dock-left .note-tab{margin-right:0;margin-left:-48px;transform-origin:left center}.note-tab:nth-child(1){--tilt:-1.8deg;z-index:1}.note-tab:nth-child(2){--tilt:.9deg;z-index:2}.note-tab:nth-child(3){--tilt:-1.1deg;z-index:3}.note-tab:nth-child(4){--tilt:1.25deg;z-index:4}.note-tab:nth-child(5){--tilt:-1.35deg;z-index:5}.note-tab:nth-child(n+6){--tilt:-1deg}.note-tab.nearest,.note-tab.active,.note-tab:hover{z-index:12}.paper{position:absolute;inset:0;overflow:hidden;display:block;border-radius:18px 0 0 18px;background:var(--paper);box-shadow:none;transition:filter .2s ease}.note-tab:hover .paper{filter:brightness(1.045);box-shadow:none}.dock-left .paper{border-radius:0 18px 18px 0;box-shadow:none}.paper::after{content:"";position:absolute;inset:0;background:linear-gradient(145deg,rgba(255,255,255,.3),transparent 40%,rgba(60,45,30,.05));pointer-events:none}.paper::before{content:"";position:absolute;z-index:2;top:9px;bottom:9px;right:50%;border-right:1px dashed rgba(72,58,43,.2)}.title{position:absolute;z-index:3;left:0;top:9px;bottom:9px;width:38px;display:grid;place-items:center;writing-mode:vertical-rl;text-orientation:upright;color:var(--paper-ink,rgb(47,42,40));font-size:16px;font-weight:700;letter-spacing:.04em;overflow:hidden;text-overflow:ellipsis}.dock-left .title{left:auto;right:0}
-.quick-actions{position:absolute;z-index:4;right:7px;top:0;bottom:0;width:45px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;opacity:0;transform:translateX(7px) scale(.92);pointer-events:none;transition:opacity .16s ease,transform .22s var(--ease)}.dock-left .quick-actions{left:7px;right:auto;transform:translateX(-7px) scale(.92)}.note-tab.actions .quick-actions{opacity:1;transform:none;pointer-events:auto}.quick-actions button{width:31px;height:31px;padding:0;display:grid;place-items:center;border:0;border-radius:10px;color:var(--paper-ink-soft,rgba(52,45,44,.63));background:transparent;cursor:pointer;transition:color .18s ease,background .18s ease,transform .2s var(--ease)}.quick-actions svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.quick-actions button:hover{color:#fff;transform:scale(1.06)}.quick-actions button:hover:first-child{background:#5b92e8;box-shadow:none}.quick-actions button:hover:last-child{background:#ef6262;box-shadow:none}
+.dock-window{--rail:104px;--tab-width:88px;--tab-margin:-48px;--spine:44px;--note-height:126px;--title-size:16px;--action-btn:26px;--action-icon:14px;--action-gap:7px;--action-edge:6px;--action-spine:7px;--ease:cubic-bezier(.22,1,.36,1);width:100vw;height:100vh;position:relative;overflow:hidden;color:#29262b;background:transparent;pointer-events:none;user-select:none;-webkit-user-select:none;font-family:"Noty Display","Microsoft YaHei",Geist,"Segoe UI",sans-serif}.dock-window svg,.note-tab,.paper{-webkit-user-drag:none}.note-tab,.rail-controls>button{pointer-events:auto}.dock-rail{position:absolute;z-index:5;top:50%;right:0;width:var(--rail);height:calc(var(--list-target) + 114px);padding:3px 0;display:flex;flex-direction:column;align-items:flex-end;transform:translateY(-50%);perspective:700px;pointer-events:none}.dock-left .dock-rail{left:0;right:auto;align-items:flex-start}
+.note-list-shell{position:relative;width:100%;min-height:0;height:var(--list-target);flex:0 0 var(--list-target);overflow:hidden;pointer-events:none}.note-list{width:100%;height:100%;max-height:none;padding:14px 0;pointer-events:none;display:flex;flex-direction:column;align-items:flex-end;gap:var(--note-gap);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scroll-behavior:smooth;scrollbar-width:none}.note-list::-webkit-scrollbar{display:none}.dock-left .note-list{align-items:flex-start}.note-tab{position:relative;width:var(--tab-width);height:var(--note-height);flex:0 0 var(--note-height);margin:0 var(--tab-margin) 0 0;padding:0;border:0;color:#302c2e;background:transparent;cursor:pointer;transform-origin:right center;will-change:transform;rotate:var(--tilt,0deg)}.note-tab+.note-tab{margin-top:var(--note-margin-top)}.dock-left .note-tab{margin-right:0;margin-left:var(--tab-margin);transform-origin:left center}.note-tab:nth-child(1){--tilt:-1.8deg;z-index:1}.note-tab:nth-child(2){--tilt:.9deg;z-index:2}.note-tab:nth-child(3){--tilt:-1.1deg;z-index:3}.note-tab:nth-child(4){--tilt:1.25deg;z-index:4}.note-tab:nth-child(5){--tilt:-1.35deg;z-index:5}.note-tab:nth-child(n+6){--tilt:-1deg}.note-tab.nearest,.note-tab.active,.note-tab:hover{z-index:12}.paper{position:absolute;inset:0;overflow:hidden;display:block;border-radius:18px 0 0 18px;background:var(--paper);box-shadow:none;transition:filter .2s ease}.note-tab:hover .paper{filter:brightness(1.045);box-shadow:none}.dock-left .paper{border-radius:0 18px 18px 0;box-shadow:none}.paper::after{content:"";position:absolute;inset:0;background:linear-gradient(145deg,rgba(255,255,255,.3),transparent 40%,rgba(60,45,30,.05));pointer-events:none}.paper::before{content:"";position:absolute;z-index:2;top:9px;bottom:9px;right:calc(100% - var(--spine));border-right:1px dashed rgba(72,58,43,.2)}.title{position:absolute;z-index:3;left:0;top:9px;bottom:9px;width:38px;display:grid;place-items:center;writing-mode:vertical-rl;text-orientation:upright;color:var(--paper-ink,rgb(47,42,40));font-size:var(--title-size);font-weight:700;letter-spacing:.04em;overflow:hidden;text-overflow:ellipsis}.dock-left .title{left:auto;right:0}
+.quick-actions{position:absolute;z-index:4;top:0;bottom:0;right:var(--action-edge);left:calc(50% + var(--action-spine));display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--action-gap);opacity:0;transform:translateX(7px) scale(.92);pointer-events:none;transition:opacity .16s ease,transform .22s var(--ease)}.dock-left .quick-actions{left:var(--action-edge);right:auto;transform:translateX(-7px) scale(.92)}.note-tab.actions .quick-actions{opacity:1;transform:none;pointer-events:auto}.quick-actions button{width:var(--action-btn);height:var(--action-btn);padding:0;display:grid;place-items:center;border:0;border-radius:9px;color:var(--paper-ink-soft,rgba(52,45,44,.63));background:transparent;cursor:pointer;transition:color .18s ease,background .18s ease,transform .2s var(--ease)}.quick-actions svg{width:var(--action-icon);height:var(--action-icon);fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.quick-actions button:hover{color:#fff;transform:scale(1.06)}.quick-actions button:hover:first-child{background:#5b92e8;box-shadow:none}.quick-actions button:hover:last-child{background:#ef6262;box-shadow:none}
 .rail-controls{position:relative;z-index:30;width:100%;padding-top:10px;display:flex;flex:0 0 auto;flex-direction:column;align-items:flex-end;opacity:0;visibility:hidden;transform:translateX(18px);pointer-events:none}.dock-left .rail-controls{align-items:flex-start;transform:translateX(-18px)}.controls-visible .rail-controls{pointer-events:none}.rail-controls .separator{position:absolute;z-index:2;top:4px;right:0;width:40px;height:1px;margin:0;background:rgba(255,255,255,.18)}.dock-left .rail-controls .separator{right:auto;left:0}.rail-controls>button{position:relative;width:40px;height:40px;margin:0 0 6px 0;padding:0;display:grid;place-items:center;border:1px solid rgba(255,255,255,.22);border-radius:50%;color:rgba(255,255,255,.82);background:rgba(24,26,31,.88);box-shadow:0 6px 18px rgba(0,0,0,.22);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);cursor:pointer;transition:color .18s ease,border-color .18s ease,box-shadow .2s var(--ease)}.dock-left .rail-controls>button{margin:0 0 6px 0}.rail-controls>button>svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s var(--ease)}.rail-controls>button:hover{color:#fff}.rail-controls>button:hover>svg{transform:scale(1.16)}.rail-controls>button:active>svg{transform:scale(.94)}
 .adaptive-control.selected{color:#fff;border-color:rgba(255,255,255,.72);box-shadow:0 0 0 3px rgba(255,255,255,.14),0 7px 22px rgba(0,0,0,.3),inset 0 0 14px rgba(255,255,255,.1)}.adaptive-control.selected>svg{transform:scale(1.12)}.rail-controls>button[data-control="add"].selected>svg{transform:rotate(45deg) scale(1.06)}
-.screen-compact .note-tab{height:104px;flex-basis:104px}.screen-compact .paper{border-radius:15px 0 0 15px}.screen-compact.dock-left .paper{border-radius:0 15px 15px 0}.screen-compact .title{font-size:14px;letter-spacing:.02em}
+.screen-compact .paper{border-radius:15px 0 0 15px}.screen-compact.dock-left .paper{border-radius:0 15px 15px 0}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 </style>

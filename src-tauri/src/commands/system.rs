@@ -445,10 +445,18 @@ fn set_panel_dock_passthrough(
     let hwnd = panel.hwnd().map_err(|error| error.to_string())?.0;
     let size = panel.outer_size().map_err(|error| error.to_string())?;
     let scale_factor = panel.scale_factor().map_err(|error| error.to_string())?;
-    let clearance = (104.0 * scale_factor).round() as i32;
+    // The dock rail width follows the user's "Dock size" setting, so the
+    // passthrough strip is sized from the live dock window instead of a constant.
+    let dock_clearance: i32 = panel
+        .app_handle()
+        .get_webview_window("dock")
+        .and_then(|dock| dock.outer_size().ok())
+        .map(|dock_size| dock_size.width as i32)
+        .unwrap_or_else(|| (104.0 * scale_factor).round() as i32);
     let top_chrome_guard = (32.0 * scale_factor).round() as i32;
     let width = size.width as i32;
     let height = size.height as i32;
+    let clearance = dock_clearance;
     let (left, right) = if !enabled {
         // Keep an explicit full-size region instead of restoring the system's
         // default region. Restoring it while the window is visible can expose

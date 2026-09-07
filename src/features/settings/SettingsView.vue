@@ -90,6 +90,9 @@ watch(settingsPending, (count, previous) => {
 
 const dockCountWarning = computed(() => settings.dockVisibleCount > recommendedDockCount.value);
 
+// Larger cards leave less room, so the recommendation follows the chosen size.
+watch(() => settings.dockSize, () => void updateDockRecommendation());
+
 function clampDockCount() {
   settings.dockVisibleCount = Math.min(12, Math.max(5, Math.round(Number(settings.dockVisibleCount) || 5)));
 }
@@ -107,10 +110,10 @@ async function updateDockRecommendation() {
       monitor = await monitorFromPoint(position.x + size.width / 2, position.y + size.height / 2) ?? monitor;
     }
     const logicalHeight = monitor ? monitor.size.height / monitor.scaleFactor : window.screen.availHeight;
-    recommendedDockCount.value = dockLayout(12, 12, logicalHeight).count;
+    recommendedDockCount.value = dockLayout(12, 12, logicalHeight, settings.dockSize).count;
   } catch {
     const logicalHeight = window.screen.availHeight || 1080;
-    recommendedDockCount.value = dockLayout(12, 12, logicalHeight).count;
+    recommendedDockCount.value = dockLayout(12, 12, logicalHeight, settings.dockSize).count;
   }
 }
 
@@ -336,7 +339,7 @@ onUnmounted(() => {
           <section class="dock-preview-card">
             <div class="preview-copy"><span>{{ t('实时预览') }}</span><h2>{{ t('让便签栏待在') }}<br>{{ t('最顺手的位置。') }}</h2><p>{{ t('它会贴附在屏幕边缘，悬停时安静展开。') }}</p></div>
             <div class="mini-screen" :class="`side-${settings.dockSide}`">
-              <div class="mini-wallpaper"></div><div class="mini-dock"><i style="--paper:var(--note-lemon)">{{ t('今') }}</i><i style="--paper:var(--note-peach)">{{ t('待') }}</i><i style="--paper:var(--note-mint)">{{ t('读') }}</i><span>＋</span></div>
+              <div class="mini-wallpaper"></div><div class="mini-dock" :class="`size-${settings.dockSize}`"><i style="--paper:var(--note-lemon)">{{ t('今') }}</i><i style="--paper:var(--note-peach)">{{ t('待') }}</i><i style="--paper:var(--note-mint)">{{ t('读') }}</i><span>＋</span></div>
             </div>
           </section>
           <section class="settings-group">
@@ -354,7 +357,7 @@ onUnmounted(() => {
             </div> -->
             <div class="setting-row">
               <div class="setting-copy"><b>{{ t('便签栏大小') }}</b><span>{{ t('不会改变便签正文的字体大小') }}</span></div>
-              <select v-model="settings.dockSize"><option value="small">{{ t('紧凑') }}</option><option value="medium">{{ t('标准') }}</option><option value="large">{{ t('宽松') }}</option></select>
+              <div class="segmented" role="group" :aria-label="t('便签栏大小')"><button v-for="size in (['small', 'medium', 'large'] as const)" :key="size" :class="{ selected: settings.dockSize === size }" :aria-pressed="settings.dockSize === size" type="button" @click="settings.dockSize = size">{{ size === 'small' ? t('紧凑') : size === 'medium' ? t('标准') : t('宽松') }}</button></div>
             </div>
           </section>
           <!-- <section class="settings-group">

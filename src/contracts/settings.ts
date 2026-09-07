@@ -40,6 +40,7 @@ export function normalizeSettings(value: Partial<AppSettings>): AppSettings {
     language: ["zh-CN", "en-US"].includes(value.language ?? "") ? value.language! : "zh-CN",
     theme: ["system", "light", "dark"].includes(value.theme ?? "") ? value.theme! : "system",
     closeBehavior: value.closeBehavior === "quit" ? "quit" : "background",
+    dockSize: ["small", "medium", "large"].includes(value.dockSize ?? "") ? value.dockSize! : "medium",
     customColors: normalizeCustomColors(value.customColors),
   };
 }

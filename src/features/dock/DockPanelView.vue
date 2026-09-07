@@ -19,6 +19,7 @@ import {
   noteColorCss,
   type AnchorSide,
   type DockPanelOpenPayload,
+  type DockRailResizePayload,
   type Note,
 } from "./bridge";
 
@@ -41,6 +42,7 @@ watch(() => savedSettings.value.language, () => {
 const side = ref<AnchorSide>("right");
 const open = ref(false);
 const edgeStaged = ref(false);
+const railWidth = ref(104);
 const mode = ref<EditorMode>("closed");
 const activeNote = ref<Note | null>(null);
 const draftTarget = ref<Note | null>(null);
@@ -60,6 +62,7 @@ let unlistenOpen: (() => void) | undefined;
 let unlistenClose: (() => void) | undefined;
 let unlistenFocus: (() => void) | undefined;
 let unlistenNotesChanged: (() => void) | undefined;
+let unlistenRailResize: (() => void) | undefined;
 let saveQueue: Promise<Note | null> = Promise.resolve(null);
 
 const previewLines = computed<PreviewLine[]>(() => parseMarkdown(activeNote.value?.body ?? ""));
@@ -171,6 +174,7 @@ async function playPanelExit() {
 
 async function handleOpen(payload: DockPanelOpenPayload) {
   side.value = payload.anchorSide;
+  railWidth.value = payload.dockRailWidth;
   edgeStaged.value = true;
   const wasClosed = !open.value;
 
@@ -431,6 +435,7 @@ onMounted(async () => {
 
   unlistenOpen = await listenOnWebview<DockPanelOpenPayload>(DOCK_BRIDGE.open, (payload) => void handleOpen(payload));
   unlistenClose = await listenOnWebview<null>(DOCK_BRIDGE.close, () => void handleClose());
+  unlistenRailResize = await listenOnWebview<DockRailResizePayload>(DOCK_BRIDGE.railResize, (payload) => { railWidth.value = payload.railWidth; });
   window.addEventListener("keydown", onWindowKeydown);
 
   try {
@@ -463,6 +468,7 @@ onUnmounted(() => {
   unlistenClose?.();
   unlistenFocus?.();
   unlistenNotesChanged?.();
+  unlistenRailResize?.();
   window.removeEventListener("keydown", onWindowKeydown);
   panelAnimation?.kill();
   if (root.value) gsap.killTweensOf(root.value.querySelectorAll("*"));
@@ -470,7 +476,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main ref="root" class="dock-panel-window" :class="[`dock-${side}`, { open, 'edge-staged': edgeStaged }]">
+  <main ref="root" class="dock-panel-window" :class="[`dock-${side}`, { open, 'edge-staged': edgeStaged }]" :style="{ '--dock-rail': `${railWidth}px` }">
     <button v-if="open" class="panel-dismiss-layer" type="button" :aria-label="t('关闭便签')" @click="requestClose"></button>
     <article v-if="open && mode !== 'closed'" class="note-panel" :class="[mode, { placeholder: isPlaceholder }]" :style="paperStyle">
       <template v-if="mode === 'preview' && activeNote">
@@ -516,7 +522,7 @@ onUnmounted(() => {
 .dock-panel-window{width:100vw;height:100vh;position:relative;overflow:hidden;background:transparent;pointer-events:none;user-select:none;-webkit-user-select:none;font-family:"Noty Display","Microsoft YaHei",Geist,"Segoe UI",sans-serif}
 .note-panel,.note-panel *{pointer-events:auto}
 .panel-dismiss-layer{position:absolute;z-index:2;inset:0;padding:0;border:0;background:transparent;pointer-events:auto;cursor:default}
-.note-panel{position:absolute;z-index:3;top:50%;right:0;width:380px;overflow:hidden;will-change:transform,opacity;border:1px solid rgba(255,255,255,.28);border-radius:20px;color:var(--paper-ink,#2c2930);background:var(--paper,#ffe78a);box-shadow:none;transform:translateY(-50%);transform-origin:right center}.dock-left .note-panel{left:0;right:auto;transform-origin:left center}.edge-staged.dock-right .note-panel{right:104px}.edge-staged.dock-left .note-panel{left:104px}.note-panel::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(145deg,rgba(255,255,255,.26),transparent 26%,rgba(107,73,25,.05))}
+.note-panel{position:absolute;z-index:3;top:50%;right:0;width:380px;overflow:hidden;will-change:transform,opacity;border:1px solid rgba(255,255,255,.28);border-radius:20px;color:var(--paper-ink,#2c2930);background:var(--paper,#ffe78a);box-shadow:none;transform:translateY(-50%);transform-origin:right center}.dock-left .note-panel{left:0;right:auto;transform-origin:left center}.edge-staged.dock-right .note-panel{right:var(--dock-rail,104px)}.edge-staged.dock-left .note-panel{left:var(--dock-rail,104px)}.note-panel::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(145deg,rgba(255,255,255,.26),transparent 26%,rgba(107,73,25,.05))}
 .note-panel.preview{height:min(490px,72vh)}.note-panel.edit{height:min(560px,78vh)}
 .panel-header{position:relative;z-index:1;height:64px;padding:0 15px 0 19px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(70,55,30,.11)}.panel-header h1{min-width:0;margin:0;overflow:hidden;color:var(--paper-ink,#29262b);font-size:22px;line-height:1.2;letter-spacing:-.025em;text-overflow:ellipsis;white-space:nowrap;user-select:text;-webkit-user-select:text}.panel-actions{display:flex;gap:6px}.panel-actions button,.panel-close{width:30px;height:30px;padding:0;display:grid;place-items:center;border:0;border-radius:50%;color:var(--paper-ink-soft,rgba(40,35,31,.58));background:rgba(255,255,255,.22);cursor:pointer;transition:background .18s ease,transform .18s ease}.panel-actions button:hover,.panel-close:hover{background:rgba(255,255,255,.42);transform:scale(1.06)}.panel-actions svg,.panel-close svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .preview-body{position:relative;z-index:1;height:calc(100% - 64px);padding:18px 22px 30px;overflow-y:auto;font-size:17px;line-height:1.85;user-select:text;-webkit-user-select:text;scrollbar-width:thin;scrollbar-color:rgba(70,55,30,.22) transparent}.preview-body p{min-height:1.7em;margin:2px 0}.preview-body h1,.preview-body h2,.preview-body h3{margin:19px 0 8px;line-height:1.3}.preview-body h1{font-size:23px}.preview-body h2{font-size:20px}.preview-body h3{font-size:17px}.preview-body :deep(code){padding:2px 5px;border-radius:5px;background:rgba(255,255,255,.28);font-family:"Cascadia Code",Consolas,monospace;font-size:.9em}.preview-body :deep(a){color:#315f9f;text-decoration-thickness:1px;text-underline-offset:2px}.preview-body blockquote{margin:8px 0;padding-left:12px;border-left:3px solid var(--paper-ink-soft,rgba(54,48,53,.3));color:var(--paper-ink-soft,rgba(54,48,53,.72))}
