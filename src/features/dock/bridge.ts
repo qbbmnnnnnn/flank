@@ -5,6 +5,9 @@ import type { NoteColor, NoteRecord } from "../../contracts/note";
 
 export type Note = NoteRecord;
 
+// Fallbacks only: the shared `--note-*` custom properties are the single source
+// of truth, so the Dock, the panel and the main window always agree and the dark
+// theme can dim every paper without changing its hue.
 const NOTE_COLORS: Record<NoteColor, string> = {
   lemon: "#FFE57A",
   peach: "#FFB8A7",
@@ -15,7 +18,7 @@ const NOTE_COLORS: Record<NoteColor, string> = {
 };
 
 export function noteColorCss(color: NoteColor): string {
-  return NOTE_COLORS[color];
+  return `var(--note-${color}, ${NOTE_COLORS[color]})`;
 }
 
 export type AnchorSide = "left" | "right";

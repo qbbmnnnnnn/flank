@@ -35,14 +35,18 @@
   :root:lang(en) .index-header > div > span { max-width:300px; font-size:12px; }
 }
 
-/* Semantic dark palette. Paper colors are deliberately unchanged. */
+/* Semantic dark palette. Note paper keeps its hue and only scales with the theme. */
 :root[data-theme="dark"] {
   --canvas:#141922; --surface:#1c2330; --surface-subtle:#222b39;
   --text:#e4ebf5; --ink:#e4ebf5; --muted:#a6b4c8; --muted-2:#8799b2;
   --border:#354157; --line:#354157; --soft:#222b39;
   --accent:#79aaff; --accent-soft:#273d60; --danger:#ff8097;
-  color:var(--text); background:var(--canvas);
+  /* Same hue as light mode, dimmed so notes stop glaring against the dark canvas. */
+  --note-saturation:.86; --note-lightness:.72;
 }
+:root[data-theme="dark"]:not(.dock-document) { color:var(--text); background:var(--canvas); }
+/* The Dock is a transparent overlay window: never paint the app canvas behind its notes. */
+:root[data-theme="dark"].dock-document { color:var(--text); background:transparent; }
 :root[data-theme="dark"] body:not(.dock-document) { background:var(--canvas); }
 :root[data-theme="dark"] :is(.library-sidebar,.library-search,.view-switch,.archive-filter,.record-card,.note-detail,.confirm-dialog,.note-context-menu) { background:var(--surface); color:var(--text); border-color:var(--border); }
 :root[data-theme="dark"] :is(.library-brand small,.library-nav-item,.settings-entry,.window-controls button,.archive-filter,.library-link,.editor-close) { color:var(--text); }

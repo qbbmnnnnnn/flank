@@ -1,7 +1,7 @@
 @font-face{font-family:"Noty Display";src:url('/fonts/zcool-qingke-huangyou-regular.ttf') format('truetype');font-weight:400;font-display:swap}
 @font-face{font-family:"Geist";src:url('/fonts/geist-variable.ttf') format('truetype');font-weight:100 900;font-display:swap}
 @font-face{font-family:"IBM Plex Mono";src:url('/fonts/ibm-plex-mono-regular.ttf') format('truetype');font-weight:400;font-display:swap}
-:root{--canvas:#f4f7fb;--surface:#fff;--surface-subtle:#f8fafc;--text:#10213b;--muted:#64748b;--border:#dce5f0;--accent:#0667f9;--accent-soft:#eaf2ff;--danger:#ef4966;--note-lemon:#fff0a6;--note-peach:#ffd7e1;--note-rose:#ffd7e1;--note-lilac:#e6dcff;--note-sky:#cfe2ff;--note-mint:#c9f3df;--display:"Noty Display","Microsoft YaHei",sans-serif;--mono:"IBM Plex Mono",monospace}
+:root{--canvas:#f4f7fb;--surface:#fff;--surface-subtle:#f8fafc;--text:#10213b;--muted:#64748b;--border:#dce5f0;--accent:#0667f9;--accent-soft:#eaf2ff;--danger:#ef4966;--display:"Noty Display","Microsoft YaHei",sans-serif;--mono:"IBM Plex Mono",monospace}
 .library-app{width:100vw;height:100vh;min-width:0;display:grid;grid-template-columns:264px minmax(0,1fr);overflow:hidden;color:var(--text);background:var(--canvas);font-family:Geist,"Segoe UI",sans-serif}
 .library-sidebar{min-height:0;padding:28px 16px 20px;display:flex;flex-direction:column;border-right:1px solid var(--border);background:#fff}
 .library-brand{height:62px;padding:0 14px;display:flex;align-items:center;gap:12px;user-select:none}

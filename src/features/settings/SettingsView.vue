@@ -129,12 +129,12 @@ const sections = [
 const activeMeta = computed(() => sections.find((section) => section.id === activeSection.value)!);
 
 const colors = [
-  { id: "lemon", name: "Lemon", hex: "#FFE57A" },
-  { id: "peach", name: "Peach", hex: "#FFB8A7" },
-  { id: "rose", name: "Rose", hex: "#F5B8CD" },
-  { id: "lilac", name: "Lilac", hex: "#D8C1FF" },
-  { id: "sky", name: "Sky", hex: "#AED6FF" },
-  { id: "mint", name: "Mint", hex: "#A9E5D1" },
+  { id: "lemon", name: "Lemon" },
+  { id: "peach", name: "Peach" },
+  { id: "rose", name: "Rose" },
+  { id: "lilac", name: "Lilac" },
+  { id: "sky", name: "Sky" },
+  { id: "mint", name: "Mint" },
 ];
 
 
@@ -287,7 +287,7 @@ onUnmounted(() => { if (props.embedded && returnFocus?.isConnected) returnFocus.
           <section class="dock-preview-card">
             <div class="preview-copy"><span>{{ t('实时预览') }}</span><h2>{{ t('让便签栏待在') }}<br>{{ t('最顺手的位置。') }}</h2><p>{{ t('它会贴附在屏幕边缘，悬停时安静展开。') }}</p></div>
             <div class="mini-screen" :class="`side-${settings.dockSide}`">
-              <div class="mini-wallpaper"></div><div class="mini-dock"><i style="--paper:#FFE57A">{{ t('今') }}</i><i style="--paper:#FFB8A7">{{ t('待') }}</i><i style="--paper:#A9E5D1">{{ t('读') }}</i><span>＋</span></div>
+              <div class="mini-wallpaper"></div><div class="mini-dock"><i style="--paper:var(--note-lemon)">{{ t('今') }}</i><i style="--paper:var(--note-peach)">{{ t('待') }}</i><i style="--paper:var(--note-mint)">{{ t('读') }}</i><span>＋</span></div>
             </div>
           </section>
           <section class="settings-group">
@@ -326,8 +326,8 @@ onUnmounted(() => { if (props.embedded && returnFocus?.isConnected) returnFocus.
           </section>
           <section class="settings-group color-settings">
             <div class="group-heading"><div><h2>{{ t('新便签颜色') }}</h2><p>{{ t('新建时可继续在编辑器中选择颜色。') }}</p></div></div>
-            <label class="color-option"><input v-model="settings.defaultColor" value="random" type="radio"><span class="color-random"><i v-for="color in colors" :key="color.id" :style="{ background: color.hex }"></i></span><div><b>{{ t('每次随机选择') }}</b><small>{{ t('在 6 种 Flank 颜色中随机选取') }}</small></div><em>{{ t('推荐') }}</em></label>
-            <div class="color-grid"><label v-for="color in colors" :key="color.id" :class="{ selected: settings.defaultColor === color.id }"><input v-model="settings.defaultColor" :value="color.id" type="radio"><span :style="{ '--note-color': color.hex }"></span><b>{{ color.name }}</b></label></div>
+            <label class="color-option"><input v-model="settings.defaultColor" value="random" type="radio"><span class="color-random"><i v-for="color in colors" :key="color.id" :style="{ background: `var(--note-${color.id})` }"></i></span><div><b>{{ t('每次随机选择') }}</b><small>{{ t('在 6 种 Flank 颜色中随机选取') }}</small></div><em>{{ t('推荐') }}</em></label>
+            <div class="color-grid"><label v-for="color in colors" :key="color.id" :class="{ selected: settings.defaultColor === color.id }"><input v-model="settings.defaultColor" :value="color.id" type="radio"><span :style="{ '--note-color': `var(--note-${color.id})` }"></span><b>{{ color.name }}</b></label></div>
           </section>
         </div>
 
