@@ -44,6 +44,12 @@ pub struct NoteMutationInput {
     pub expected_revision: i64,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReorderNotesInput {
+    pub note_ids: Vec<String>,
+}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteRecord {

@@ -233,6 +233,7 @@ pub fn run() {
             crate::commands::notes::list_notes,
             crate::commands::notes::create_note,
             crate::commands::notes::update_note,
+            crate::commands::notes::reorder_notes,
             crate::commands::notes::archive_note,
             crate::commands::notes::unarchive_note,
             crate::commands::notes::delete_note,

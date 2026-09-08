@@ -1,4 +1,4 @@
-use std::{path::Path, time::Duration};
+use std::{collections::HashSet, path::Path, time::Duration};
 
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
@@ -164,6 +164,42 @@ impl Database {
                 .await?);
         }
         self.note_by_id(&input.id).await
+    }
+
+    pub async fn reorder_active_notes(&self, note_ids: &[String]) -> Result<(), DatabaseError> {
+        let mut transaction = self.pool.begin().await.map_err(DatabaseError::Query)?;
+        let active_ids = sqlx::query_scalar::<_, String>(
+            "SELECT id FROM notes WHERE deleted_at_ms IS NULL AND archived_at_ms IS NULL",
+        )
+        .fetch_all(&mut *transaction)
+        .await
+        .map_err(DatabaseError::Query)?;
+        let supplied: HashSet<&str> = note_ids.iter().map(String::as_str).collect();
+        if supplied.len() != note_ids.len()
+            || active_ids.len() != note_ids.len()
+            || active_ids.iter().any(|id| !supplied.contains(id.as_str()))
+        {
+            return Err(DatabaseError::InvalidState);
+        }
+
+        // Keep the current-time ordering scheme: notes created after this
+        // transaction receive a smaller key and therefore still appear first.
+        let base = i64::MAX - now_ms();
+        for (index, id) in note_ids.iter().enumerate() {
+            let sort_key = format!("{:020}-{id}", base + index as i64);
+            let result = sqlx::query(
+                "UPDATE notes SET sort_key = ? WHERE id = ? AND deleted_at_ms IS NULL AND archived_at_ms IS NULL",
+            )
+            .bind(sort_key)
+            .bind(id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(DatabaseError::Query)?;
+            if result.rows_affected() != 1 {
+                return Err(DatabaseError::InvalidState);
+            }
+        }
+        transaction.commit().await.map_err(DatabaseError::Query)
     }
 
     pub async fn archive_note(
@@ -394,6 +430,40 @@ mod tests {
                 .expect("purge should succeed"),
             1
         );
+    }
+
+    #[tokio::test]
+    async fn active_notes_can_be_reordered_atomically_without_revision_changes() {
+        let database = Database::in_memory().await.expect("database should open");
+        for title in ["First", "Second", "Third"] {
+            database
+                .create_note(CreateNoteInput {
+                    title: title.into(),
+                    body: String::new(),
+                    color: "lemon".into(),
+                    text_direction: "automatic".into(),
+                })
+                .await
+                .expect("note should be created");
+        }
+        let before = database.list_notes(NoteScope::Active, "").await.unwrap();
+        let mut ids: Vec<String> = before.iter().map(|note| note.id.clone()).collect();
+        ids.reverse();
+
+        database
+            .reorder_active_notes(&ids)
+            .await
+            .expect("order should save");
+        let after = database.list_notes(NoteScope::Active, "").await.unwrap();
+        assert_eq!(
+            after.iter().map(|note| &note.id).collect::<Vec<_>>(),
+            ids.iter().collect::<Vec<_>>()
+        );
+        assert!(after.iter().all(|note| note.revision == 1));
+        assert!(matches!(
+            database.reorder_active_notes(&ids[..2]).await,
+            Err(DatabaseError::InvalidState)
+        ));
     }
 
     #[tokio::test]

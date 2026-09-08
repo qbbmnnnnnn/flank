@@ -4,7 +4,10 @@ use crate::{
     app::AppState,
     domain::{
         error::AppError,
-        note::{CreateNoteInput, ListNotesQuery, NoteMutationInput, NoteRecord, UpdateNoteInput},
+        note::{
+            CreateNoteInput, ListNotesQuery, NoteMutationInput, NoteRecord, ReorderNotesInput,
+            UpdateNoteInput,
+        },
     },
 };
 
@@ -73,6 +76,26 @@ pub async fn update_note(
         &input.text_direction,
     )?;
     state.database.update_note(input).await.map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn reorder_notes(
+    state: State<'_, AppState>,
+    input: ReorderNotesInput,
+) -> Result<(), AppError> {
+    if input.note_ids.len() > 100_000
+        || input
+            .note_ids
+            .iter()
+            .any(|id| id.is_empty() || id.len() > 64)
+    {
+        return Err(AppError::validation("便签顺序无效"));
+    }
+    state
+        .database
+        .reorder_active_notes(&input.note_ids)
+        .await
+        .map_err(Into::into)
 }
 
 #[tauri::command]

@@ -30,6 +30,7 @@
     "gsap": "^3.15.0",
     "lucide-vue-next": "^0.577.0",
     "pinia": "^3.0.3",
+    "sortablejs": "^1.15.7",
     "vue": "^3.5.42",
     "vue-router": "^4.6.4"
   },
@@ -37,6 +38,7 @@
     "@playwright/test": "^1.63.0",
     "@tauri-apps/cli": "^2.11.4",
     "@types/node": "^24.13.3",
+    "@types/sortablejs": "^1.15.9",
     "@vitejs/plugin-vue": "^6.0.8",
     "@vue/test-utils": "^2.5.0",
     "jsdom": "^27.4.0",

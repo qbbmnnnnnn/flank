@@ -49,3 +49,8 @@ export interface NoteMutationInput {
   id: string;
   expectedRevision: number;
 }
+
+export interface ReorderNotesInput {
+  /** Complete ordered list of active note IDs. */
+  noteIds: string[];
+}

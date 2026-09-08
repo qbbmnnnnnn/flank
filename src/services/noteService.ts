@@ -6,6 +6,7 @@ import type {
   ListNotesQuery,
   NoteMutationInput,
   NoteRecord,
+  ReorderNotesInput,
   UpdateNoteInput,
 } from "../contracts/note";
 
@@ -19,6 +20,7 @@ export const noteService = {
   list: (query: ListNotesQuery) => invoke<NoteRecord[]>("list_notes", { query }),
   create: (input: CreateNoteInput) => mutate<NoteRecord>("create_note", input),
   update: (input: UpdateNoteInput) => mutate<NoteRecord>("update_note", input),
+  reorder: (input: ReorderNotesInput) => mutate<void>("reorder_notes", input),
   archive: (input: NoteMutationInput) => mutate<NoteRecord>("archive_note", input),
   unarchive: (input: NoteMutationInput) => mutate<NoteRecord>("unarchive_note", input),
   delete: (input: NoteMutationInput) => mutate<NoteRecord>("delete_note", input),

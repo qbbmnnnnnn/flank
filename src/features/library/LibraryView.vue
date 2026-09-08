@@ -3,6 +3,7 @@ import { t, formatRelativeTime } from '../../services/i18n';
 import { showNotification as showToast } from "../../services/notificationService";
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { gsap } from "gsap";
+import type Sortable from "sortablejs";
 import {
   AlertCircle,
   Archive as ArchiveIcon,
@@ -24,6 +25,7 @@ import { noteService } from "../../services/noteService";
 import { notePaperStyle } from "../../services/noteColorService";
 import SettingsView from "../settings/SettingsView.vue";
 import NoteEditor from "../../components/NoteEditor.vue";
+import { createNoteSortable, moveItem } from "../notes/sortable";
 
 const scope = ref<NoteScope>("active");
 const query = ref("");
@@ -46,6 +48,9 @@ const contextMenuEl = ref<HTMLElement | null>(null);
 let animationContext: gsap.Context | undefined;
 let unlistenNotesChanged: (() => void) | undefined;
 let searchTimer: number | undefined;
+let noteSortable: Sortable | undefined;
+let dragEndedAt = 0;
+const sorting = ref(false);
 
 
 const now = Date.now();
@@ -124,6 +129,8 @@ async function loadNotes(preferredId?: string, options?: { silent?: boolean }) {
   } finally {
     if (!options?.silent) loading.value = false;
   }
+  await nextTick();
+  setupNoteSortable();
 }
 
 async function selectNote(id: string | null, open = false) {
@@ -179,6 +186,7 @@ function onEditorSaved(payload: { note: NoteRecord; isNew: boolean }) {
   } else {
     notes.value = notes.value.map((note) => note.id === payload.note.id ? payload.note : note);
   }
+  void nextTick(setupNoteSortable);
 }
 
 async function mutateSelected(action: "archive" | "delete") {
@@ -285,6 +293,61 @@ function resetCardFocus() {
   gsap.to(items, { y: 0, scale: 1, duration: .42, ease: "power3.out", overwrite: "auto", clearProps: "transform" });
 }
 
+function setupNoteSortable() {
+  noteSortable?.destroy();
+  noteSortable = undefined;
+  const list = noteList.value;
+  if (!list || scope.value !== "active" || notes.value.length < 2) return;
+  noteSortable = createNoteSortable(list, {
+    draggable: ".note-card",
+    disabled: Boolean(query.value.trim()),
+    onStart() {
+      closeContextMenu();
+      sorting.value = true;
+      gsap.killTweensOf(list.querySelectorAll(".note-card"));
+    },
+    onEnd: (oldIndex, newIndex) => void reorderNotes(oldIndex, newIndex),
+    onCancel() {
+      sorting.value = false;
+    },
+  });
+}
+
+async function reorderNotes(oldIndex: number, newIndex: number) {
+  const previous = notes.value;
+  const reordered = moveItem(previous, oldIndex, newIndex);
+  dragEndedAt = Date.now();
+  sorting.value = false;
+  if (reordered === previous) return;
+  notes.value = reordered;
+
+  if (!isDesktop) {
+    const rank = new Map(reordered.map((note, index) => [note.id, index]));
+    demoNotes.value = [...demoNotes.value].sort((a, b) => {
+      const aRank = rank.get(a.id);
+      const bRank = rank.get(b.id);
+      return aRank === undefined || bRank === undefined ? 0 : aRank - bRank;
+    });
+    return;
+  }
+
+  try {
+    await noteService.reorder({ noteIds: reordered.map((note) => note.id) });
+  } catch {
+    notes.value = previous;
+    showToast(t('排序保存失败，已恢复原顺序'));
+    await loadNotes(undefined, { silent: true });
+  }
+}
+
+function onCardClick(id: string, event: MouseEvent) {
+  if (sorting.value || Date.now() - dragEndedAt < 160) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+  void selectNote(id);
+}
 
 
 const formatTime = formatRelativeTime;
@@ -390,6 +453,7 @@ function onListKeydown(event: KeyboardEvent) {
 }
 
 watch(query, () => {
+  noteSortable?.option("disabled", true);
   window.clearTimeout(searchTimer);
   searchTimer = window.setTimeout(() => void loadNotes(selectedId.value ?? undefined), 120);
 });
@@ -440,6 +504,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   animationContext?.revert();
+  noteSortable?.destroy();
   unlistenNotesChanged?.();
   window.removeEventListener("keydown", handleGlobalKeydown);
   window.removeEventListener("contextmenu", handleWindowContextMenu);
@@ -520,15 +585,15 @@ onUnmounted(() => {
       <div v-else-if="!notes.length" class="library-state"><b>{{ query ? t('没有匹配的便签') : t('这里还没有便签') }}</b><p>{{ t('试试新建一张便签，或切换到其他资料库。') }}</p></div>
 
       <div v-else-if="scope === 'active'" class="notes-scroll">
-        <div class="recent-grid" :class="`mode-${viewMode}`">
-          <div v-for="note in notes" :key="note.id" class="note-card recent-card" :class="{ selected: selectedId === note.id }" :style="notePaperStyle(note.color)" role="button" tabindex="0" :data-note-id="note.id" :aria-label="t('便签：{title}', { title: note.title || t('无标题便签') })" @click="selectNote(note.id)" @contextmenu.prevent="openContextMenu(note, $event)" @keydown.enter.prevent="selectNote(note.id)" @keydown.space.prevent="selectNote(note.id)">
+        <div ref="noteList" class="recent-grid" :class="[`mode-${viewMode}`, { sorting }]">
+          <div v-for="note in notes" :key="note.id" class="note-card recent-card" :class="{ selected: selectedId === note.id }" :style="notePaperStyle(note.color)" role="button" tabindex="0" :data-note-id="note.id" :aria-label="t('便签：{title}', { title: note.title || t('无标题便签') })" :aria-roledescription="t('可排序便签')" @click="onCardClick(note.id, $event)" @contextmenu.prevent="openContextMenu(note, $event)" @keydown.enter.prevent="selectNote(note.id)" @keydown.space.prevent="selectNote(note.id)">
             <button class="card-edit" type="button" :aria-label="t('编辑便签：{title}', { title: note.title || t('无标题便签') })" :title="t('编辑')" @click.stop="selectNote(note.id, true)"><Pencil aria-hidden="true" /></button>
             <b class="card-title">{{ note.title || t('无标题便签') }}</b>
             <p class="card-preview" v-html="cardPreview(note.body)"></p>
             <small class="card-time">{{ formatTime(note.updatedAtMs) }}</small>
           </div>
         </div>
-        <p class="drag-hint">{{ t('拖拽便签即可调整顺序　·　右键查看更多操作') }}</p>
+        <p class="drag-hint">{{ query ? t('清除搜索后可拖拽排序　·　右键查看更多操作') : t('左键长按便签后拖动排序　·　右键查看更多操作') }}</p>
       </div>
 
       <div v-else class="records-scroll" :class="scope">
