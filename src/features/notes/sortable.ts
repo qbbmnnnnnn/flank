@@ -10,6 +10,15 @@ export function moveItem<T>(items: T[], oldIndex: number, newIndex: number): T[]
   return next;
 }
 
+export function restoreSortableDom(event: Pick<SortableEvent, "from" | "item" | "oldIndex">) {
+  if (event.oldIndex === undefined || event.item.parentElement !== event.from) return;
+  // Sortable moves the real node before Vue receives onEnd. Put it back first
+  // so Vue's keyed renderer sees the DOM shape represented by its old VNodes;
+  // the subsequent reactive array update then becomes the sole owner of order.
+  event.from.removeChild(event.item);
+  event.from.insertBefore(event.item, event.from.children.item(event.oldIndex));
+}
+
 export interface NoteSortableOptions {
   draggable: string;
   disabled?: boolean;
@@ -48,8 +57,10 @@ export function createNoteSortable(element: HTMLElement, options: NoteSortableOp
         options.onCancel?.();
         return;
       }
-      if (event.oldIndex !== event.newIndex) options.onEnd?.(event.oldIndex, event.newIndex);
-      else options.onCancel?.();
+      if (event.oldIndex !== event.newIndex) {
+        restoreSortableDom(event);
+        options.onEnd?.(event.oldIndex, event.newIndex);
+      } else options.onCancel?.();
     },
   });
 }
