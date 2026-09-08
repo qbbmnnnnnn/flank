@@ -14,6 +14,7 @@ export function installAppearance(): () => void {
     const fontStack = noteFontStack(settings.font);
     document.documentElement.style.setProperty("--display", fontStack);
     document.documentElement.style.setProperty("--note-font", fontStack);
+    document.documentElement.style.setProperty("--note-body-font-size", `${settings.fontSize}px`);
   };
   const stop = watch(savedSettings, apply, { immediate: true, deep: true });
   system.addEventListener("change", apply);

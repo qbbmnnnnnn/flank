@@ -38,3 +38,10 @@ it("supports exactly Chinese and English with safe legacy fallbacks", () => {
   expect(normalizeSettings({ language: "ja-JP" }).language).toBe("zh-CN");
   expect(normalizeSettings({ language: "en-US" }).language).toBe("en-US");
 });
+it("publishes a validated shared note body size", async () => {
+  await saveSettingsPatch({ fontSize: 21 }); await nextTick();
+  expect(document.documentElement.style.getPropertyValue("--note-body-font-size")).toBe("21px");
+  expect(normalizeSettings({ fontSize: 99 }).fontSize).toBe(22);
+  expect(normalizeSettings({ fontSize: 2 }).fontSize).toBe(13);
+  expect(normalizeSettings({ fontSize: Number.NaN }).fontSize).toBe(defaultSettings.fontSize);
+});

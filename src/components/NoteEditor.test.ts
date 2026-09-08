@@ -92,6 +92,12 @@ for (const entry of ['library', 'dock'] as const) describe(`${entry}: shared Mar
     undo(view); expect(view.state.doc.toString()).toBe('abcd');
     redo(view); expect(view.state.doc.toString()).toBe('a**bc**d');
   });
+  it('inserts a safe link template around the current selection', async () => {
+    await setup('visit Flank'); view.dispatch({ selection: { anchor: 6, head: 11 } });
+    await wrapper.findAll('.format-bar button')[6].trigger('click');
+    expect(view.state.doc.toString()).toBe('visit [Flank](https://)');
+    expect(view.state.sliceDoc(view.state.selection.main.from, view.state.selection.main.to)).toBe('https://');
+  });
   it('retains blank lines and caret during parent rerenders', async () => {
     await setup('\ntext\n\n'); view.dispatch({ selection: { anchor: 3 } });
     await wrapper.find('.editor-title').setValue('Updated');

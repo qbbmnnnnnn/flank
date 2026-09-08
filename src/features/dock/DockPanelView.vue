@@ -6,7 +6,10 @@ import { savedSettings } from "../../services/settingsService";
 import { failureReason } from "../../services/notificationService";
 import { guideCopy } from './guide';
 import { gsap } from "gsap";
+import { Bold, Code2, Heading2, ImagePlus, Italic, Link2, List, ListChecks } from "lucide-vue-next";
 import MarkdownEditor from '../../components/MarkdownEditor.vue';
+import MarkdownImage from '../../components/MarkdownImage.vue';
+import { openExternalUrl } from '../../services/assetService';
 
 import type { NoteColorId } from "../../contracts/note";
 import { noteService } from "../../services/noteService";
@@ -25,8 +28,10 @@ import {
 
 type EditorMode = "closed" | "preview" | "edit";
 type PreviewLine = {
-  kind: "heading" | "task" | "list" | "quote" | "paragraph";
+  kind: "heading" | "task" | "list" | "quote" | "image" | "paragraph";
   html: string;
+  src?: string;
+  alt?: string;
   index: number;
   level?: 1 | 2 | 3;
   checked?: boolean;
@@ -392,6 +397,8 @@ function renderLine(value: string) {
 
 function parseMarkdown(body: string): PreviewLine[] {
   return body.split("\n").map((line, index) => {
+    const image = line.match(/^\s*!\[([^\]]*)\]\((flank-asset:\/\/[a-f\d]{64}|https?:\/\/[^\s)]+)\)\s*$/i);
+    if (image) return { kind: "image", html: "", alt: image[1], src: image[2], index };
     const task = line.match(/^\s*(☐|☑)\s?(.*)$/) || line.match(/^\s*-\s*\[([ xX])\]\s?(.*)$/);
     if (task) return { kind: "task", html: renderLine(task[2] || ""), checked: task[1] === "☑" || /x/i.test(task[1]), index };
     const heading = line.match(/^(#{1,3})\s+(.*)$/);
@@ -402,6 +409,13 @@ function parseMarkdown(body: string): PreviewLine[] {
     if (quote) return { kind: "quote", html: renderLine(quote[1]), index };
     return { kind: "paragraph", html: renderLine(line), index };
   });
+}
+
+async function onPreviewClick(event: MouseEvent) {
+  const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href]');
+  if (!link) return;
+  event.preventDefault();
+  await openExternalUrl(link.href);
 }
 
 async function toggleTask(index: number) {
@@ -486,12 +500,13 @@ onUnmounted(() => {
             <button type="button" :aria-label="t('编辑便签')" :title="t('编辑')" @click="editNote"><svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg></button>
           </div>
         </header>
-        <div class="preview-body">
+        <div class="preview-body" @click="onPreviewClick">
           <template v-for="line in previewLines" :key="line.index">
             <component :is="`h${line.level}`" v-if="line.kind === 'heading'" v-html="line.html" />
             <div v-else-if="line.kind === 'task'" class="preview-task" :class="{ done: line.checked }"><button type="button" :disabled="isPlaceholder" :aria-label="line.checked ? t('标记未完成') : t('标记完成')" @click="void toggleTask(line.index)"></button><span v-html="line.html"></span></div>
             <div v-else-if="line.kind === 'list'" class="preview-list"><i></i><span v-html="line.html"></span></div>
             <blockquote v-else-if="line.kind === 'quote'" v-html="line.html" />
+            <MarkdownImage v-else-if="line.kind === 'image'" :src="line.src!" :alt="line.alt ?? ''" />
             <p v-else v-html="line.html || '&nbsp;'" />
           </template>
         </div>
@@ -506,12 +521,14 @@ onUnmounted(() => {
           <MarkdownEditor ref="editorBody" :key="editorSession" class="editor-body" :model-value="draftBody" @update:model-value="updateBody" />
         </div>
         <footer class="format-bar" @mousedown.prevent>
-          <button type="button" :title="t('插入任务')" @click="editorBody?.insertTask()"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m7.5 12 3 3 6-7"/></svg></button><i></i>
-          <button type="button" :title="t('标题')" @click="editorBody?.format('heading')">H</button>
-          <button type="button" :title="t('粗体（在星号中输入）')" @click="editorBody?.format('bold')"><b>B</b></button>
-          <button type="button" :title="t('斜体（选中文字，或点击后直接输入）')" @click="editorBody?.format('italic')"><em>I</em></button>
-          <button type="button" :title="t('切换列表')" @click="editorBody?.format('list')"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg></button>
-          <button type="button" :title="t('行内代码（选中文字，或点击后直接输入）')" @click="editorBody?.format('code')">&lt;/&gt;</button>
+          <button type="button" :title="t('插入任务')" @click="editorBody?.insertTask()"><ListChecks /></button><i></i>
+          <button type="button" :title="t('标题')" @click="editorBody?.format('heading')"><Heading2 /></button>
+          <button type="button" :title="t('粗体（在星号中输入）')" @click="editorBody?.format('bold')"><Bold /></button>
+          <button type="button" :title="t('斜体（选中文字，或点击后直接输入）')" @click="editorBody?.format('italic')"><Italic /></button>
+          <button type="button" :title="t('切换列表')" @click="editorBody?.format('list')"><List /></button>
+          <button type="button" :title="t('行内代码（选中文字，或点击后直接输入）')" @click="editorBody?.format('code')"><Code2 /></button><i></i>
+          <button type="button" :title="t('插入链接')" @click="editorBody?.insertLink()"><Link2 /></button>
+          <button type="button" :title="t('插入本地图片')" @click="editorBody?.insertImage()"><ImagePlus /></button>
         </footer>
       </template>
     </article>
@@ -525,10 +542,10 @@ onUnmounted(() => {
 .note-panel{position:absolute;z-index:3;top:50%;right:0;width:380px;overflow:hidden;will-change:transform,opacity;border:1px solid rgba(255,255,255,.28);border-radius:20px;color:var(--paper-ink,#2c2930);background:var(--paper,#ffe78a);box-shadow:none;transform:translateY(-50%);transform-origin:right center}.dock-left .note-panel{left:0;right:auto;transform-origin:left center}.edge-staged.dock-right .note-panel{right:var(--dock-rail,104px)}.edge-staged.dock-left .note-panel{left:var(--dock-rail,104px)}.note-panel::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(145deg,rgba(255,255,255,.26),transparent 26%,rgba(107,73,25,.05))}
 .note-panel.preview{height:min(490px,72vh)}.note-panel.edit{height:min(560px,78vh)}
 .panel-header{position:relative;z-index:1;height:64px;padding:0 15px 0 19px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(70,55,30,.11)}.panel-header h1{min-width:0;margin:0;overflow:hidden;color:var(--paper-ink,#29262b);font-size:22px;line-height:1.2;letter-spacing:-.025em;text-overflow:ellipsis;white-space:nowrap;user-select:text;-webkit-user-select:text}.panel-actions{display:flex;gap:6px}.panel-actions button,.panel-close{width:30px;height:30px;padding:0;display:grid;place-items:center;border:0;border-radius:50%;color:var(--paper-ink-soft,rgba(40,35,31,.58));background:rgba(255,255,255,.22);cursor:pointer;transition:background .18s ease,transform .18s ease}.panel-actions button:hover,.panel-close:hover{background:rgba(255,255,255,.42);transform:scale(1.06)}.panel-actions svg,.panel-close svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.preview-body{position:relative;z-index:1;height:calc(100% - 64px);padding:18px 22px 30px;overflow-y:auto;font-size:17px;line-height:1.85;user-select:text;-webkit-user-select:text;scrollbar-width:thin;scrollbar-color:rgba(70,55,30,.22) transparent}.preview-body p{min-height:1.7em;margin:2px 0}.preview-body h1,.preview-body h2,.preview-body h3{margin:19px 0 8px;line-height:1.3}.preview-body h1{font-size:23px}.preview-body h2{font-size:20px}.preview-body h3{font-size:17px}.preview-body :deep(code){padding:2px 5px;border-radius:5px;background:rgba(255,255,255,.28);font-family:"Cascadia Code",Consolas,monospace;font-size:.9em}.preview-body :deep(a){color:#315f9f;text-decoration-thickness:1px;text-underline-offset:2px}.preview-body blockquote{margin:8px 0;padding-left:12px;border-left:3px solid var(--paper-ink-soft,rgba(54,48,53,.3));color:var(--paper-ink-soft,rgba(54,48,53,.72))}
+.preview-body{position:relative;z-index:1;height:calc(100% - 64px);padding:18px 22px 30px;overflow-y:auto;font-size:var(--note-body-font-size,16px);line-height:1.85;font-synthesis:weight style;user-select:text;-webkit-user-select:text;scrollbar-width:thin;scrollbar-color:rgba(70,55,30,.22) transparent}.preview-body p{min-height:1.7em;margin:2px 0}.preview-body h1,.preview-body h2,.preview-body h3{margin:19px 0 8px;color:var(--paper-ink,#29262b);font-weight:800;line-height:1.3}.preview-body h1{font-size:1.55em}.preview-body h2{font-size:1.35em}.preview-body h3{font-size:1.18em}.preview-body :deep(strong){color:var(--paper-ink,#29262b);font-weight:800}.preview-body :deep(em){font-style:italic}.preview-body :deep(code){padding:2px 5px;border-radius:5px;background:rgba(255,255,255,.28);font-family:"Cascadia Code",Consolas,monospace;font-size:.9em}.preview-body :deep(a){color:#315f9f;text-decoration-thickness:1px;text-underline-offset:2px}.preview-body blockquote{margin:8px 0;padding-left:12px;border-left:3px solid var(--paper-ink-soft,rgba(54,48,53,.3));color:var(--paper-ink-soft,rgba(54,48,53,.72))}
 .preview-task,.preview-list{display:flex;align-items:flex-start;gap:9px;margin:5px 0}.preview-task button{width:19px;height:19px;flex:0 0 auto;margin-top:6px;padding:0;display:grid;place-items:center;border:1.6px solid var(--paper-ink-soft,rgba(54,48,53,.48));border-radius:6px;color:var(--paper-ink,#fff);background:rgba(255,255,255,.2);cursor:pointer}.preview-task.done button{border-color:#3d985c;background:#4cab69}.preview-task.done button::after{content:"✓";font-size:13px;font-weight:800;line-height:1}.preview-task.done span{opacity:.55;text-decoration:line-through}.preview-list i{width:5px;height:5px;flex:0 0 auto;margin:10px 5px 0 6px;border-radius:50%;background:currentColor;opacity:.58}
 .editor-header{position:relative;z-index:1;height:56px;padding:0 14px 0 19px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid rgba(70,55,30,.11)}.editor-header>div:first-child{display:flex;align-items:center;gap:9px;white-space:nowrap}.editor-header b{font-size:13px}.save-state{display:inline-flex;align-items:center;gap:6px;color:var(--paper-ink-soft,rgba(45,39,34,.58));font-size:11px;font-weight:650;transition:opacity .18s ease}.save-state.idle,.save-state.typing{opacity:0}.save-state i{width:6px;height:6px;border-radius:50%;background:var(--paper-ink-soft,rgba(45,39,34,.28))}.save-state.saving i{background:#4e7fc9;animation:panel-pulse .7s ease-in-out infinite alternate}.save-state.saved i{background:#3e9b5d}.save-state.error{color:#a33f3f}.save-state.error i{background:#d34f4f}.palette{margin-left:auto;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:7px;max-width:250px}.palette button{width:18px;height:18px;padding:0;border:2px solid rgba(255,255,255,.62);border-radius:50%;box-shadow:none;cursor:pointer;transition:transform .16s ease}.palette button:hover{transform:scale(1.16)}.palette button.selected{border-color:rgba(43,38,35,.7);transform:scale(.88)}
-.editor-title{position:relative;z-index:1;width:100%;height:78px;padding:20px 22px 10px;border:0;outline:0;color:var(--paper-ink,#29262b);background:transparent;font-size:27px;font-weight:700;line-height:1.2;letter-spacing:-.035em}.editor-title::placeholder{color:var(--paper-ink-soft,rgba(45,39,34,.4))}.editor-body-shell{position:relative;z-index:1;height:calc(100% - 188px);min-height:0}.editor-title,.editor-body{user-select:text;-webkit-user-select:text}.editor-body{position:absolute;inset:0;font-size:17px;line-height:1.85;--editor-padding-top:10px;--editor-padding-x:22px;--editor-placeholder:var(--paper-ink-soft,rgba(45,39,34,.4));--editor-scrollbar:rgba(70,55,30,.28)}
+.editor-title{position:relative;z-index:1;width:100%;height:78px;padding:20px 22px 10px;border:0;outline:0;color:var(--paper-ink,#29262b);background:transparent;font-size:27px;font-weight:700;line-height:1.2;letter-spacing:-.035em}.editor-title::placeholder{color:var(--paper-ink-soft,rgba(45,39,34,.4))}.editor-body-shell{position:relative;z-index:1;height:calc(100% - 188px);min-height:0}.editor-title,.editor-body{user-select:text;-webkit-user-select:text}.editor-body{position:absolute;inset:0;font-size:var(--note-body-font-size,16px);line-height:1.85;--editor-padding-top:10px;--editor-padding-x:22px;--editor-placeholder:var(--paper-ink-soft,rgba(45,39,34,.4));--editor-scrollbar:rgba(70,55,30,.28)}
 .format-bar{position:absolute;z-index:2;left:0;right:0;bottom:0;height:54px;padding:0 18px;display:flex;align-items:center;gap:5px;border-top:1px solid rgba(70,55,30,.1);background:rgba(255,255,255,.12)}.format-bar button{width:32px;height:32px;padding:0;display:grid;place-items:center;border:0;border-radius:8px;color:var(--paper-ink-soft,rgba(43,38,42,.66));background:transparent;cursor:pointer;font-weight:750}.format-bar button:hover{color:#29242a;background:rgba(255,255,255,.36)}.format-bar svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.format-bar>i{width:1px;height:20px;margin:0 3px;background:rgba(70,55,30,.13)}.format-bar>span{margin-left:auto;color:rgba(45,39,34,.5);font-size:10px;white-space:nowrap}
 @keyframes panel-pulse{to{opacity:.35;transform:scale(.72)}}
 @media(max-width:500px){.palette{gap:4px}.palette button{width:14px;height:14px}.format-bar>span{display:none}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}

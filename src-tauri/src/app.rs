@@ -1,4 +1,4 @@
-use std::sync::RwLock;
+use std::{path::PathBuf, sync::RwLock};
 
 use serde::{Deserialize, Serialize};
 use tauri::{
@@ -73,6 +73,7 @@ impl Default for AppSettings {
 
 pub struct AppState {
     pub database: Database,
+    pub app_data_dir: PathBuf,
     pub settings: RwLock<AppSettings>,
     pub settings_save_lock: tauri::async_runtime::Mutex<()>,
 }
@@ -165,6 +166,8 @@ pub fn run() {
             MacosLauncher::LaunchAgent,
             Some(vec!["--background"]),
         ))
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let app_data_dir = app.path().app_data_dir()?;
             let database = tauri::async_runtime::block_on(Database::open(&app_data_dir))
@@ -183,6 +186,7 @@ pub fn run() {
 
             app.manage(AppState {
                 database,
+                app_data_dir,
                 settings: RwLock::new(settings.clone()),
                 settings_save_lock: tauri::async_runtime::Mutex::new(()),
             });
@@ -230,6 +234,9 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            crate::commands::assets::import_image,
+            crate::commands::assets::open_external_url,
+            crate::commands::assets::resolve_asset_path,
             crate::commands::notes::list_notes,
             crate::commands::notes::create_note,
             crate::commands::notes::update_note,

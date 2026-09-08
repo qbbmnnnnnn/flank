@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { t } from '../services/i18n';
+import { Bold, Code2, Heading2, ImagePlus, Italic, Link2, List, ListChecks } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, ref } from 'vue';
 import { savedSettings } from '../services/settingsService';
 import type { NoteColorId, NoteRecord } from '../contracts/note';
@@ -114,12 +115,14 @@ onBeforeUnmount(() => {
       <MarkdownEditor ref="editorBody" class="editor-body" :model-value="draftBody" @update:model-value="updateBody" />
     </div>
     <footer class="format-bar" @mousedown.prevent>
-      <button type="button" :title="t('插入任务')" @click="editorBody?.insertTask()"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m7.5 12 3 3 6-7"/></svg></button><i></i>
-      <button type="button" :title="t('标题')" @click="editorBody?.format('heading')">H</button>
-      <button type="button" :title="t('粗体（在星号中输入）')" @click="editorBody?.format('bold')"><b>B</b></button>
-      <button type="button" :title="t('斜体（选中文字，或点击后直接输入）')" @click="editorBody?.format('italic')"><em>I</em></button>
-      <button type="button" :title="t('切换列表')" @click="editorBody?.format('list')"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg></button>
-      <button type="button" :title="t('行内代码（选中文字，或点击后直接输入）')" @click="editorBody?.format('code')">&lt;/&gt;</button>
+      <button type="button" :title="t('插入任务')" @click="editorBody?.insertTask()"><ListChecks /></button><i></i>
+      <button type="button" :title="t('标题')" @click="editorBody?.format('heading')"><Heading2 /></button>
+      <button type="button" :title="t('粗体（在星号中输入）')" @click="editorBody?.format('bold')"><Bold /></button>
+      <button type="button" :title="t('斜体（选中文字，或点击后直接输入）')" @click="editorBody?.format('italic')"><Italic /></button>
+      <button type="button" :title="t('切换列表')" @click="editorBody?.format('list')"><List /></button>
+      <button type="button" :title="t('行内代码（选中文字，或点击后直接输入）')" @click="editorBody?.format('code')"><Code2 /></button><i></i>
+      <button type="button" :title="t('插入链接')" @click="editorBody?.insertLink()"><Link2 /></button>
+      <button type="button" :title="t('插入本地图片')" @click="editorBody?.insertImage()"><ImagePlus /></button>
     </footer>
   </div>
 </template>
@@ -143,7 +146,7 @@ onBeforeUnmount(() => {
 .editor-title::placeholder{color:#a8b6c9}
 .editor-body-shell{flex:1;min-height:0;position:relative}
 .editor-title,.editor-body{user-select:text;-webkit-user-select:text}
-.editor-body{position:absolute;inset:0;color:#425674;font-family:var(--note-font,var(--display));font-size:18px;line-height:1.75}
+.editor-body{position:absolute;inset:0;color:#425674;font-family:var(--note-font,var(--display));font-size:var(--note-body-font-size,16px);line-height:1.75}
 .format-bar{flex:0 0 54px;padding:0 18px;display:flex;align-items:center;gap:5px;border-top:1px solid var(--border);background:#f8fafc}
 .format-bar button{width:32px;height:32px;padding:0;display:grid;place-items:center;border:0;border-radius:8px;color:#64748b;background:transparent;cursor:pointer;font-weight:750}
 .format-bar button:hover{color:var(--text);background:#eaf2ff}

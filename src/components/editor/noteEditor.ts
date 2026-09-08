@@ -1,5 +1,6 @@
 import { EditorSelection, Prec, type EditorState, type Extension } from '@codemirror/state';
-import { syntaxTree } from '@codemirror/language';
+import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language';
+import { tags } from '@lezer/highlight';
 import { defaultKeymap, history, historyKeymap, insertNewlineAndIndent, isolateHistory } from '@codemirror/commands';
 import { markdown, insertNewlineContinueMarkupCommand } from '@codemirror/lang-markdown';
 import { Decoration, EditorView, ViewPlugin, WidgetType, drawSelection, keymap, placeholder, type DecorationSet, type ViewUpdate } from '@codemirror/view';
@@ -143,6 +144,15 @@ export function noteEditorExtensions(onChange: (body: string) => void): Extensio
   return [
     history(), drawSelection(), EditorView.lineWrapping,
     markdown({ addKeymap: false }),
+    syntaxHighlighting(HighlightStyle.define([
+      { tag: tags.heading1, fontSize: '1.55em', fontWeight: '800', color: 'var(--editor-heading,currentColor)' },
+      { tag: tags.heading2, fontSize: '1.35em', fontWeight: '800', color: 'var(--editor-heading,currentColor)' },
+      { tag: tags.heading3, fontSize: '1.18em', fontWeight: '750', color: 'var(--editor-heading,currentColor)' },
+      { tag: tags.strong, fontWeight: '800', color: 'var(--editor-strong,currentColor)' },
+      { tag: tags.emphasis, fontStyle: 'italic', color: 'var(--editor-emphasis,currentColor)' },
+      { tag: tags.link, color: 'var(--editor-link,#315f9f)', textDecoration: 'underline' },
+      { tag: tags.url, color: 'var(--editor-link,#315f9f)', textDecoration: 'underline' },
+    ])),
     Prec.high(keymap.of([
       { key: 'Enter', run: continueTask },
       { key: 'Enter', run: insertNewlineContinueMarkupCommand({ nonTightLists: false }) },
@@ -168,6 +178,28 @@ export function insertTask(view: EditorView) {
       selection: { anchor: view.state.selection.main.head + 2 }, userEvent: 'input.task',
       annotations: isolateHistory.of('full'), scrollIntoView: true });
   }
+  view.focus();
+}
+
+export function insertLink(view: EditorView) {
+  const selection = view.state.selection.main;
+  const label = view.state.sliceDoc(selection.from, selection.to) || '链接文字';
+  const url = 'https://';
+  const insert = `[${label}](${url})`;
+  const urlFrom = selection.from + label.length + 3;
+  view.dispatch({ changes: { from: selection.from, to: selection.to, insert },
+    selection: EditorSelection.range(urlFrom, urlFrom + url.length), userEvent: 'input.format',
+    annotations: isolateHistory.of('full'), scrollIntoView: true });
+  view.focus();
+}
+
+export function insertImage(view: EditorView, uri: string, fallbackAlt: string) {
+  const selection = view.state.selection.main;
+  const alt = view.state.sliceDoc(selection.from, selection.to) || fallbackAlt;
+  const insert = `![${alt}](${uri})`;
+  view.dispatch({ changes: { from: selection.from, to: selection.to, insert },
+    selection: { anchor: selection.from + insert.length }, userEvent: 'input.format',
+    annotations: isolateHistory.of('full'), scrollIntoView: true });
   view.focus();
 }
 

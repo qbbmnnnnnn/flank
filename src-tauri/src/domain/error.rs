@@ -34,4 +34,12 @@ impl AppError {
             retryable: false,
         }
     }
+
+    pub fn internal(message: impl Into<String>) -> Self {
+        Self {
+            code: "asset_error",
+            message: message.into(),
+            retryable: true,
+        }
+    }
 }

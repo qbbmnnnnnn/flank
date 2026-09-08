@@ -22,9 +22,11 @@ import {
 } from "lucide-vue-next";
 import type { NoteRecord, NoteScope } from "../../contracts/note";
 import { noteService } from "../../services/noteService";
+import { openExternalUrl } from "../../services/assetService";
 import { notePaperStyle } from "../../services/noteColorService";
 import SettingsView from "../settings/SettingsView.vue";
 import NoteEditor from "../../components/NoteEditor.vue";
+import MarkdownImage from "../../components/MarkdownImage.vue";
 import { createNoteSortable, moveItem } from "../notes/sortable";
 
 const scope = ref<NoteScope>("active");
@@ -341,6 +343,13 @@ async function reorderNotes(oldIndex: number, newIndex: number) {
 }
 
 function onCardClick(id: string, event: MouseEvent) {
+  const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href]');
+  if (link) {
+    event.preventDefault();
+    event.stopPropagation();
+    void openExternalUrl(link.href);
+    return;
+  }
   if (sorting.value || Date.now() - dragEndedAt < 160) {
     event.preventDefault();
     event.stopPropagation();
@@ -372,6 +381,11 @@ function renderInline(value: string) {
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+|mailto:[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
 }
 
+function cardImage(body: string) {
+  const match = body.match(/^\s*!\[([^\]]*)\]\((flank-asset:\/\/[a-f\d]{64}|https?:\/\/[^\s)]+)\)\s*$/im);
+  return match ? { alt: match[1], src: match[2] } : null;
+}
+
 function cardPreview(body: string) {
   const parts: string[] = [];
   for (const raw of body.split("\n")) {
@@ -380,6 +394,8 @@ function cardPreview(body: string) {
       if (parts.length && parts[parts.length - 1] !== "") parts.push("");
       continue;
     }
+    const image = line.match(/^\s*!\[([^\]]*)\]\((?:flank-asset:\/\/[a-f\d]{64}|https?:\/\/[^\s)]+)\)\s*$/i);
+    if (image) continue;
     const task = line.match(/^\s*(☐|☑)\s?(.*)$/) || line.match(/^\s*-\s*\[([ xX])\]\s?(.*)$/);
     if (task) {
       const checked = task[1] === "☑" || /x/i.test(task[1]);
@@ -590,6 +606,7 @@ onUnmounted(() => {
             <button class="card-edit" type="button" :aria-label="t('编辑便签：{title}', { title: note.title || t('无标题便签') })" :title="t('编辑')" @click.stop="selectNote(note.id, true)"><Pencil aria-hidden="true" /></button>
             <b class="card-title">{{ note.title || t('无标题便签') }}</b>
             <p class="card-preview" v-html="cardPreview(note.body)"></p>
+            <MarkdownImage v-if="cardImage(note.body)" class="card-image" :src="cardImage(note.body)!.src" :alt="cardImage(note.body)!.alt" />
             <small class="card-time">{{ formatTime(note.updatedAtMs) }}</small>
           </div>
         </div>
@@ -608,6 +625,7 @@ onUnmounted(() => {
       </div>
     </section>
 
+    <button v-if="editorOpen && (selected || isNew)" class="note-detail-dismiss" type="button" :aria-label="t('关闭便签详情')" @click="closeEditor"></button>
     <section v-if="editorOpen && (selected || isNew)" class="note-detail" :aria-label="t('便签详情')">
       <header class="detail-toolbar">
         <button class="editor-close" type="button" :aria-label="t('关闭便签详情')" @click="closeEditor">×</button>

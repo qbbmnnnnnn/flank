@@ -43,6 +43,7 @@ export function normalizeSettings(value: Partial<AppSettings>): AppSettings {
     closeBehavior: value.closeBehavior === "quit" ? "quit" : "background",
     dockSize: ["small", "medium", "large"].includes(value.dockSize ?? "") ? value.dockSize! : "medium",
     font: isNoteFontId(value.font) ? value.font! : DEFAULT_NOTE_FONT,
+    fontSize: Math.min(22, Math.max(13, Math.round(Number(value.fontSize) || defaultSettings.fontSize))),
     customColors: normalizeCustomColors(value.customColors),
   };
 }

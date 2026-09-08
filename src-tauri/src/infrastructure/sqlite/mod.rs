@@ -2,11 +2,14 @@ use std::{collections::HashSet, path::Path, time::Duration};
 
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
-    ConnectOptions, SqlitePool,
+    ConnectOptions, Sqlite, SqlitePool, Transaction,
 };
 use thiserror::Error;
 
-use crate::domain::note::{CreateNoteInput, NoteRecord, NoteScope, UpdateNoteInput};
+use crate::domain::{
+    asset::AssetRecord,
+    note::{CreateNoteInput, NoteRecord, NoteScope, UpdateNoteInput},
+};
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
@@ -57,6 +60,31 @@ impl Database {
         MIGRATOR.run(&pool).await.map_err(DatabaseError::Migrate)?;
 
         Ok(Self { pool })
+    }
+
+    pub async fn save_attachment(&self, asset: &AssetRecord) -> Result<AssetRecord, DatabaseError> {
+        sqlx::query("INSERT INTO attachments (id, content_hash, relative_path, original_name, mime_type, byte_size, sync_state, created_at_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(content_hash) DO UPDATE SET original_name = excluded.original_name")
+            .bind(&asset.id)
+            .bind(&asset.content_hash)
+            .bind(&asset.relative_path)
+            .bind(&asset.original_name)
+            .bind(&asset.mime_type)
+            .bind(asset.byte_size)
+            .bind(&asset.sync_state)
+            .bind(asset.created_at_ms)
+            .execute(&self.pool)
+            .await
+            .map_err(DatabaseError::Query)?;
+        self.attachment(&asset.id).await
+    }
+
+    pub async fn attachment(&self, id: &str) -> Result<AssetRecord, DatabaseError> {
+        sqlx::query_as::<_, AssetRecord>("SELECT id, content_hash, relative_path, original_name, mime_type, byte_size, sync_state, created_at_ms FROM attachments WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(DatabaseError::Query)?
+            .ok_or(DatabaseError::NotFound)
     }
 
     pub async fn health_check(&self) -> Result<(), DatabaseError> {
@@ -131,6 +159,7 @@ impl Database {
         let now = now_ms();
         let id = uuid::Uuid::new_v4().to_string();
         let sort_key = format!("{:020}-{id}", i64::MAX - now);
+        let mut transaction = self.pool.begin().await.map_err(DatabaseError::Query)?;
         sqlx::query("INSERT INTO notes (id, title, title_source, body_ciphertext, body_nonce, body_key_id, color, created_at_ms, updated_at_ms, archived_at_ms, deleted_at_ms, sort_key, text_direction, revision) VALUES (?, ?, 'explicit', ?, X'', 'local-v1', ?, ?, ?, NULL, NULL, ?, ?, 1)")
             .bind(&id)
             .bind(input.title.trim())
@@ -140,13 +169,16 @@ impl Database {
             .bind(now)
             .bind(&sort_key)
             .bind(&input.text_direction)
-            .execute(&self.pool)
+            .execute(&mut *transaction)
             .await
             .map_err(DatabaseError::Query)?;
+        Self::reconcile_note_attachments(&mut transaction, &id, &input.body).await?;
+        transaction.commit().await.map_err(DatabaseError::Query)?;
         self.note_by_id(&id).await
     }
 
     pub async fn update_note(&self, input: UpdateNoteInput) -> Result<NoteRecord, DatabaseError> {
+        let mut transaction = self.pool.begin().await.map_err(DatabaseError::Query)?;
         let result = sqlx::query("UPDATE notes SET title = ?, body_ciphertext = ?, color = ?, text_direction = ?, updated_at_ms = ?, revision = revision + 1 WHERE id = ? AND revision = ? AND deleted_at_ms IS NULL")
             .bind(input.title.trim())
             .bind(input.body.as_bytes())
@@ -155,15 +187,47 @@ impl Database {
             .bind(now_ms())
             .bind(&input.id)
             .bind(input.expected_revision)
-            .execute(&self.pool)
+            .execute(&mut *transaction)
             .await
             .map_err(DatabaseError::Query)?;
         if result.rows_affected() == 0 {
+            transaction.rollback().await.map_err(DatabaseError::Query)?;
             return Err(self
                 .mutation_error(&input.id, input.expected_revision)
                 .await?);
         }
+        Self::reconcile_note_attachments(&mut transaction, &input.id, &input.body).await?;
+        transaction.commit().await.map_err(DatabaseError::Query)?;
         self.note_by_id(&input.id).await
+    }
+
+    async fn reconcile_note_attachments(
+        transaction: &mut Transaction<'_, Sqlite>,
+        note_id: &str,
+        body: &str,
+    ) -> Result<(), DatabaseError> {
+        const PREFIX: &str = "flank-asset://";
+        let mut ids = HashSet::new();
+        for (start, _) in body.match_indices(PREFIX) {
+            let candidate: String = body[start + PREFIX.len()..].chars().take(64).collect();
+            if candidate.len() == 64 && candidate.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                ids.insert(candidate.to_ascii_lowercase());
+            }
+        }
+        sqlx::query("DELETE FROM note_attachments WHERE note_id = ?")
+            .bind(note_id)
+            .execute(&mut **transaction)
+            .await
+            .map_err(DatabaseError::Query)?;
+        for id in ids {
+            sqlx::query("INSERT INTO note_attachments (note_id, attachment_id) SELECT ?, id FROM attachments WHERE id = ?")
+                .bind(note_id)
+                .bind(id)
+                .execute(&mut **transaction)
+                .await
+                .map_err(DatabaseError::Query)?;
+        }
+        Ok(())
     }
 
     pub async fn reorder_active_notes(&self, note_ids: &[String]) -> Result<(), DatabaseError> {
@@ -375,7 +439,10 @@ fn now_ms() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::{Database, DatabaseError};
-    use crate::domain::note::{CreateNoteInput, NoteScope, UpdateNoteInput};
+    use crate::domain::{
+        asset::AssetRecord,
+        note::{CreateNoteInput, NoteScope, UpdateNoteInput},
+    };
 
     #[tokio::test]
     async fn migrations_create_the_notes_table() {
@@ -389,6 +456,13 @@ mod tests {
         .expect("notes table should exist");
 
         assert_eq!(table, "notes");
+        let attachments: String = sqlx::query_scalar(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'attachments'",
+        )
+        .fetch_one(&database.pool)
+        .await
+        .expect("attachments table should exist");
+        assert_eq!(attachments, "attachments");
         database
             .health_check()
             .await
@@ -430,6 +504,59 @@ mod tests {
                 .expect("purge should succeed"),
             1
         );
+    }
+
+    #[tokio::test]
+    async fn note_bodies_reconcile_content_addressed_attachment_references() {
+        let database = Database::in_memory().await.unwrap();
+        let id = "a".repeat(64);
+        database
+            .save_attachment(&AssetRecord {
+                id: id.clone(),
+                content_hash: id.clone(),
+                relative_path: format!("assets/images/{id}.png"),
+                original_name: "image.png".into(),
+                mime_type: "image/png".into(),
+                byte_size: 8,
+                sync_state: "pending".into(),
+                created_at_ms: 1,
+            })
+            .await
+            .unwrap();
+        let note = database
+            .create_note(CreateNoteInput {
+                title: "Image".into(),
+                body: format!("![alt](flank-asset://{id})"),
+                color: "lemon".into(),
+                text_direction: "automatic".into(),
+            })
+            .await
+            .unwrap();
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM note_attachments WHERE note_id = ?")
+                .bind(&note.id)
+                .fetch_one(&database.pool)
+                .await
+                .unwrap();
+        assert_eq!(count, 1);
+        database
+            .update_note(UpdateNoteInput {
+                id: note.id.clone(),
+                title: note.title,
+                body: "removed".into(),
+                color: note.color,
+                text_direction: note.text_direction,
+                expected_revision: note.revision,
+            })
+            .await
+            .unwrap();
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM note_attachments WHERE note_id = ?")
+                .bind(note.id)
+                .fetch_one(&database.pool)
+                .await
+                .unwrap();
+        assert_eq!(count, 0);
     }
 
     #[tokio::test]

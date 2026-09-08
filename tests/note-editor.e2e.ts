@@ -34,6 +34,24 @@ for (const entry of ['library', 'dock'] as const) test.describe(`${entry} actual
     expect(await page.pageErrors()).toEqual([]);
   });
 
+  test('Markdown heading, bold and italic have visibly distinct typography', async ({ page }) => {
+    await bodyFocus(page);
+    await page.keyboard.insertText('## Heading\nnormal **bold** *italic*');
+    const styles = await page.locator('.cm-content').evaluate(element => {
+      const spans = [...element.querySelectorAll('span')];
+      const styleFor = (text: string) => {
+        const span = spans.find(item => item.textContent?.includes(text))!;
+        const style = getComputedStyle(span);
+        return { size: Number.parseFloat(style.fontSize), weight: Number.parseInt(style.fontWeight), italic: style.fontStyle };
+      };
+      return { heading: styleFor('Heading'), bold: styleFor('bold'), italic: styleFor('italic'), base: Number.parseFloat(getComputedStyle(element).fontSize) };
+    });
+    expect(styles.heading.size).toBeGreaterThan(styles.base);
+    expect(styles.heading.weight).toBeGreaterThanOrEqual(700);
+    expect(styles.bold.weight).toBeGreaterThanOrEqual(700);
+    expect(styles.italic.italic).toBe('italic');
+  });
+
   test('placeholder disappears immediately and repeated Enter never moves input backwards', async ({ page }) => {
     await expect(page.locator('.cm-placeholder')).toBeVisible();
     await bodyFocus(page);
@@ -135,6 +153,14 @@ for (const entry of ['library', 'dock'] as const) test.describe(`${entry} actual
     expect(cursor!.y + cursor!.height).toBeLessThanOrEqual(scroller!.y + scroller!.height + 1);
     expect(await page.locator('.cm-scroller').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   });
+});
+
+test('main editor closes when its backdrop is clicked', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '新建便签', exact: true }).click();
+  await expect(page.locator('.note-detail')).toBeVisible();
+  await page.locator('.note-detail-dismiss').click({ position: { x: 8, y: 8 } });
+  await expect(page.locator('.note-detail')).toHaveCount(0);
 });
 
 test('Dock save-preview-edit and new-note sessions do not retain stale placeholders or history', async ({ page }) => {
