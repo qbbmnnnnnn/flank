@@ -33,5 +33,5 @@ watch(() => props.src, resolve);
 </template>
 
 <style scoped>
-.markdown-image{margin:12px 0}.markdown-image img{display:block;max-width:100%;max-height:320px;border-radius:10px;object-fit:contain}.markdown-image figcaption{padding:14px;border:1px dashed currentColor;border-radius:9px;opacity:.6;text-align:center;font-size:.88em}
+.markdown-image{margin:var(--markdown-image-margin,12px auto);max-width:100%;text-align:center}.markdown-image img{display:block;width:auto;height:auto;max-width:100%;max-height:var(--markdown-image-max-height,320px);margin:0 auto;border-radius:10px;object-fit:contain}.markdown-image figcaption{padding:14px;border:1px dashed currentColor;border-radius:9px;opacity:.6;text-align:center;font-size:.88em}
 </style>

@@ -34,6 +34,9 @@ const registeredInk = new Set<string>();
 const INK_ON_PAPER = "#2f2a2b";
 const INK_ON_DARK_PAPER = "#fdfcfb";
 const INK_SOFT_ALPHA = "b3";
+const TASK_BORDER_ON_LIGHT_PAPER = "#36303573";
+const TASK_FILL_ON_LIGHT_PAPER = "#4cab69";
+const TASK_CHECK_ON_LIGHT_PAPER = "#ffffff";
 /** Below this relative luminance, white text wins the WCAG contrast comparison. */
 const LUMINANCE_THRESHOLD = 0.179;
 
@@ -128,8 +131,16 @@ export function noteInkSoftCss(color: NoteColorId): string {
   return `var(--note-ink-soft-${color}, ${soft})`;
 }
 
+function noteTaskColors(color: NoteColorId) {
+  const darkPaper = noteInkFor(color).ink === INK_ON_DARK_PAPER;
+  return darkPaper
+    ? { border: INK_ON_DARK_PAPER, fill: INK_ON_DARK_PAPER, check: noteColorCss(color) }
+    : { border: TASK_BORDER_ON_LIGHT_PAPER, fill: TASK_FILL_ON_LIGHT_PAPER, check: TASK_CHECK_ON_LIGHT_PAPER };
+}
+
 /** One style object for every surface painted with this color. */
 export function notePaperStyle(color: NoteColorId): Record<string, string> {
+  const task = noteTaskColors(color);
   return {
     "--paper": noteColorCss(color),
     "--paper-ink": noteInkCss(color),
@@ -137,6 +148,9 @@ export function notePaperStyle(color: NoteColorId): Record<string, string> {
     "--note": noteColorCss(color),
     "--note-ink": noteInkCss(color),
     "--note-ink-soft": noteInkSoftCss(color),
+    "--note-task-border": `var(--note-task-border-${color}, ${task.border})`,
+    "--note-task-fill": `var(--note-task-fill-${color}, ${task.fill})`,
+    "--note-task-check": `var(--note-task-check-${color}, ${task.check})`,
   };
 }
 
@@ -161,12 +175,19 @@ function applyInkVars(ids: Iterable<string>) {
     if (next.has(id)) continue;
     style.removeProperty(`--note-ink-${id}`);
     style.removeProperty(`--note-ink-soft-${id}`);
+    style.removeProperty(`--note-task-border-${id}`);
+    style.removeProperty(`--note-task-fill-${id}`);
+    style.removeProperty(`--note-task-check-${id}`);
     registeredInk.delete(id);
   }
   for (const id of next) {
     const { ink, soft } = noteInkFor(id);
+    const task = noteTaskColors(id);
     style.setProperty(`--note-ink-${id}`, ink);
     style.setProperty(`--note-ink-soft-${id}`, soft);
+    style.setProperty(`--note-task-border-${id}`, task.border);
+    style.setProperty(`--note-task-fill-${id}`, task.fill);
+    style.setProperty(`--note-task-check-${id}`, task.check);
     registeredInk.add(id);
   }
 }

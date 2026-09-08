@@ -196,7 +196,11 @@ export function insertLink(view: EditorView) {
 export function insertImage(view: EditorView, uri: string, fallbackAlt: string) {
   const selection = view.state.selection.main;
   const alt = view.state.sliceDoc(selection.from, selection.to) || fallbackAlt;
-  const insert = `![${alt}](${uri})`;
+  const line = view.state.doc.lineAt(selection.from);
+  const before = line.text.slice(0, Math.max(0, selection.from - line.from)).trim();
+  const after = line.text.slice(Math.max(0, selection.to - line.from)).trim();
+  // 图片独占一行，主窗口与便签栏才能按块级图片渲染。
+  const insert = `${before ? "\n" : ""}![${alt}](${uri})${after ? "\n" : ""}`;
   view.dispatch({ changes: { from: selection.from, to: selection.to, insert },
     selection: { anchor: selection.from + insert.length }, userEvent: 'input.format',
     annotations: isolateHistory.of('full'), scrollIntoView: true });

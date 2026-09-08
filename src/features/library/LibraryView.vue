@@ -381,46 +381,87 @@ function renderInline(value: string) {
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+|mailto:[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
 }
 
-function cardImage(body: string) {
-  const match = body.match(/^\s*!\[([^\]]*)\]\((flank-asset:\/\/[a-f\d]{64}|https?:\/\/[^\s)]+)\)\s*$/im);
-  return match ? { alt: match[1], src: match[2] } : null;
+const IMAGE_MARKDOWN = /!\[([^\]]*)\]\((flank-asset:\/\/[a-f\d]{64}|https?:\/\/[^\s)]+)\)/i;
+const IMAGE_MARKDOWN_ALL = /!\[[^\]]*\]\((?:flank-asset:\/\/[a-f\d]{64}|https?:\/\/[^\s)]+)\)/gi;
+
+function stripImages(value: string) {
+  return value.replace(IMAGE_MARKDOWN_ALL, "").trim();
+}
+
+function processTextLine(line: string) {
+  const task = line.match(/^\s*(☐|☑)\s?(.*)$/) || line.match(/^\s*-\s*\[([ xX])\]\s?(.*)$/);
+  if (task) {
+    const checked = task[1] === "☑" || /x/i.test(task[1]);
+    return `<span class="cv-task${checked ? " done" : ""}"><i class="cv-box"></i><span>${renderInline(task[2] ?? "")}</span></span>`;
+  }
+  const heading = line.match(/^(#{1,3})\s+(.*)$/);
+  if (heading) {
+    return `<span class="cv-heading cv-h${heading[1].length}">${renderInline(heading[2])}</span>`;
+  }
+  const list = line.match(/^\s*[-*+]\s+(.*)$/);
+  if (list) {
+    return `<span class="cv-list">${renderInline(list[1])}</span>`;
+  }
+  const quote = line.match(/^>\s?(.*)$/);
+  if (quote) {
+    return `<span class="cv-quote">${renderInline(quote[1])}</span>`;
+  }
+  return renderInline(line);
 }
 
 function cardPreview(body: string) {
   const parts: string[] = [];
   for (const raw of body.split("\n")) {
-    const line = raw.trim();
-    if (!line) {
+    const trimmed = raw.trim();
+    if (!trimmed) {
       if (parts.length && parts[parts.length - 1] !== "") parts.push("");
       continue;
     }
-    const image = line.match(/^\s*!\[([^\]]*)\]\((?:flank-asset:\/\/[a-f\d]{64}|https?:\/\/[^\s)]+)\)\s*$/i);
-    if (image) continue;
-    const task = line.match(/^\s*(☐|☑)\s?(.*)$/) || line.match(/^\s*-\s*\[([ xX])\]\s?(.*)$/);
-    if (task) {
-      const checked = task[1] === "☑" || /x/i.test(task[1]);
-      parts.push(`<span class="cv-task${checked ? " done" : ""}"><i class="cv-box"></i><span>${renderInline(task[2] ?? "")}</span></span>`);
-      continue;
-    }
-    const heading = line.match(/^(#{1,3})\s+(.*)$/);
-    if (heading) {
-      parts.push(`<span class="cv-heading cv-h${heading[1].length}">${renderInline(heading[2])}</span>`);
-      continue;
-    }
-    const list = line.match(/^\s*[-*+]\s+(.*)$/);
-    if (list) {
-      parts.push(`<span class="cv-list">${renderInline(list[1])}</span>`);
-      continue;
-    }
-    const quote = line.match(/^>\s?(.*)$/);
-    if (quote) {
-      parts.push(`<span class="cv-quote">${renderInline(quote[1])}</span>`);
-      continue;
-    }
-    parts.push(renderInline(line));
+    const line = stripImages(trimmed);
+    if (!line) continue;
+    parts.push(processTextLine(line));
   }
   while (parts.length && parts[parts.length - 1] === "") parts.pop();
   return parts.join("<br>") || `<span class="cv-empty">${t('空白便签')}</span>`;
+}
+
+type CardSegment = { kind: "text"; html: string } | { kind: "image"; src: string; alt: string };
+
+function cardSegments(body: string): CardSegment[] {
+  const segments: CardSegment[] = [];
+  let textParts: string[] = [];
+
+  function flushText() {
+    while (textParts.length && textParts[textParts.length - 1] === "") textParts.pop();
+    if (textParts.length > 0) {
+      segments.push({ kind: "text", html: textParts.join("<br>") });
+    }
+    textParts = [];
+  }
+
+  for (const raw of body.split("\n")) {
+    const trimmed = raw.trim();
+    const imageMatch = trimmed.match(/^!\[([^\]]*)\]\((flank-asset:\/\/[a-f\d]{64}|https?:\/\/[^\s)]+)\)\s*$/i);
+    if (imageMatch) {
+      flushText();
+      segments.push({ kind: "image", src: imageMatch[2], alt: imageMatch[1] });
+      continue;
+    }
+    if (!trimmed) {
+      if (textParts.length && textParts[textParts.length - 1] !== "") textParts.push("");
+      continue;
+    }
+    const line = stripImages(trimmed);
+    if (!line) continue;
+    textParts.push(processTextLine(line));
+  }
+  flushText();
+
+  if (segments.length === 0) {
+    segments.push({ kind: "text", html: `<span class="cv-empty">${t('空白便签')}</span>` });
+  }
+
+  return segments;
 }
 
 function retention(note: NoteRecord) {
@@ -605,8 +646,12 @@ onUnmounted(() => {
           <div v-for="note in notes" :key="note.id" class="note-card recent-card" :class="{ selected: selectedId === note.id }" :style="notePaperStyle(note.color)" role="button" tabindex="0" :data-note-id="note.id" :aria-label="t('便签：{title}', { title: note.title || t('无标题便签') })" :aria-roledescription="t('可排序便签')" @click="onCardClick(note.id, $event)" @contextmenu.prevent="openContextMenu(note, $event)" @keydown.enter.prevent="selectNote(note.id)" @keydown.space.prevent="selectNote(note.id)">
             <button class="card-edit" type="button" :aria-label="t('编辑便签：{title}', { title: note.title || t('无标题便签') })" :title="t('编辑')" @click.stop="selectNote(note.id, true)"><Pencil aria-hidden="true" /></button>
             <b class="card-title">{{ note.title || t('无标题便签') }}</b>
-            <p class="card-preview" v-html="cardPreview(note.body)"></p>
-            <MarkdownImage v-if="cardImage(note.body)" class="card-image" :src="cardImage(note.body)!.src" :alt="cardImage(note.body)!.alt" />
+            <div class="card-body">
+              <template v-for="(segment, idx) in cardSegments(note.body)" :key="idx">
+                <p v-if="segment.kind === 'text'" class="card-preview" v-html="segment.html"></p>
+                <MarkdownImage v-else class="card-image" :src="segment.src" :alt="segment.alt" />
+              </template>
+            </div>
             <small class="card-time">{{ formatTime(note.updatedAtMs) }}</small>
           </div>
         </div>

@@ -32,6 +32,11 @@ describe("paper contrast", () => {
     expect(noteInkFor("custom-test-dark").ink).toBe("#fdfcfb");
     expect(noteInkFor("custom-test-dark2").ink).toBe("#fdfcfb");
     expect(noteInkFor("custom-test-light").ink).toBe("#2f2a2b");
+
+    const darkStyle = notePaperStyle("custom-test-dark");
+    expect(darkStyle["--note-task-border"]).toBe("var(--note-task-border-custom-test-dark, #fdfcfb)");
+    expect(darkStyle["--note-task-fill"]).toBe("var(--note-task-fill-custom-test-dark, #fdfcfb)");
+    expect(darkStyle["--note-task-check"]).toBe("var(--note-task-check-custom-test-dark, var(--note-custom-test-dark, #123456))");
   });
 
   it("derives hex fallbacks from the shared HSL paper definitions", () => {
