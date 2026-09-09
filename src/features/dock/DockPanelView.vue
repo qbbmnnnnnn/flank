@@ -63,6 +63,7 @@ const palette = computed(() => noteColorPool(savedSettings.value));
 let saveTimer: number | undefined;
 let saveStateTimer: number | undefined;
 let panelAnimation: gsap.core.Timeline | undefined;
+let imageDialogOpen = false;
 let unlistenOpen: (() => void) | undefined;
 let unlistenClose: (() => void) | undefined;
 let unlistenFocus: (() => void) | undefined;
@@ -378,6 +379,16 @@ function onWindowKeydown(event: KeyboardEvent) {
   }
 }
 
+async function insertDockImage() {
+  if (imageDialogOpen) return;
+  imageDialogOpen = true;
+  try {
+    await editorBody.value?.insertImage();
+  } finally {
+    imageDialogOpen = false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Markdown preview
 // ---------------------------------------------------------------------------
@@ -464,9 +475,10 @@ onMounted(async () => {
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
     const panelWindow = getCurrentWindow();
     unlistenFocus = await panelWindow.onFocusChanged(({ payload: focused }) => {
-      // Blur-close is owned by the rail: it needs a short grace period to
-      // distinguish "clicked another tab" from "clicked away entirely".
-      if (!focused && open.value) void emitToDock(DOCK_BRIDGE.blurred, null);
+      // Opening the native image picker temporarily blurs its owner window.
+      // It is not an outside click: keep the editor mounted so the selected
+      // asset can be inserted into the original CodeMirror selection.
+      if (!focused && open.value && !imageDialogOpen) void emitToDock(DOCK_BRIDGE.blurred, null);
     });
   } catch {
     // Browser preview has no native panel window.
@@ -528,7 +540,7 @@ onUnmounted(() => {
           <button type="button" :title="t('切换列表')" @click="editorBody?.format('list')"><List /></button>
           <button type="button" :title="t('行内代码（选中文字，或点击后直接输入）')" @click="editorBody?.format('code')"><Code2 /></button><i></i>
           <button type="button" :title="t('插入链接')" @click="editorBody?.insertLink()"><Link2 /></button>
-          <button type="button" :title="t('插入本地图片')" @click="editorBody?.insertImage()"><ImagePlus /></button>
+          <button type="button" :title="t('插入本地图片')" @click="insertDockImage"><ImagePlus /></button>
         </footer>
       </template>
     </article>
