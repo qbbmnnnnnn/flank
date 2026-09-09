@@ -376,11 +376,11 @@ onUnmounted(() => {
           </section>
           <section class="settings-group color-settings">
             <div class="group-heading"><div><h2>{{ t('新便签颜色') }}</h2><p>{{ t('新建便签会从颜色池中随机选取一种颜色，之后可在编辑器中更改。') }}</p></div><span class="pool-count">{{ customColors.length }} / {{ MAX_CUSTOM_NOTE_COLORS }}</span></div>
-            <div class="color-option">
+            <!-- <div class="color-option">
               <span class="color-random"><i v-for="color in colorPool" :key="color.id" :style="{ background: swatch(color) }"></i></span>
               <div><b>{{ t('每次随机选择') }}</b><small>{{ t('颜色池共 {count} 种颜色，内置 6 种不可修改', { count: colorPool.length }) }}</small></div>
               <em>{{ t('固定') }}</em>
-            </div>
+            </div> -->
             <div class="color-pool">
               <div v-for="color in colorPool" :key="color.id" class="pool-item" :class="{ custom: !isBuiltinNoteColor(color.id) }">
                 <span class="pool-chip" :style="{ background: swatch(color) }"></span>
@@ -451,7 +451,7 @@ onUnmounted(() => {
 .font-sample { margin: 0; color: var(--muted, #9a959e); font-size: 16px; line-height: 1.3; text-align: center; white-space: nowrap; }
 .pool-count { margin-left: auto; padding: 3px 9px; border-radius: 99px; color: var(--muted, #7b7590); background: var(--soft, #f4f2ef); font-size: 9px; font-weight: 750; }
 .color-option { cursor: default; }
-.color-pool { padding: 0 20px 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
+.color-pool { padding: 20px 20px 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
 .pool-item { min-height: 88px; padding: 10px 8px; display: grid; place-items: center; align-content: center; gap: 6px; position: relative; border: 1px solid var(--border, #e5e1dd); border-radius: 11px; background: var(--surface, #fff); }
 .pool-item.custom { background: var(--soft, #fcfbf9); }
 .pool-chip { width: 30px; height: 30px; border-radius: 9px; box-shadow: 0 4px 8px rgba(54,47,40,.1), inset 0 1px rgba(255,255,255,.55); }
