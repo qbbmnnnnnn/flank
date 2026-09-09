@@ -5,8 +5,9 @@ import { computed, onBeforeUnmount, ref } from 'vue';
 import { savedSettings } from '../services/settingsService';
 import type { NoteColorId, NoteRecord } from '../contracts/note';
 import { noteService } from '../services/noteService';
-import { noteColorCss, noteColorPool, pickRandomNoteColor } from '../services/noteColorService';
+import { noteColorPool, pickRandomNoteColor } from '../services/noteColorService';
 import MarkdownEditor from './MarkdownEditor.vue';
+import NoteColorPicker from './NoteColorPicker.vue';
 
 const props = defineProps<{ note: NoteRecord | null }>();
 const emit = defineEmits<{ saved: [payload: { note: NoteRecord; isNew: boolean }] }>();
@@ -74,6 +75,11 @@ function scheduleSave() {
   saveTimer = window.setTimeout(() => { saveTimer = undefined; void flushSave(); }, 900);
 }
 function updateBody(body: string) { draftBody.value = body; scheduleSave(); }
+function updateColor(color: NoteColorId) {
+  if (draftColor.value === color) return;
+  draftColor.value = color;
+  scheduleSave();
+}
 function flushSave(): Promise<NoteRecord | null> {
   saveQueue = saveQueue.then(persistDraft, persistDraft);
   return saveQueue;
@@ -106,9 +112,7 @@ onBeforeUnmount(() => {
         <b>{{ isNewSession ? t('新便签') : t('编辑便签') }}</b>
         <span class="save-state" :class="saveState"><i></i>{{ t(saveStateLabel) }}</span>
       </div>
-      <div class="palette">
-        <button v-for="color in palette" :key="color.id" type="button" :class="{ selected: draftColor === color.id }" :style="{ background: noteColorCss(color.id) }" :aria-label="t('选择颜色 {color}', { color: color.name })" @click="draftColor = color.id; scheduleSave()"></button>
-      </div>
+      <NoteColorPicker :model-value="draftColor" :colors="palette" @update:model-value="updateColor" />
     </header>
     <input ref="titleInput" v-model="draftTitle" class="editor-title" maxlength="28" :placeholder="t('标题')" :aria-label="t('便签标题')" @input="scheduleSave" @keydown="onTitleKeydown">
     <div class="editor-body-shell">
@@ -138,10 +142,6 @@ onBeforeUnmount(() => {
 .save-state.saving i{background:#4e7fc9;animation:editor-pulse .7s ease-in-out infinite alternate}
 .save-state.saved i{background:#3e9b5d}
 .save-state.error{color:#c0392b}.save-state.error i{background:#d34f4f}
-.palette{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:7px;max-width:280px}
-.palette button{width:18px;height:18px;padding:0;border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 1px #cbd5e1;cursor:pointer;transition:transform .16s ease}
-.palette button:hover{transform:scale(1.16)}
-.palette button.selected{box-shadow:0 0 0 2px var(--accent);transform:scale(.88)}
 .editor-title{width:100%;height:72px;flex:0 0 72px;padding:18px 24px 8px;border:0;outline:0;color:var(--text);background:transparent;font-family:var(--note-font,var(--display));font-size:26px;line-height:1.2}
 .editor-title::placeholder{color:#a8b6c9}
 .editor-body-shell{flex:1;min-height:0;position:relative}

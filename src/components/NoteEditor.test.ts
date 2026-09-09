@@ -110,25 +110,52 @@ for (const entry of ['library', 'dock'] as const) describe(`${entry}: shared Mar
   });
 });
 
+const existingNote = {
+  id: 'note-1', title: 'Existing note', body: 'Body', color: 'lemon',
+  createdAtMs: 1, updatedAtMs: 1, archivedAtMs: null, deletedAtMs: null,
+  sortKey: '1', textDirection: 'automatic' as const, revision: 1,
+};
+
 describe('NoteEditor color picker', () => {
   it('shows the same palette while editing and saves the selected color', async () => {
-    const note = {
-      id: 'note-1', title: 'Existing note', body: 'Body', color: 'lemon',
-      createdAtMs: 1, updatedAtMs: 1, archivedAtMs: null, deletedAtMs: null,
-      sortKey: '1', textDirection: 'automatic' as const, revision: 1,
-    };
-    wrapper = mount(NoteEditor, { attachTo: document.body, props: { note } });
+    wrapper = mount(NoteEditor, { attachTo: document.body, props: { note: existingNote } });
 
-    const colors = wrapper.findAll('.palette button');
+    await wrapper.find('.color-picker-trigger').trigger('click');
+    const colors = wrapper.findAll('.note-color-option');
     expect(colors).toHaveLength(2);
     expect(colors[0].classes()).toContain('selected');
 
     await colors[1].trigger('click');
-    expect(colors[1].classes()).toContain('selected');
     await (wrapper.vm as unknown as { flush: () => Promise<string> }).flush();
 
     expect(wrapper.emitted('saved')?.at(-1)?.[0]).toMatchObject({
       note: { id: 'note-1', color: 'sky', revision: 2 },
+      isNew: false,
+    });
+  });
+});
+
+describe('DockPanelView color picker', () => {
+  it('shows the palette for an existing note and saves its selected color', async () => {
+    wrapper = mount(DockPanelView, { attachTo: document.body });
+    await flushPromises();
+    const open = bridge.handlers.get('dock-panel:open')!;
+    await open({ note: existingNote, isNew: false, sameNote: false, isPlaceholder: false, anchorSide: 'right', dockRailWidth: 104 });
+    await flushPromises();
+    await open({ note: existingNote, isNew: false, sameNote: true, isPlaceholder: false, anchorSide: 'right', dockRailWidth: 104 });
+    await flushPromises();
+
+    await wrapper.find('.color-picker-trigger').trigger('click');
+    const colors = wrapper.findAll('.note-color-option');
+    expect(colors).toHaveLength(2);
+    expect(colors[0].classes()).toContain('selected');
+
+    await colors[1].trigger('click');
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true }));
+    await flushPromises();
+
+    expect(bridge.emit).toHaveBeenCalledWith('dock-panel:save', {
+      note: expect.objectContaining({ id: 'note-1', color: 'sky', revision: 2 }),
       isNew: false,
     });
   });
