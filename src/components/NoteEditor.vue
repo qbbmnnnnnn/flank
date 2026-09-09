@@ -106,7 +106,7 @@ onBeforeUnmount(() => {
         <b>{{ isNewSession ? t('新便签') : t('编辑便签') }}</b>
         <span class="save-state" :class="saveState"><i></i>{{ t(saveStateLabel) }}</span>
       </div>
-      <div v-if="isNewSession" class="palette">
+      <div class="palette">
         <button v-for="color in palette" :key="color.id" type="button" :class="{ selected: draftColor === color.id }" :style="{ background: noteColorCss(color.id) }" :aria-label="t('选择颜色 {color}', { color: color.name })" @click="draftColor = color.id; scheduleSave()"></button>
       </div>
     </header>

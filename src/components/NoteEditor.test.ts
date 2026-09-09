@@ -18,7 +18,12 @@ vi.mock('../services/settingsService', async () => {
   const { ref } = await import('vue');
   return { savedSettings: ref({ language: 'zh-CN', noteColors: [] }) };
 });
-vi.mock('../services/noteColorService', () => ({ noteColorPool: () => [], pickRandomNoteColor: () => 'lemon', noteColorCss: () => '#fff', notePaperStyle: () => ({}) }));
+vi.mock('../services/noteColorService', () => ({
+  noteColorPool: () => [{ id: 'lemon', name: 'Lemon' }, { id: 'sky', name: 'Sky' }],
+  pickRandomNoteColor: () => 'lemon',
+  noteColorCss: (color: string) => color,
+  notePaperStyle: () => ({}),
+}));
 vi.mock('../services/i18n', () => ({ t: (text: string) => text }));
 
 let wrapper: VueWrapper;
@@ -102,5 +107,29 @@ for (const entry of ['library', 'dock'] as const) describe(`${entry}: shared Mar
     await setup('\ntext\n\n'); view.dispatch({ selection: { anchor: 3 } });
     await wrapper.find('.editor-title').setValue('Updated');
     expect(view.state.doc.toString()).toBe('\ntext\n\n'); expect(view.state.selection.main.head).toBe(3);
+  });
+});
+
+describe('NoteEditor color picker', () => {
+  it('shows the same palette while editing and saves the selected color', async () => {
+    const note = {
+      id: 'note-1', title: 'Existing note', body: 'Body', color: 'lemon',
+      createdAtMs: 1, updatedAtMs: 1, archivedAtMs: null, deletedAtMs: null,
+      sortKey: '1', textDirection: 'automatic' as const, revision: 1,
+    };
+    wrapper = mount(NoteEditor, { attachTo: document.body, props: { note } });
+
+    const colors = wrapper.findAll('.palette button');
+    expect(colors).toHaveLength(2);
+    expect(colors[0].classes()).toContain('selected');
+
+    await colors[1].trigger('click');
+    expect(colors[1].classes()).toContain('selected');
+    await (wrapper.vm as unknown as { flush: () => Promise<string> }).flush();
+
+    expect(wrapper.emitted('saved')?.at(-1)?.[0]).toMatchObject({
+      note: { id: 'note-1', color: 'sky', revision: 2 },
+      isNew: false,
+    });
   });
 });
