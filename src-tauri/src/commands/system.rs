@@ -139,6 +139,82 @@ pub fn show_main_window(app: tauri::AppHandle, route: Option<String>) -> Result<
     main.set_focus().map_err(|error| error.to_string())
 }
 
+#[cfg(target_os = "macos")]
+fn dock_target_position(
+    monitor_x: i32,
+    monitor_y: i32,
+    monitor_width: u32,
+    monitor_height: u32,
+    dock_width: u32,
+    dock_height: u32,
+    anchor_side: &str,
+) -> (i32, i32) {
+    let x = if anchor_side == "left" {
+        monitor_x
+    } else {
+        monitor_x + monitor_width.saturating_sub(dock_width) as i32
+    };
+    let y = monitor_y + (monitor_height.saturating_sub(dock_height) / 2) as i32;
+    (x, y)
+}
+
+/// Resize and position the Dock as one native operation. WebKit on macOS can
+/// report the previous outer size for a frame after `set_size`; calculating the
+/// target from the requested logical size avoids the resulting gap/overflow.
+#[tauri::command]
+pub fn resize_and_snap_dock(
+    window: tauri::WebviewWindow,
+    anchor_side: String,
+    logical_width: f64,
+    logical_height: f64,
+) -> Result<(), String> {
+    resize_and_snap_dock_impl(&window, &anchor_side, logical_width, logical_height)
+}
+
+#[cfg(target_os = "macos")]
+fn resize_and_snap_dock_impl(
+    window: &tauri::WebviewWindow,
+    anchor_side: &str,
+    logical_width: f64,
+    logical_height: f64,
+) -> Result<(), String> {
+    let monitor = window
+        .current_monitor()
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "current monitor is unavailable".to_string())?;
+    let scale = monitor.scale_factor();
+    let dock_width = (logical_width * scale).round().max(1.0) as u32;
+    let dock_height = (logical_height * scale).round().max(1.0) as u32;
+    let monitor_position = monitor.position();
+    let monitor_size = monitor.size();
+    let (x, y) = dock_target_position(
+        monitor_position.x,
+        monitor_position.y,
+        monitor_size.width,
+        monitor_size.height,
+        dock_width,
+        dock_height,
+        anchor_side,
+    );
+
+    window
+        .set_size(tauri::LogicalSize::new(logical_width, logical_height))
+        .map_err(|error| error.to_string())?;
+    window
+        .set_position(tauri::PhysicalPosition::new(x, y))
+        .map_err(|error| error.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn resize_and_snap_dock_impl(
+    _window: &tauri::WebviewWindow,
+    _anchor_side: &str,
+    _logical_width: f64,
+    _logical_height: f64,
+) -> Result<(), String> {
+    Err("resize_and_snap_dock is only available on macOS".to_string())
+}
+
 #[tauri::command]
 pub fn toggle_dock_window(app: tauri::AppHandle) -> Result<bool, String> {
     let dock = app
@@ -576,6 +652,19 @@ fn sample_luminance_impl(points: &[ScreenPoint]) -> Vec<Option<f64>> {
 mod settings_tests {
     use super::*;
     use serde_json::json;
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn dock_target_stays_flush_for_every_width_and_side() {
+        for width in [88, 104, 120, 176, 208, 240] {
+            let left = dock_target_position(40, -20, 2560, 1440, width, 720, "left");
+            let right = dock_target_position(40, -20, 2560, 1440, width, 720, "right");
+            assert_eq!(left.0, 40);
+            assert_eq!(right.0 + width as i32, 2600);
+            assert_eq!(left.1, 340);
+            assert_eq!(right.1, 340);
+        }
+    }
 
     #[test]
     fn old_saved_settings_get_safe_defaults() {

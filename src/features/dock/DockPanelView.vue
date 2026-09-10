@@ -18,6 +18,7 @@ import { noteColorPool, notePaperStyle, pickRandomNoteColor } from "../../servic
 import {
   DOCK_BRIDGE,
   emitToDock,
+  isMacOS,
   isTauriRuntime,
   listenOnWebview,
   type AnchorSide,
@@ -45,6 +46,7 @@ watch(() => savedSettings.value.language, () => {
 });
 
 const side = ref<AnchorSide>("right");
+const macOS = isMacOS();
 const open = ref(false);
 const edgeStaged = ref(false);
 const railWidth = ref(104);
@@ -144,12 +146,25 @@ function playPanelEntrance(panel: HTMLElement) {
     x: offscreenX,
     rotation: -9 * direction,
     autoAlpha: 0,
+    ...(macOS ? { force3D: true } : {}),
     transformOrigin: side.value === "left" ? "left 42%" : "right 42%",
   });
   panelAnimation = gsap.timeline({ defaults: { overwrite: "auto" } })
     .set(panel, { autoAlpha: 1 })
-    .to(panel, { x: 12 * direction, rotation: 2.2 * direction, duration: .56, ease: "power3.out" })
-    .to(panel, { x: 0, rotation: 0, duration: .3, ease: "back.out(1.7)", clearProps: "transform,opacity,visibility", onComplete: () => void settlePanelWindow() });
+    .to(panel, {
+      x: 12 * direction,
+      rotation: 2.2 * direction,
+      duration: .56,
+      ease: "power3.out",
+    })
+    .to(panel, {
+      x: 0,
+      rotation: 0,
+      duration: .3,
+      ease: "back.out(1.7)",
+      clearProps: "transform,opacity,visibility",
+      onComplete: () => void settlePanelWindow(),
+    });
 }
 
 async function animateOutCurrent() {
@@ -508,7 +523,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main ref="root" class="dock-panel-window" :class="[`dock-${side}`, { open, 'edge-staged': edgeStaged }]" :style="{ '--dock-rail': `${railWidth}px` }">
+  <main ref="root" class="dock-panel-window" :class="[`dock-${side}`, { open, 'edge-staged': edgeStaged, macos: macOS }]" :style="{ '--dock-rail': `${railWidth}px` }">
     <button v-if="open" class="panel-dismiss-layer" type="button" :aria-label="t('关闭便签')" @click="requestClose"></button>
     <article v-if="open && mode !== 'closed'" class="note-panel" :class="[mode, { placeholder: isPlaceholder }]" :style="paperStyle">
       <template v-if="mode === 'preview' && activeNote">
@@ -557,7 +572,7 @@ onUnmounted(() => {
 .dock-panel-window{width:100vw;height:100vh;position:relative;overflow:hidden;background:transparent;pointer-events:none;user-select:none;-webkit-user-select:none;font-family:var(--note-font,"Noty Display","Microsoft YaHei",Geist,"Segoe UI",sans-serif)}
 .note-panel,.note-panel *{pointer-events:auto}
 .panel-dismiss-layer{position:absolute;z-index:2;inset:0;padding:0;border:0;background:transparent;pointer-events:auto;cursor:default}
-.note-panel{position:absolute;z-index:3;top:50%;right:0;width:380px;overflow:hidden;will-change:transform,opacity;border:1px solid rgba(255,255,255,.28);border-radius:20px;color:var(--paper-ink,#2c2930);background:var(--paper,#ffe78a);box-shadow:none;transform:translateY(-50%);transform-origin:right center}.dock-left .note-panel{left:0;right:auto;transform-origin:left center}.edge-staged.dock-right .note-panel{right:var(--dock-rail,104px)}.edge-staged.dock-left .note-panel{left:var(--dock-rail,104px)}.note-panel::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(145deg,rgba(255,255,255,.26),transparent 26%,rgba(107,73,25,.05))}
+.note-panel{position:absolute;z-index:3;top:50%;right:0;width:380px;overflow:hidden;will-change:transform,opacity;border:1px solid rgba(255,255,255,.28);border-radius:20px;color:var(--paper-ink,#2c2930);background:var(--paper,#ffe78a);box-shadow:none;transform:translateY(-50%);transform-origin:right center}.macos .note-panel{-webkit-backface-visibility:hidden;backface-visibility:hidden}.dock-left .note-panel{left:0;right:auto;transform-origin:left center}.edge-staged.dock-right .note-panel{right:var(--dock-rail,104px)}.edge-staged.dock-left .note-panel{left:var(--dock-rail,104px)}.note-panel::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(145deg,rgba(255,255,255,.26),transparent 26%,rgba(107,73,25,.05))}
 .note-panel.preview{height:min(490px,72vh)}.note-panel.edit{height:min(560px,78vh)}
 .panel-header{position:relative;z-index:1;height:64px;padding:0 15px 0 19px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(70,55,30,.11)}.panel-header h1{min-width:0;margin:0;overflow:hidden;color:var(--paper-ink,#29262b);font-size:22px;line-height:1.2;letter-spacing:-.025em;text-overflow:ellipsis;white-space:nowrap;user-select:text;-webkit-user-select:text}.panel-actions{display:flex;gap:6px}.panel-actions button,.panel-close{width:30px;height:30px;padding:0;display:grid;place-items:center;border:0;border-radius:50%;color:var(--paper-ink-soft,rgba(40,35,31,.58));background:rgba(255,255,255,.22);cursor:pointer;transition:background .18s ease,transform .18s ease}.panel-actions button:hover,.panel-close:hover{background:rgba(255,255,255,.42);transform:scale(1.06)}.panel-actions svg,.panel-close svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .preview-body{position:relative;z-index:1;height:calc(100% - 64px);padding:18px 22px 30px;overflow-y:auto;font-size:var(--note-body-font-size,16px);line-height:1.85;font-synthesis:weight style;user-select:text;-webkit-user-select:text;scrollbar-width:thin;scrollbar-color:rgba(70,55,30,.22) transparent}.preview-body p{min-height:1.7em;margin:2px 0}.preview-body h1,.preview-body h2,.preview-body h3{margin:19px 0 8px;color:var(--paper-ink,#29262b);font-weight:800;line-height:1.3}.preview-body h1{font-size:1.55em}.preview-body h2{font-size:1.35em}.preview-body h3{font-size:1.18em}.preview-body :deep(strong){color:var(--paper-ink,#29262b);font-weight:800}.preview-body :deep(em){font-style:italic}.preview-body :deep(code){padding:2px 5px;border-radius:5px;background:rgba(255,255,255,.28);font-family:"Cascadia Code",Consolas,monospace;font-size:.9em}.preview-body :deep(a){color:#315f9f;text-decoration-thickness:1px;text-underline-offset:2px}.preview-body blockquote{margin:8px 0;padding-left:12px;border-left:3px solid var(--paper-ink-soft,rgba(54,48,53,.3));color:var(--paper-ink-soft,rgba(54,48,53,.72))}

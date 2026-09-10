@@ -43,10 +43,15 @@ export const DOCK_BRIDGE = {
   createNote: "dock:create-note",
   hidden: "dock:hidden",
   railResize: "dock:rail-resize",
+  nativePointer: "dock:native-pointer",
 } as const;
 
 export function isTauriRuntime(): boolean {
   return "__TAURI_INTERNALS__" in window;
+}
+
+export function isMacOS(): boolean {
+  return /Macintosh|Mac OS X/i.test(window.navigator.userAgent);
 }
 
 export async function emitToPanel<T>(event: string, payload: T): Promise<void> {
