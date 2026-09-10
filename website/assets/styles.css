@@ -3,19 +3,11 @@
    便签栏的设计与动效以 src/features/dock/DockView.vue 为基准。
    ========================================================= */
 
-@font-face {
-  font-family: "Geist";
-  src: url("fonts/geist-variable.ttf") format("truetype-variations"),
-       url("fonts/geist-variable.ttf") format("truetype");
-  font-weight: 100 900;
-  font-display: swap;
-}
-
 /* 站酷快乐体 2016：取自 public/fonts，用作页面的中文展示字体 */
 @font-face {
   font-family: "ZCOOL Happy";
   src: url("fonts/zcool-happy-2016.ttf") format("truetype");
-  font-weight: 400 700;
+  font-weight: 400;
   font-display: swap;
 }
 
@@ -27,9 +19,9 @@
   --brand-pink: #ff9eb5;
   --brand-coral: #ff8a5c;
   --brand-gold: #ffd56e;
-  --brand-gradient: linear-gradient(135deg, #5891e8 0%, #8b7be0 52%, #ff9eb5 100%);
-  --brand-gradient-wide: linear-gradient(135deg, #5dd3c8 0%, #5891e8 28%, #a98be0 52%, #ff9eb5 76%, #ffd56e 100%);
-  --brand-ink: #5a4bb8;
+  --brand-gradient: linear-gradient(#354b40, #354b40);
+  --brand-gradient-wide: linear-gradient(#728676, #728676);
+  --brand-ink: #405747;
 
   /* 便签纸色：与项目 noteColorService 的 HSL 一致 */
   --note-lemon: #ffe57a;
@@ -52,12 +44,9 @@
   --shell: 1240px;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-back: cubic-bezier(0.34, 1.42, 0.52, 1);
-  /* 正文：拉丁用 Geist，中文回落到快乐体 */
-  --font: "Geist", "ZCOOL Happy", -apple-system, BlinkMacSystemFont, "PingFang SC",
-    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  /* 标题与展示文字：快乐体优先 */
-  --font-display: "ZCOOL Happy", "Geist", -apple-system, BlinkMacSystemFont, "PingFang SC",
-    "Microsoft YaHei", sans-serif;
+  /* 快乐体统一中英文与控件；系统字体仅用于加载失败或缺字回退。 */
+  --font: "ZCOOL Happy", "Microsoft YaHei", sans-serif;
+  --font-display: var(--font);
 }
 
 * { box-sizing: border-box; }
@@ -80,7 +69,7 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.03em; font-weight: 600; font-family: 
 .footer-title, .scene-copy h3, .step-body b { font-family: var(--font-display); }
 p { margin: 0; }
 a { color: inherit; text-decoration: none; }
-code, kbd { font-family: "Geist", ui-monospace, "Cascadia Code", Consolas, monospace; }
+button, input, textarea, select, code, kbd { font-family: var(--font); }
 kbd {
   padding: 2px 6px;
   border: 1px solid var(--line-strong);
@@ -131,31 +120,29 @@ code {
   font-weight: 600;
   letter-spacing: -0.01em;
   cursor: pointer;
-  transition: transform 0.18s var(--ease-out), box-shadow 0.18s var(--ease-out),
-    background 0.18s ease, border-color 0.18s ease, opacity 0.18s ease;
+  transition: scale .28s var(--ease-out), box-shadow .28s var(--ease-out),
+    background-color .28s ease, border-color .28s ease;
 }
 .btn-sm { height: 38px; padding: 0 18px; font-size: 14px; }
 .btn-lg { height: 54px; padding: 0 28px; font-size: 16px; }
 .btn-icon { width: 18px; height: 18px; }
 
 .btn-primary {
-  background: var(--brand-gradient);
+  background-color: #354b40;
   color: #fff;
-  box-shadow: 0 10px 24px -12px rgba(88, 97, 232, 0.62);
+  box-shadow: 0 3px 5px rgba(36, 49, 40, 0.12), inset 0 1px rgba(255,255,255,.12);
 }
 .btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 16px 30px -12px rgba(88, 97, 232, 0.5);
+  box-shadow: 0 7px 14px -6px rgba(36, 49, 40, 0.28);
 }
-.btn-primary:active { transform: translateY(0); }
+
 
 .btn-ghost {
   border-color: var(--line-strong);
   color: var(--ink);
   background: rgba(255, 255, 255, 0.6);
 }
-.btn-ghost:hover { background: #fff; transform: translateY(-2px); }
-.btn:active { transform: translateY(0); }
+.btn-ghost:hover { background-color: #fdfdf9; }
 
 /* ---------------- Header ---------------- */
 
@@ -238,7 +225,7 @@ code {
   height: 8px;
   border-radius: 50%;
   background: var(--brand-gradient-wide);
-  box-shadow: 0 0 0 3px rgba(88, 161, 232, 0.16);
+  box-shadow: 0 0 0 3px rgba(114, 134, 118, 0.12);
 }
 
 .hero h1 {
@@ -249,10 +236,7 @@ code {
 }
 .hero h1 .line { display: block; }
 .hero h1 .muted {
-  background: linear-gradient(135deg, #5891e8, #a98be0 52%, #ff9eb5);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: #667466;
 }
 
 .lede {
@@ -443,11 +427,9 @@ code {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: #fff;
-  transition: transform 0.28s var(--ease-out), box-shadow 0.28s var(--ease-out),
-    border-color 0.28s ease;
+  transition: box-shadow 0.28s var(--ease-out), border-color 0.28s ease;
 }
 .card:hover {
-  transform: translateY(-4px);
   border-color: var(--line-strong);
   box-shadow: 0 24px 48px -32px rgba(23, 22, 20, 0.5);
 }
@@ -471,9 +453,9 @@ code {
   top: 24px;
   right: 24px;
   padding: 4px 10px;
-  border: 1px solid rgba(169, 139, 224, 0.34);
+  border: 1px solid #deddd2;
   border-radius: 999px;
-  background: linear-gradient(135deg, #eaf2ff, #f3eaff 55%, #ffeaf1);
+  background: #f2f1e9;
   color: var(--brand-ink);
   font-size: 11px;
   font-weight: 650;
@@ -535,7 +517,7 @@ code {
 
 .interaction-stage .scene { --scene-h: 580px; }
 
-/* ---------------- Privacy ---------------- */
+/* ---------------- Privacy (legacy layout base) ---------------- */
 
 .privacy-panel {
   display: grid;
@@ -580,15 +562,12 @@ code {
   border-radius: 14px;
   background: var(--paper);
   box-shadow: -14px 16px 34px rgba(0, 0, 0, 0.34), inset 0 1px rgba(255, 255, 255, 0.6);
-  animation: privacy-float 7s ease-in-out infinite;
+  /* Card movement is owned by GSAP, not layout animation. */
 }
 .privacy-note:nth-child(1) { transform: rotate(-9deg) translate(-46px, 6px); }
 .privacy-note:nth-child(2) { transform: rotate(4deg) translate(0, -10px); animation-delay: -2.3s; }
 .privacy-note:nth-child(3) { transform: rotate(11deg) translate(48px, 4px); animation-delay: -4.6s; }
-@keyframes privacy-float {
-  0%, 100% { margin-top: 0; }
-  50% { margin-top: -12px; }
-}
+
 
 /* ---------------- FAQ ---------------- */
 
@@ -877,7 +856,7 @@ code {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.quick-actions button:hover { color: #fff; transform: scale(1.06); }
+.quick-actions button:hover { color: #fff; }
 .quick-actions button:first-child:hover { background: #5b92e8; }
 .quick-actions button:last-child:hover { background: #ef6262; }
 
@@ -1026,7 +1005,7 @@ code {
   cursor: pointer;
   transition: background 0.18s ease, transform 0.18s ease;
 }
-.panel-close:hover { background: rgba(255, 255, 255, 0.38); transform: scale(1.06); }
+.panel-close:hover { background-color: rgba(255, 255, 255, 0.38); }
 .panel-close svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 
 .panel-preview {
@@ -1070,7 +1049,7 @@ code {
   cursor: pointer;
   transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
 }
-.preview-check:hover { transform: scale(1.08); border-color: #3d985c; }
+.preview-check:hover { border-color: #3d985c; }
 .preview-check.is-checked { border-color: #3d985c; background: #4cab69; }
 .preview-check.is-checked::after { content: "✓"; font-size: 12px; font-weight: 800; line-height: 1; }
 .preview-task.is-done .preview-task-copy { opacity: 0.55; text-decoration: line-through; }
@@ -1166,10 +1145,10 @@ code {
   cursor: pointer;
   transition: transform 0.16s ease, box-shadow 0.16s ease;
 }
-.color-swatch:hover { transform: scale(1.16); }
+
 .color-swatch.is-selected {
   box-shadow: 0 0 0 2px rgba(43, 38, 35, 0.7), 0 0 0 4px rgba(255, 255, 255, 0.45);
-  transform: scale(0.88);
+  /* Selection uses a ring; hover/press scale remains independent. */
 }
 
 .create-title, .create-body {
@@ -1258,9 +1237,7 @@ code {
 
 /* ---------------- Reveal（渐进增强） ---------------- */
 
-[data-reveal] {
-  transition: opacity 0.6s var(--ease-out), transform 0.6s var(--ease-out);
-}
+/* GSAP owns reveal transforms; no CSS transition on the same properties. */
 
 /* ---------------- Responsive ---------------- */
 

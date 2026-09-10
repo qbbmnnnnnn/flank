@@ -9,7 +9,9 @@
   <meta property="og:description" content="本地优先的 Windows 桌面便签：边缘便签栏、全局速记、Markdown 与勾选任务、AES-GCM 正文加密。" />
   <meta property="og:type" content="website" />
   <link rel="icon" href="assets/flank-logo.png" type="image/png" />
+  <link rel="preload" href="assets/fonts/zcool-happy-2016.ttf" as="font" type="font/ttf" crossorigin />
   <link rel="stylesheet" href="assets/styles.css" />
+  <link rel="stylesheet" href="assets/refinement.css" />
 </head>
 <body>
   <a class="skip-link" href="#main">跳到主要内容</a>
@@ -46,7 +48,7 @@
           </h1>
           <p class="lede">
             Flank 把常用便签收进屏幕边缘的便签栏。指针靠近便放大，停留后浮出操作，点一下从边缘展开成卡片，
-            写完自动收起——不用打开新窗口，也永远不会挡住你正在做的事。
+            写完收回边缘——让灵感有处安放，也把空间留给眼前的事。
           </p>
           <div class="hero-actions">
             <a class="btn btn-primary" href="#download" data-download>
@@ -55,7 +57,7 @@
             </a>
             <a class="btn btn-ghost" href="#interactions">看看它怎么动</a>
           </div>
-          <p class="hero-meta">约 8 MB · 无需注册账号 · 无遥测</p>
+          <p class="hero-meta">无需注册账号 · 无遥测 · 本地优先</p>
         </div>
 
         <div class="showcase">
@@ -66,10 +68,12 @@
               <span class="scene-bar-right">09:41</span>
             </div>
             <div class="scene-copy" aria-hidden="true">
-              <p class="scene-tag">Rest · Fan · Expanded</p>
-              <h3>需要时出现在边缘，<br />不需要时安静消失。</h3>
+              <p class="scene-tag">A LITTLE SPACE FOR YOUR MIND</p>
+              <h3>桌面留给工作，<br />边缘留给灵感。</h3>
+              <p class="scene-description">一闪而过的想法、今天的待办。<br />不用整理，先放在手边。</p>
+              <div class="workspace-paper"><span>MONDAY / 工作手记</span><h4>把注意力，还给当下。</h4><p>少一点窗口切换。<br />多一点心无旁骛。</p><div class="workspace-lines"></div><small>灵感来了？点击右侧彩色纸边 →</small></div>
             </div>
-            <p class="scene-hint" data-scene-hint><kbd>移动指针</kbd> 靠近试试</p>
+            <p class="scene-hint" data-scene-hint><kbd>交互预览</kbd> 靠近 · 点击 · 拖动排序</p>
           </div>
         </div>
       </div>
@@ -88,7 +92,7 @@
       <div class="shell">
         <header class="section-head" data-reveal>
           <p class="kicker">功能</p>
-          <h2>一条便签栏，装下所有来不及整理的东西</h2>
+          <h2>来不及整理的，先放在手边</h2>
           <p class="section-sub">没有文件夹，没有标签体系，没有同步冲突。只有一块屏幕边缘，和随时可以取下的纸。</p>
         </header>
 
@@ -137,10 +141,10 @@
 
           <article class="card" data-reveal>
             <span class="card-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="14" height="10" rx="2"/><rect x="8" y="10" width="14" height="10" rx="2"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5h13M8 12h13M8 19h13M3 4v16m-2-2 2 2 2-2"/></svg>
             </span>
-            <h3>多显示器 · 混合 DPI</h3>
-            <p data-os-windows="每块显示器可以拥有自己的便签栏。Per-Monitor V2 缩放、中文输入法、键盘可达性都按可发布标准打磨。" data-os-mac="每块显示器可以拥有自己的便签栏。Retina 与混合缩放、中文输入法、键盘可达性都按可发布标准打磨。">每块显示器可以拥有自己的便签栏。Per-Monitor V2 缩放、中文输入法、键盘可达性都按可发布标准打磨。</p>
+            <h3>随手排序 · 保持顺手</h3>
+            <p>按住纸边，上下拖动。把常用的放在前面，让便签的顺序跟上你的工作节奏。</p>
           </article>
         </div>
       </div>
@@ -150,7 +154,7 @@
       <div class="shell interaction-layout">
         <div class="interaction-copy">
           <p class="kicker" data-reveal>交互</p>
-          <h2 data-reveal>动效不是装饰，是在告诉你下一步</h2>
+          <h2 data-reveal>靠近、展开，顺手就好</h2>
           <p class="section-sub" data-reveal>便签栏没有常驻按钮。所有操作都由距离、停留时间和点击自然带出来，点开下面的步骤可以立刻看到效果。</p>
 
           <ol class="steps" data-steps>
@@ -159,7 +163,7 @@
                 <span class="step-index">01</span>
                 <span class="step-body">
                   <b>靠近便放大</b>
-                  <span>指针靠近时，当前便签与邻居按距离一起放大并向左探出，像 macOS Dock 一样带出层次。</span>
+                  <span>指针靠近，当前便签与相邻纸边轻轻放大，向内探出。</span>
                 </span>
               </button>
             </li>
@@ -168,7 +172,7 @@
                 <span class="step-index">02</span>
                 <span class="step-body">
                   <b>停留 1 秒，浮出操作</b>
-                  <span>归档与删除不会一开始就摆在那里，停留片刻才从纸面浮现，避免顺手误触。</span>
+                  <span>停留片刻，归档与删除才从纸面浮现，减少顺手误触。</span>
                 </span>
               </button>
             </li>
@@ -177,7 +181,7 @@
                 <span class="step-index">03</span>
                 <span class="step-body">
                   <b>点击，从边缘展开卡片</b>
-                  <span>卡片沿屏幕边缘旋转回弹进入，最后停在便签栏内侧，不遮挡便签本身。</span>
+                  <span>点一下纸边，完整卡片在内侧展开；看完关闭，回到手边。</span>
                 </span>
               </button>
             </li>
@@ -186,7 +190,7 @@
                 <span class="step-index">04</span>
                 <span class="step-body">
                   <b>按住拖动，随手排序</b>
-                  <span>按住便签稍等一下就能上下拖动：纸面会浮起、投影变深，其余便签让出位置。松手后顺序立即保存，下次打开还是这个顺序。</span>
+                  <span>按住便签，上下拖动，其余纸边自动让位。松手即完成排序。</span>
                 </span>
               </button>
             </li>
@@ -198,8 +202,10 @@
             <div class="scene-bar" aria-hidden="true">
               <span class="scene-dots"><i></i><i></i><i></i></span>
               <span class="scene-bar-title">Dock 交互演示</span>
-              <span class="scene-bar-right">Fan</span>
+              <span class="scene-bar-right" data-demo-state>01 / 靠近</span>
             </div>
+            <div class="demo-caption"><span>INTERACTIVE PLAYGROUND</span><h3>一张纸边，<br />刚刚好的存在感。</h3><p data-demo-caption>把指针移向右侧便签，感受距离带来的变化。</p></div>
+            <p class="demo-footnote">可操作预览 · 内容仅用于演示</p>
           </div>
         </div>
       </div>
@@ -216,16 +222,18 @@
           <ul class="privacy-list">
             <li><b>正文加密</b><span>AES-GCM 加密后写入本地数据库；标题、颜色、时间等元数据明文存储，便于搜索与排序。</span></li>
             <li><b>无遥测</b><span>不统计你的输入，不上传崩溃日志中的正文内容。</span></li>
-            <li><b>随时带走</b><span>一键导出 <code>.stickies</code>、Markdown 或 TXT，换电脑时不必求人。</span></li>
+            <li><b>边界透明</b><span>本地加密保护正文，不代表整台电脑的访问防护。导入导出功能正在准备中。</span></li>
           </ul>
         </div>
-        <div class="privacy-visual" aria-hidden="true">
-          <div class="privacy-stack">
-            <span class="privacy-note" style="--paper:#ffe57a"></span>
-            <span class="privacy-note" style="--paper:#ffb8a7"></span>
-            <span class="privacy-note" style="--paper:#a9e5d1"></span>
+        <div class="privacy-visual">
+          <div class="vault-header"><span class="vault-dot"></span> ON YOUR DEVICE</div>
+          <div class="privacy-stack" role="group" aria-label="了解本地数据存储">
+            <button class="privacy-note" type="button" data-privacy="body" aria-pressed="true"><span class="vault-card-index">01 / CONTENT</span><strong>你的文字，只留本地。</strong><span class="cipher-lines">a7f2 · 98bc · e041<br />c903 · f16a · 72de<br />•••• · •••• · ••••</span><span class="vault-card-footer">AES-GCM <span>正文加密 ↗</span></span></button>
+            <button class="privacy-note" type="button" data-privacy="meta" aria-pressed="false"><span class="vault-card-index">02 / METADATA</span><strong>边界，清楚可见。</strong><span class="cipher-lines">标题 · 颜色 · 时间<br />便于搜索与排序<br />这些信息不加密</span><span class="vault-card-footer">SQLite <span>元数据 ↗</span></span></button>
+            <button class="privacy-note" type="button" data-privacy="network" aria-pressed="false"><span class="vault-card-index">03 / NETWORK</span><strong>没有笔记服务器。</strong><span class="cipher-lines">无需账号<br />不上传笔记<br />更新检查可以关闭</span><span class="vault-card-footer">LOCAL FIRST <span>网络边界 ↗</span></span></button>
           </div>
-          <p>本地 SQLite · 加密存储</p>
+          <p class="privacy-detail" data-privacy-detail aria-live="polite">正文经 AES-GCM 加密，写入你电脑上的 SQLite 数据库。</p>
+          <span class="vault-hint">本地存储示意 · 点击卡片查看每一层</span>
         </div>
       </div>
     </section>
@@ -251,7 +259,7 @@
           </details>
           <details class="faq-item" data-reveal>
             <summary>支持哪些系统版本？</summary>
-            <p data-os-windows="Windows 10 22H2 与 Windows 11，x64 架构。支持多显示器、混合 DPI 缩放与中文输入法。" data-os-mac="macOS 15 或更高，Universal 二进制同时支持 Apple Silicon 与 Intel。支持多显示器与中文输入法。">Windows 10 22H2 与 Windows 11，x64 架构。支持多显示器、混合 DPI 缩放与中文输入法。</p>
+            <p data-os-windows="Windows 10 22H2 与 Windows 11，x64 架构。支持中文输入法。" data-os-mac="macOS 15 或更高，Universal 二进制同时支持 Apple Silicon 与 Intel。支持中文输入法。">Windows 10 22H2 与 Windows 11，x64 架构。支持中文输入法。</p>
           </details>
           <details class="faq-item" data-reveal>
             <summary>便签数据存在哪里？</summary>
@@ -262,11 +270,11 @@
     </section>
 
     <section class="section download" id="download">
-      <div class="shell download-panel" data-reveal>
+      <div class="shell download-panel" data-download-reveal>
         <div class="download-copy">
           <h2>把便签栏，装到屏幕边缘</h2>
           <p data-os-windows="下载后它会自动住进系统托盘。第一次使用时，把指针移到屏幕右侧边缘，它就在那里。" data-os-mac="下载后它会自动住进菜单栏。第一次使用时，把指针移到屏幕右侧边缘，它就在那里。">下载后它会自动住进系统托盘。第一次使用时，把指针移到屏幕右侧边缘，它就在那里。</p>
-          <p class="download-meta" data-os-windows="Windows 10 22H2 / Windows 11 · x64 · 约 8 MB" data-os-mac="macOS 15 或更高 · Apple Silicon / Intel · 约 8 MB">Windows 10 22H2 / Windows 11 · x64 · 约 8 MB</p>
+          <p class="download-meta" data-os-windows="Windows 10 22H2 / Windows 11 · x64" data-os-mac="macOS 15 或更高 · Apple Silicon / Intel">Windows 10 22H2 / Windows 11 · x64</p>
         </div>
         <div class="download-actions">
           <!-- TODO: 下载地址留空，后续在 assets/main.js 的 DOWNLOAD_URL_WINDOWS / DOWNLOAD_URL_MAC 中填写 -->

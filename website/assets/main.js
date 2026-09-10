@@ -85,23 +85,29 @@ const DOWNLOAD_URL_MAC = ''; // TODO: 填写 macOS 安装包地址
       if (value) el.textContent = value;
     });
 
-    switchButtons.forEach((button) =>
-      button.classList.toggle('is-active', button.dataset.platform === platform)
-    );
+    switchButtons.forEach((button) => {
+      const active = button.dataset.platform === platform;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+    const switcher = document.querySelector('[data-platform-switch]');
+    const x = platform === 'mac' ? '88px' : '0px';
+    if (switcher) {
+      if (gsap && remember && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        gsap.to(switcher, { '--platform-x': x, duration: .32, ease: 'power3.out', overwrite: true });
+      } else {
+        switcher.style.setProperty('--platform-x', x);
+      }
+    }
   }
 
   applyPlatform(readStoredPlatform() || detectPlatform());
 
   switchButtons.forEach((button) => {
     button.addEventListener('click', () => {
+      if (button.dataset.platform === platform) return;
       applyPlatform(button.dataset.platform, { remember: true });
-      if (gsap && !reduceMotion) {
-        gsap.fromTo(
-          osCopies,
-          { opacity: 0.35, y: 3 },
-          { opacity: 1, y: 0, duration: 0.28, stagger: 0.03, ease: 'power2.out', clearProps: 'opacity,transform' }
-        );
-      }
+      // Keep copy fully opaque: the sliding selection and button scale provide feedback.
     });
   });
 
@@ -121,17 +127,27 @@ const DOWNLOAD_URL_MAC = ''; // TODO: 填写 macOS 安装包地址
       (entries) => {
         entries.forEach((entry) => {
           if (!entry.isIntersecting) return;
-          gsap.to(entry.target, { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' });
+          gsap.to(entry.target, { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out', clearProps: 'opacity,transform' });
           io.unobserve(entry.target);
         });
       },
       { rootMargin: '0px 0px -6% 0px', threshold: 0.08 }
     );
     reveals.forEach((el) => io.observe(el));
-    setTimeout(() => {
-      const pending = reveals.filter((el) => Number(getComputedStyle(el).opacity) < 1);
-      if (pending.length) gsap.to(pending, { opacity: 1, y: 0, duration: 0.4, stagger: 0.04, ease: 'power2.out' });
-    }, 1200);
+    // Reveal only when visible; never pre-play below-the-fold content.
+  }
+
+  /* The download surface stays anchored; its contents gently arrive once. */
+  const downloadPanel = document.querySelector('[data-download-reveal]');
+  if (downloadPanel && gsap && !reduceMotion && 'IntersectionObserver' in window) {
+    const children = [...downloadPanel.querySelectorAll('.download-copy, .download-actions')];
+    gsap.set(children, { opacity: 0 });
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      gsap.to(children, { opacity: 1, duration: .45, stagger: .08, ease: 'power2.out', clearProps: 'opacity' });
+      observer.disconnect();
+    }, { threshold: .15 });
+    observer.observe(downloadPanel);
   }
 
   /* ---------------- Hero 入场 ---------------- */
@@ -142,10 +158,50 @@ const DOWNLOAD_URL_MAC = ''; // TODO: 填写 macOS 安装包地址
       .from('.eyebrow', { opacity: 0, y: 10 })
       .from('.hero h1 .line', { opacity: 0, y: 18, stagger: 0.09 }, '-=0.45')
       .from('.lede', { opacity: 0, y: 12 }, '-=0.5')
-      .from('.hero-actions .btn', { opacity: 0, y: 10, stagger: 0.08 }, '-=0.5')
+      .from('.hero-actions', { opacity: 0, y: 10, clearProps: 'opacity,transform' }, '-=0.5')
       .from('.hero-meta', { opacity: 0 }, '-=0.45')
       .from('.showcase', { opacity: 0, y: 26, duration: 0.9 }, '-=0.4');
   }
+
+  /* Interactive surfaces: transforms have a single owner. */
+  if (gsap) {
+    const media = gsap.matchMedia();
+    media.add('(prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine)', () => {
+      const cleanups = [];
+      document.querySelectorAll('.card, .privacy-note').forEach((card) => {
+        const lift = gsap.quickTo(card, 'y', { duration: 0.32, ease: 'power3.out' });
+        const enter = () => lift(-4);
+        const leave = () => lift(0);
+        card.addEventListener('pointerenter', enter);
+        card.addEventListener('pointerleave', leave);
+        cleanups.push(() => { card.removeEventListener('pointerenter', enter); card.removeEventListener('pointerleave', leave); });
+      });
+      return () => cleanups.forEach((cleanup) => cleanup());
+    });
+  }
+
+  const privacyCards = [...document.querySelectorAll('[data-privacy]')];
+  const privacyDetails = {
+    body: '正文经 AES-GCM 加密，写入你电脑上的 SQLite 数据库。',
+    meta: '标题、颜色与时间等元数据明文存储。加密范围明确，不夸大保护。',
+    network: '没有账号或笔记服务器。应用更新检查需要联网，也可以关闭。'
+  };
+  privacyCards.forEach((card) => card.addEventListener('click', () => {
+    if (card.getAttribute('aria-pressed') === 'true') return;
+    const before = privacyCards.map((item) => item.getBoundingClientRect().top);
+    privacyCards.forEach((item) => item.setAttribute('aria-pressed', String(item === card)));
+    const detail = document.querySelector('[data-privacy-detail]');
+    detail.textContent = privacyDetails[card.dataset.privacy];
+    if (gsap && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      // Independent translate keeps FLIP separate from hover's transform.
+      privacyCards.forEach((item, i) => {
+        const delta = before[i] - item.getBoundingClientRect().top;
+        item.getAnimations().forEach((animation) => animation.cancel());
+        item.animate([{ translate: `0 ${delta}px` }, { translate: '0 0' }], { duration: 320, easing: 'cubic-bezier(.22,1,.36,1)' });
+      });
+      // The cards shift into place; do not reset content opacity on every click.
+    }
+  }));
 
   /* ---------------- 数据 ---------------- */
 
@@ -384,6 +440,7 @@ const DOWNLOAD_URL_MAC = ''; // TODO: 填写 macOS 安装包地址
     /* --- 距离驱动放大（对齐 onRailMove） --- */
 
     rail.addEventListener('pointermove', (event) => {
+      if (sorting) return;
       showControls();
       const direction = inward();
       const k = peek();
@@ -554,6 +611,7 @@ const DOWNLOAD_URL_MAC = ''; // TODO: 填写 macOS 安装包地址
     }
 
     function openNote(note) {
+      markEngaged();
       activeNote = note;
       items.forEach((item) => {
         const isActive = item._note === note;
@@ -565,12 +623,14 @@ const DOWNLOAD_URL_MAC = ''; // TODO: 填写 macOS 安装包地址
       panel.style.setProperty('--panel-paper', note.color);
       panel.setAttribute('aria-hidden', 'false');
       panelOpen = true;
+      scene.classList.add('has-open-note');
       playPanelEntrance();
     }
 
     function closePanel() {
       if (!panelOpen) return;
       panelOpen = false;
+      scene.classList.remove('has-open-note');
       panel.setAttribute('aria-hidden', 'true');
       activeNote = null;
       items.forEach((item) => {
@@ -663,9 +723,9 @@ const DOWNLOAD_URL_MAC = ''; // TODO: 填写 macOS 安装包地址
 
     titleInput.addEventListener('input', scheduleAutosave);
     bodyInput.addEventListener('input', scheduleAutosave);
-    backdrop.querySelector('.panel-close').addEventListener('click', closeCreate);
+    backdrop.querySelector('.panel-close').addEventListener('click', saveDraft);
     backdrop.addEventListener('click', (event) => {
-      if (event.target === backdrop) closeCreate();
+      if (event.target === backdrop) saveDraft();
     });
     backdrop.querySelectorAll('[data-format]').forEach((button) => {
       button.addEventListener('click', () => {
@@ -711,7 +771,7 @@ const DOWNLOAD_URL_MAC = ''; // TODO: 填写 macOS 安装包地址
 
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return;
-      if (createOpen) closeCreate();
+      if (createOpen) saveDraft();
       else if (panelOpen) closePanel();
     });
 
@@ -747,11 +807,11 @@ const DOWNLOAD_URL_MAC = ''; // TODO: 填写 macOS 安装包地址
 
     function startAuto() {
       if (reduceMotion || userEngaged || autoTimer) return;
-      autoTimer = window.setInterval(() => {
-        autoIndex = (autoIndex + 1) % items.length;
-        magnify(autoIndex);
-      }, 2600);
-      magnify(autoIndex);
+      // A single hint, after entrance; no endless movement or competing tweens.
+      autoTimer = window.setTimeout(() => {
+        autoTimer = null;
+        if (!userEngaged && !panelOpen) magnify(autoIndex);
+      }, 1800);
     }
 
     function stopAuto() {
@@ -879,7 +939,7 @@ const DOWNLOAD_URL_MAC = ''; // TODO: 填写 macOS 安装包地址
         .add(() => showControls());
     }
 
-    NOTES.slice(0, noteCount).forEach((note) => addNote(note));
+    NOTES.slice(0, noteCount).forEach((note) => addNote({ ...note }));
     setupSortable();
 
     if ('IntersectionObserver' in window) {
@@ -928,6 +988,7 @@ const DOWNLOAD_URL_MAC = ''; // TODO: 填写 macOS 安装包地址
         reorderDemo();
       },
       reset() {
+        markEngaged();
         resetRail();
         closePanel();
         closeCreate();
@@ -951,10 +1012,27 @@ const DOWNLOAD_URL_MAC = ''; // TODO: 填写 macOS 安装包地址
     const demo = dockApis[1];
     const steps = [...stepList.querySelectorAll('.step')];
     let stepTimer = null;
+    const placeSelection = (animate = false) => {
+      const active = stepList.querySelector('.is-active');
+      if (!active) return;
+      const y = `${active.offsetTop}px`;
+      if (gsap && animate && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        gsap.to(stepList, { '--step-y': y, duration: .38, ease: 'power3.out', overwrite: true });
+      } else {
+        if (gsap) gsap.killTweensOf(stepList);
+        stepList.style.setProperty('--step-y', y);
+      }
+    };
+    if ('ResizeObserver' in window) new ResizeObserver(() => placeSelection()).observe(stepList);
+    else window.addEventListener('resize', () => placeSelection(), { passive: true });
+    document.fonts?.ready.then(() => placeSelection());
 
     const run = (name) => {
       window.clearTimeout(stepTimer);
       demo.reset();
+      const captions = { magnify: ['01 / 靠近', '把指针移向右侧便签，感受距离带来的变化。'], actions: ['02 / 停留', '停留片刻，归档与删除出现在纸边。'], panel: ['03 / 展开', '点击纸边展开内容；也可以试着勾选任务。'], reorder: ['04 / 排序', '按住纸边再上下拖动，让常用便签更顺手。'] };
+      document.querySelector('[data-demo-state]').textContent = captions[name][0];
+      document.querySelector('[data-demo-caption]').textContent = captions[name][1];
       if (name === 'magnify') demo.magnify(1);
       if (name === 'actions') demo.revealActions(1);
       if (name === 'panel') stepTimer = window.setTimeout(() => demo.openNote(1), 140);
@@ -963,14 +1041,26 @@ const DOWNLOAD_URL_MAC = ''; // TODO: 填写 macOS 安装包地址
 
     steps.forEach((step) => {
       step.querySelector('button').addEventListener('click', () => {
-        steps.forEach((other) => other.classList.toggle('is-active', other === step));
+        steps.forEach((other) => {
+          other.classList.toggle('is-active', other === step);
+          other.querySelector('button').setAttribute('aria-pressed', String(other === step));
+        });
+        placeSelection(true);
         run(step.dataset.demo);
+      });
+      step.querySelector('button').addEventListener('keydown', (event) => {
+        const index = steps.indexOf(step);
+        const destinations = { ArrowDown: (index + 1) % steps.length, ArrowUp: (index + steps.length - 1) % steps.length, Home: 0, End: steps.length - 1 };
+        if (!(event.key in destinations)) return;
+        event.preventDefault();
+        const button = steps[destinations[event.key]].querySelector('button');
+        button.focus({ preventScroll: true });
+        button.click();
       });
     });
 
-    if (gsap && !reduceMotion) {
-      gsap.from(steps, { opacity: 0, y: 14, duration: 0.5, stagger: 0.06, delay: 0.2, ease: 'power3.out' });
-    }
+    steps.forEach((step, i) => step.querySelector('button').setAttribute('aria-pressed', String(i === 0)));
+    placeSelection();
     run('magnify');
   }
 })();
