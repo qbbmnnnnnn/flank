@@ -1,0 +1,174 @@
+/*
+ * Flank color story: mint -> sky -> lilac -> rose -> apricot -> butter.
+ * Derived from the logo's hue families, not literal pixel-matched swatches.
+ * Local surfaces share low saturation, warm paper whites and quiet edges.
+ * Sections themselves remain transparent on the same warm-white page.
+ * This layer changes color/material only; existing interactions keep their owners.
+ */
+:root {
+  --surface: #faf8f3;
+  --ink: #34332f;
+  --ink-2: #635f57;
+  --ink-3: #756e63;
+  --accent: #494b43;
+  --accent-hover: #3e4039;
+  --brand-ink: var(--accent);
+}
+.site-header, .site-header.is-scrolled { background: #faf8f3ed; border-color: #dedbd2; }
+.site-nav a { color: #57554e; }
+.site-nav a::after { background: #77796e; }
+.btn-primary { background-color: var(--accent); box-shadow: 0 3px 6px #30291e18, inset 0 1px #ffffff18; }
+.btn-primary:hover { background-color: var(--accent-hover); box-shadow: 0 6px 12px -5px #30291e30; }
+.btn-ghost { color: var(--ink); border-color: var(--sheet-line, #d5d1c7); background-color: #fffdf580; }
+.btn-ghost:hover { background-color: #fffdf5d9; }
+:focus-visible { outline-color: var(--accent); }
+
+/* Hue families are available to local cards, scenes and controls only. */
+.hero, .stats {
+  --sheet: #edf3e9;
+  --sheet-raised: #f8faf3;
+  --sheet-soft: #e1eadd;
+  --sheet-line: #cbd8c6;
+  --scene-tone: #b9ccba;
+  --accent: #405b49;
+  --accent-hover: #354d3d;
+  --paper-ink: #2f4135;
+  --paper-ink-2: #526750;
+  --paper-ink-3: #64765e;
+}
+.features {
+  --sheet: #eaf0f5;
+  --sheet-raised: #f7f9fa;
+  --sheet-soft: #dde7ef;
+  --sheet-line: #c8d5df;
+  --accent: #46617a;
+  --accent-hover: #3c5268;
+  --paper-ink: #344858;
+  --paper-ink-2: #53697b;
+  --paper-ink-3: #637889;
+}
+.interactions {
+  --sheet: #eeebf4;
+  --sheet-raised: #f8f6fb;
+  --sheet-soft: #e0daeb;
+  --sheet-line: #cec5dd;
+  --scene-tone: #c4bad5;
+  --accent: #66567a;
+  --accent-hover: #564868;
+  --paper-ink: #443a53;
+  --paper-ink-2: #665a75;
+  --paper-ink-3: #766a84;
+}
+.privacy {
+  --sheet: #f4e9ed;
+  --sheet-raised: #fbf5f5;
+  --sheet-soft: #e9dbe1;
+  --sheet-line: #dec9d2;
+  --accent: #805d6c;
+  --accent-hover: #6e4e5c;
+  --paper-ink: #503e48;
+  --paper-ink-2: #705a65;
+  --paper-ink-3: #7b6470;
+}
+.faq {
+  --sheet: #f6ece3;
+  --sheet-raised: #fcf7f0;
+  --sheet-soft: #efdfd0;
+  --sheet-line: #e1ccba;
+  --accent: #85634b;
+  --accent-hover: #72533f;
+  --paper-ink: #554336;
+  --paper-ink-2: #76604e;
+  --paper-ink-3: #806a58;
+}
+.download {
+  --sheet: #f5efd9;
+  --sheet-raised: #fcf9ed;
+  --sheet-soft: #ebe1ba;
+  --sheet-line: #dcd0a6;
+  --accent: #6b5e35;
+  --accent-hover: #5b4f2c;
+  --paper-ink: #49432e;
+  --paper-ink-2: #6d6346;
+  --paper-ink-3: #796e4e;
+}
+
+/* Continuous warm-white canvas, with no chapter-sized sheets or folded corners. */
+main > .hero, main > .stats, main > .section {
+  background: transparent;
+  border: 0;
+  --brand-ink: var(--accent);
+}
+/* Keep prose neutral; only existing colored surfaces inherit the themed ink. */
+main > section {
+  --ink: #34332f;
+  --ink-2: #635f57;
+  --ink-3: #756e63;
+}
+.scene, .card, .privacy-panel, .download-panel {
+  --ink: var(--paper-ink);
+  --ink-2: var(--paper-ink-2);
+  --ink-3: var(--paper-ink-3);
+  color: var(--ink);
+}
+/* Hue is carried by selected headings and controls, not every line of prose. */
+.kicker { color: var(--accent); }
+.section-head h2, .interaction-copy > h2, .privacy-copy > h2, .download-copy > h2 { color: var(--paper-ink); }
+.step.is-active .step-body b, .faq-item[open] summary { color: var(--accent); }
+.hero h1 .muted { color: var(--accent); }
+.eyebrow { background: var(--sheet-raised); border-color: var(--sheet-line); }
+.eyebrow .dot { background: var(--accent); box-shadow: 0 0 0 3px var(--sheet-soft); }
+
+/* The demo inherits its section's paper family; actual colored notes stay intact. */
+.scene {
+  color: var(--ink);
+  border-color: var(--sheet-line);
+  background: radial-gradient(ellipse at 12% 0%, var(--sheet-raised), transparent 72%), linear-gradient(125deg, var(--sheet-soft), var(--scene-tone));
+  box-shadow: 0 18px 34px -28px #3930254d, inset 0 1px #ffffff80;
+}
+.scene-bar { background: #fffdf533; border-color: #39302515; }
+.scene-dots i { background: var(--accent); opacity: .28; }
+.scene-bar-title, .scene-bar-right, .scene-tag, .scene-hint, .scene-description, .demo-caption, .demo-footnote { color: var(--ink-2); }
+.scene-copy h3, .demo-caption h3 { color: var(--ink); }
+.scene-hint kbd { color: var(--ink-2); background: #fffdf566; border-color: var(--sheet-line); }
+.workspace-paper { background: #faf8eb; box-shadow: 3px 12px 24px -12px #39302540; }
+.interaction-stage .scene { box-shadow: 0 12px 24px -20px #44334e40; }
+
+.card { background: var(--sheet-raised); border-color: var(--sheet-line); box-shadow: 0 3px 5px -4px #35445320; }
+.card:hover { border-color: var(--accent); box-shadow: 0 14px 24px -20px #35445355; }
+.card-icon { background: var(--sheet-soft); border-color: var(--sheet-line); color: var(--accent); }
+.card-soon { background: #f0f4f7; }
+.soon-pill { background: var(--sheet-soft); border-color: var(--sheet-line); color: var(--accent); }
+.steps::before { background: var(--sheet-soft); border-color: var(--sheet-line); box-shadow: inset 3px 0 var(--accent); }
+.step.is-active .step-index { background-color: var(--accent); color: #fffdf7; }
+.step:not(.is-active):hover button { background-color: #66567a0a; }
+
+/* Privacy is a rose-paper folio, not a dark green break in the color story. */
+.privacy-panel { background: var(--sheet); border: 1px solid var(--sheet-line); border-radius: var(--radius-lg); box-shadow: 0 14px 30px -26px #61454f40; color: var(--ink); }
+.privacy-panel h2 { color: var(--ink); }
+.privacy-panel p, .privacy-list span { color: var(--ink-2); }
+.privacy-panel .kicker { color: var(--accent); }
+.privacy-list li, .privacy-list li:last-child { border-color: var(--sheet-line); }
+.privacy-visual { background: var(--sheet-soft); border-color: var(--sheet-line); box-shadow: inset 0 1px #fff6; }
+.vault-header, .vault-hint { color: var(--ink-2); }
+.vault-dot { background: var(--accent); }
+.privacy-note, .privacy-note:nth-child(n) { color: var(--ink); background: #fbf4ee; border-color: #e0ccd0; box-shadow: 0 4px 8px -5px #61454f30; }
+.privacy-note:nth-child(2) { background: #f3e4e8; }
+.privacy-note:nth-child(3) { background: #dfcbd5; }
+.privacy-note[aria-pressed='true'] { border-color: #b396a4; box-shadow: 0 7px 13px -8px #61454f55; }
+.cipher-lines { color: #735966; }
+.vault-card-footer { border-color: #b396a452; }
+.vault-card-index { opacity: 1; color: #735966; }
+.privacy-visual .privacy-detail { color: var(--ink-2); }
+
+.faq-item { border-color: var(--sheet-line); }
+.faq-item:first-child { border-color: var(--sheet-line); }
+.faq-item summary::after { border-color: var(--accent); }
+.faq-item[open] { background: var(--sheet-raised); }
+.download-panel { background: var(--sheet); border: 1px solid var(--sheet-line); border-radius: var(--radius-lg); box-shadow: 0 10px 22px -18px #4e432233; }
+.platform-switch { background: var(--sheet-soft); border-color: var(--sheet-line); }
+.platform-switch::before { background: var(--accent); box-shadow: 0 2px 4px #4e432220; }
+.platform-switch button { color: var(--ink-2); }
+.platform-switch button:hover { color: var(--ink); }
+.platform-switch button.is-active { color: #fffdf7; }
+.site-footer { background: var(--surface); border-color: #dedbd2; }
