@@ -424,7 +424,7 @@ onUnmounted(() => {
 
         <div v-else class="settings-page">
           <section class="update-hero">
-            <div class="app-icon"><span></span><span></span><span></span></div>
+            <img class="app-icon" src="/noty-logo.png" alt="" aria-hidden="true" />
             <div><p>FLANK DESKTOP</p><h2>{{ t('当前已是最新版本') }}</h2><span>{{ t('版本') }} {{ app.info?.version ?? '0.1.0' }} · Windows x64</span></div>
             <div class="update-check"><i></i>{{ t('已是最新') }}</div>
           </section>

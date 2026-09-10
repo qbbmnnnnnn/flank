@@ -78,6 +78,7 @@
 :root[data-theme="dark"] .settings-app :is(.segmented button.selected,.nav-item.active),
 :root[data-theme="dark"] .settings-modal-backdrop .settings-app.embedded :is(.segmented button.selected,.nav-item.active) { background:var(--accent-soft); color:var(--accent); box-shadow:none; }
 :root[data-theme="dark"] .settings-app :is(.notice,.color-grid label.selected) { background:var(--accent-soft); border-color:var(--border); }
+:root[data-theme="dark"] .settings-app .notice { color:var(--accent); }
 :root[data-theme="dark"] .settings-app .nav-item:hover { background:var(--surface-subtle); }
 :root[data-theme="dark"] .settings-app .text-button { color:var(--accent); }
 /* Main editor uses the app surface; floating Dock paper keeps its original colors. */
