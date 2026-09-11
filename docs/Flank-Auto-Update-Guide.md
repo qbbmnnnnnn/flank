@@ -566,6 +566,8 @@ export function startUpdateScheduler(onUpdateAvailable: (update: Update) => void
 
 ## 5. 每次发新版本的操作清单（Checklist）
 
+> 精简版、可直接复制命令的版本见 **`docs/Flank-Release-Checklist.md`**。
+
 ### 阶段一：改代码 + 提版本号
 
 > ⚠️ **首次发版前的一次性检查**：确认 `tauri.conf.json` 里的 `pubkey` 已经不是占位符（见 §3.3）。没替换的话，更新会在校验阶段失败。
@@ -574,7 +576,7 @@ export function startUpdateScheduler(onUpdateAvailable: (update: Update) => void
   - `src-tauri/tauri.conf.json` → `"version"`
   - `src-tauri/Cargo.toml` → `[package] version`
   - `package.json` → `"version"`
-  > 建议写一个 `scripts/bump-version.mjs` 一次性改三处，避免漏改。`tauri.conf.json` 的版本决定了 installer 版本，`Cargo.toml` 的版本决定了设置页显示的版本。
+  > 已提供 `scripts/bump-version.mjs`（`npm run bump-version -- 0.1.1`），它会一次性改这三处**以及 `package-lock.json` 的两处根版本**（漏掉锁文件会让 CI 的 `npm ci` 直接失败）。`tauri.conf.json` 的版本决定了 installer 版本，`Cargo.toml` 的版本决定了设置页显示的版本。
 - [ ] 2. 在 `src/services/i18n` 里补好这次的更新文案（如果你要把 release notes 显示出来）。
 - [ ] 3. 本地跑通验证：
   ```powershell
@@ -685,6 +687,8 @@ export function startUpdateScheduler(onUpdateAvailable: (update: Update) => void
 | 兜底运维 | 出问题时 | 手工上传/补发、改下载源、密钥应急 | §8.3、§8.6、§8.8 |
 
 ### 8.2 标准发版流程（GitHub Release）
+
+> 📋 **只想照着敲命令的话，看 `docs/Flank-Release-Checklist.md`**（可复制的完整命令块 + "Action 没触发"排查表）。本节是原理与细节说明。
 
 **前提：** `github` remote 已配好、Secrets 已配好、`.github/workflows/release.yml` 已提交。
 

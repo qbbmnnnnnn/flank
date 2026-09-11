@@ -28,4 +28,14 @@ replaceOnce("src-tauri/tauri.conf.json", /("version"\s*:\s*)"[^"]*"/, `$1"${vers
 // Cargo.toml 只改 [package] 下那一行（依赖项的 version 不在行首，不会命中）。
 replaceOnce("src-tauri/Cargo.toml", /^version\s*=\s*"[^"]*"/m, `version = "${version}"`);
 
-console.log("三处版本号已同步。别忘了同步更新 Cargo.lock（构建时会自动完成）。");
+// package-lock.json 有两处根版本：顶层的 "version" 和 packages[""] 里的 "version"。
+// 不同步的话，CI 里第一步 npm ci 就会因为锁文件与 package.json 不一致而失败。
+// 注意：不能简单匹配缩进，因为 packages 下每个依赖项在同样缩进处也有 "version"。
+replaceOnce("package-lock.json", /^(\s{2}"version"\s*:\s*)"[^"]*"/m, `$1"${version}"`);
+replaceOnce(
+  "package-lock.json",
+  /("packages"\s*:\s*\{\s*""\s*:\s*\{\s*"name"\s*:\s*"[^"]*",\s*"version"\s*:\s*)"[^"]*"/,
+  `$1"${version}"`,
+);
+
+console.log("四处版本号已同步（src-tauri/Cargo.lock 会在下次构建时自动更新）。");
