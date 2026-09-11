@@ -104,6 +104,14 @@ tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 ```
 
+**`src-tauri/Cargo.toml` 的 `[dependencies]` 还要加 tokio（方案 B 的定时器需要）：**
+
+```toml
+tokio = { version = "1", features = ["time"] }
+```
+
+> 注意：原本 `tokio` 只出现在 `[dev-dependencies]`（features 为 `macros`、`rt-multi-thread`），方案 B 起它要进正式依赖。
+
 **`src-tauri/src/app.rs` 的 `run()` 中注册**（放在现有 `.plugin(...)` 链上）：
 
 ```rust
@@ -155,6 +163,21 @@ npm run tauri signer generate -w $HOME\.tauri\flank.key
 | `flank.key.pub` | **公钥**，用来校验 | 写进 `tauri.conf.json` 的 `plugins.updater.pubkey` |
 
 生成时还会让你设一个**私钥密码**，记为 GitHub Secret `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。
+
+> ❗ **务必设一个非空口令，不要用"无密码"的密钥。** 本机实测（`tauri signer sign`）：
+> - 口令缺失时，CLI 打印 `Signing without password.` 之后就**卡住不退出**；在 CI 里表现为 job 一直挂着直到超时，很难排查；
+> - 只有显式给出 `--password=` 或 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 才能正常签完；
+> - 而 GitHub **不允许创建空值的 Secret**，所以"无密码密钥 + 空 secret"这条路在 CI 上不可靠。
+>
+> 结论：生成密钥时就带一个强口令，本地与 CI 都用**同一个非空口令**。
+
+> **怎么确认私钥和配置里的公钥是一对？** 在仓库里随便签一个文件：
+> ```powershell
+> $env:TAURI_SIGNING_PRIVATE_KEY = Get-Content $HOME\.tauri\flank.key -Raw
+> $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = "你的口令"
+> npm run tauri signer sign -- README.md
+> ```
+> 把生成的 `README.md.sig` 内容做 base64 解码，取内层第二行的 base64 再解码，其第 3~10 字节按**小端**读出的十六进制，应该等于 `flank.key.pub` 注释里 key id 的**字节反转**。对不上的话，用户端会报签名校验失败。（验证完记得删掉 `README.md.sig`。）
 
 > ⚠️ **配好之后有个连带副作用，必须提前知道：**
 > 只要 `tauri.conf.json` 里填了 `pubkey`，**之后每一次 `tauri build` 都必须能拿到私钥**，否则构建直接失败（报 `A public key has been found, but no private key`）。也就是说：
@@ -214,7 +237,7 @@ npm run tauri signer generate -w $HOME\.tauri\flank.key
   },
   "plugins": {
     "updater": {
-      "pubkey": "把 flank.key.pub 的内容整段粘贴到这里",
+      "pubkey": "REPLACE_ME_WITH_THE_CONTENT_OF_flank.key.pub",
       "endpoints": [
         "https://github.com/qbbmnnnnnn/flank/releases/latest/download/latest.json"
       ],
@@ -251,6 +274,11 @@ npm run tauri signer generate -w $HOME\.tauri\flank.key
 - `.dmg` 只是**给用户手动下载安装**用的，别把 `latest.json` 的 `url` 指向 dmg，否则校验/安装都会失败。
 
 **`pubkey` 内容格式**：粘贴 `flank.key.pub` 里的**整段文本**（形如 `dW50cnVzdGVkIGNvbW1lbnQ6...`），**不能填文件路径**——官方明确说明 "It cannot be a file path!"。
+
+> ❗ **仓库里现在是一个占位符，必须先替换才能真正发版：**
+> 1. 跑一次 `npm run tauri signer generate -w $HOME\.tauri\flank.key`（见 §3.2），会得到 `flank.key` 和 `flank.key.pub`。
+> 2. 用 `flank.key.pub` 的内容替换 `tauri.conf.json` 里那串 `REPLACE_ME_WITH_THE_CONTENT_OF_flank.key.pub`。
+> 3. 没替换之前：`check()` 拿到的更新**会在校验阶段失败**（`PublicKey::decode` 报错），用户看到"安装失败"；CI 打包也会因为没有私钥而失败。`npm run tauri:dev` 不受影响。
 
 ---
 
@@ -311,7 +339,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24   # 与 package.json 的 engines / @types/node 对齐
           cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
@@ -346,8 +374,8 @@ jobs:
 
 | Secret | 值 |
 | --- | --- |
-| `TAURI_SIGNING_PRIVATE_KEY` | `flank.key` 文件的**全部内容** |
-| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | 生成密钥时设的密码（没设密码就留空字符串） |
+| `TAURI_SIGNING_PRIVATE_KEY` | `flank.key` 文件的**全部内容**（含换行的整段文本） |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | 生成密钥时设的口令。**必须非空** —— 空 secret 在 GitHub 上创建不了，且凭证缺失会让 CLI 卡住（见 §3.2） |
 
 > `releaseDraft: true` 是个安全设计：**草稿 Release 不会被 `/releases/latest/` 命中**，所以你不会不小心把半成品推给用户。确认产物和 `latest.json` 没问题后再点 Publish，更新才真正对用户生效。
 
@@ -449,6 +477,12 @@ async function installUpdate() {
 }
 ```
 
+> **实际落地的实现与上面示意的差异**（以仓库代码为准）：
+> - `availableVersion` 不是局部 ref，而是从 `src/services/updateService.ts` 导出的**共享状态**——因为 Rust 后台检查也会写它（见 §8.5）。
+> - `pendingUpdate` 用 `shallowRef`，避免 Vue 深度代理一个持有后端资源的 `Update` 句柄。
+> - `installUpdate()` 在 `pendingUpdate` 为空时会**先补一次 `check()`**：后台检查只告诉了版本号，真正安装必须自己拿到 `Update` 句柄。
+> - 平台标签由 `navigator.userAgent` 推导（`macOS` / `Windows x64`）；进度条只在 `downloading` 状态渲染。
+
 顶部的 `update-hero` 也应从写死的"当前已是最新版本"改成**真实状态**：
 
 | 状态 | hero 标题 | 右侧徽标 |
@@ -534,6 +568,8 @@ export function startUpdateScheduler(onUpdateAvailable: (update: Update) => void
 
 ### 阶段一：改代码 + 提版本号
 
+> ⚠️ **首次发版前的一次性检查**：确认 `tauri.conf.json` 里的 `pubkey` 已经不是占位符（见 §3.3）。没替换的话，更新会在校验阶段失败。
+
 - [ ] 1. **三处版本号同步递增**（必须一致）：
   - `src-tauri/tauri.conf.json` → `"version"`
   - `src-tauri/Cargo.toml` → `[package] version`
@@ -612,6 +648,7 @@ export function startUpdateScheduler(onUpdateAvailable: (update: Update) => void
 | `latest.json` 里的 `url` 404 | 资产名对不上（GitHub 直链是大小写敏感的），或资产被删了 | 用浏览器打开该 `url` 验证；见 §8.3 |
 | `check()` 报解析错误 | `platforms` 里有条目缺 `url` / `signature`（Tauri 会先校验整个文件） | 补齐所有平台条目 |
 | CI 构建没有签名 | `TAURI_SIGNING_PRIVATE_KEY` secret 名称拼错或多行格式不对 | 私钥要整段（含换行）粘贴 |
+| CI 一直挂着、日志停在 `Signing without password.` | 签名口令缺失或为空（空 secret 创建不了） | 给密钥设一个**非空**口令，并配到 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`，见 §3.2 |
 | Gitee 方案下更新不生效 | Gitee Release 没有自动 latest.json | 手工维护，或改走 GitHub |
 | 担心 CSP 阻挡下载 | 不会——下载发生在 **Rust 侧**，不经过 WebView 的 CSP | 无需改 CSP |
 | 用户在国内下载很慢/超时 | GitHub Release 直链在国内网络不稳定 | 见 §8.9：把安装包托管到国内可访问的直链，`latest.json` 的 `url` 指过去 |
@@ -751,43 +788,57 @@ gh release upload v0.2.0 .\latest.json --clobber
 好处是不依赖任何 WebView 是否加载完成。骨架：
 
 ```rust
-// src-tauri/src/app.rs 的 setup() 末尾
-use tauri_plugin_updater::UpdaterExt; // 需要 use
+// src-tauri/src/app.rs（下面是已落地的实现，`now_ms()` / `last_update_check_ms()` 两个小助手略）
+use tauri_plugin_updater::UpdaterExt;
 
-let handle = app.handle().clone();
-tauri::async_runtime::spawn(async move {
-    // 启动后先等一会儿，避开启动高峰
-    tokio::time::sleep(std::time::Duration::from_secs(30)).await;
-    let mut ticker = tokio::time::interval(std::time::Duration::from_secs(6 * 60 * 60));
-    loop {
-        ticker.tick().await;
+const UPDATE_STATE_KEY: &str = "update-state";
+const UPDATE_FIRST_CHECK_DELAY: std::time::Duration = std::time::Duration::from_secs(30);
+const UPDATE_TICK_INTERVAL: std::time::Duration = std::time::Duration::from_secs(6 * 60 * 60);
+const UPDATE_CHECK_INTERVAL_MS: i64 = 24 * 60 * 60 * 1000;
 
-        let enabled = handle
-            .state::<AppState>()
-            .settings
-            .read()
-            .map(|settings| settings.automatic_updates)
-            .unwrap_or(false);
-        if !enabled {
-            continue;
+fn spawn_update_checker(app: &tauri::AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(UPDATE_FIRST_CHECK_DELAY).await;
+        let mut ticker = tokio::time::interval(UPDATE_TICK_INTERVAL);
+        loop {
+            ticker.tick().await;
+            check_for_updates(&app).await;
         }
+    });
+}
 
-        // 建议再叠一层 24h 节流：上次检查时间存进 SQLite（例如 setting key "update_state"）
+async fn check_for_updates(app: &tauri::AppHandle) {
+    let Some(state) = app.try_state::<AppState>() else { return };
+    let enabled = state.settings.read().map(|s| s.automatic_updates).unwrap_or(false);
+    if !enabled { return; }
+    if now_ms() - last_update_check_ms(&state.database).await < UPDATE_CHECK_INTERVAL_MS { return; }
 
-        match handle.updater() {
-            Ok(updater) => match updater.check().await {
-                Ok(Some(update)) => {
-                    // 只通知前端"有新版本"，不要自动下载安装，避免打断用户输入
-                    let _ = handle.emit_to("main", "update:available", update.version.clone());
-                }
-                Ok(None) => {}
-                Err(error) => eprintln!("update check failed: {error}"),
-            },
-            Err(error) => eprintln!("updater unavailable: {error}"),
-        }
+    // 先记录时间：endpoint 挂掉时不能每个 tick 都重试
+    let _ = state.database.save_setting(UPDATE_STATE_KEY, &now_ms().to_string()).await;
+
+    let updater = match app.updater() {
+        Ok(updater) => updater,
+        Err(error) => { eprintln!("Flank: updater unavailable: {error}"); return; }
+    };
+    match updater.check().await {
+        // 只通知前端"有新版本"，绝不自动下载安装，避免打断用户输入
+        Ok(Some(update)) => { let _ = app.emit_to("main", "update:available", update.version.clone()); }
+        Ok(None) => {}
+        Err(error) => eprintln!("Flank: update check failed: {error}"),
     }
-});
+}
+
+// setup() 末尾加一行：
+spawn_update_checker(app.handle());
 ```
+
+> 三个关键设计，改动时别丢：
+> 1. **只提示、不自动装** —— Rust 只 `emit`，下载安装永远由用户在设置页点按钮触发。
+> 2. **先写时间戳再请求** —— 否则 endpoint 失败时每个 tick 都会重新请求。
+> 3. **节流时间存 SQLite**（`settings` 表的 `update-state`），跨重启有效，比 `localStorage` 可靠。
+
+> 补充：Rust 侧只 `emit` 版本号字符串。前端拿到后需要**自己再 `check()` 一次**取得 `Update` 句柄才能安装（`Update` 是后端资源，无法跨 IPC 传递）。
 
 **配套改动（方案 B 的完整清单）：**
 - `src-tauri/Cargo.toml` 的 `[dependencies]` 需要加 `tokio = { version = "1", features = ["time"] }`（现在 tokio 只在 `[dev-dependencies]` 里）。

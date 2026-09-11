@@ -18,7 +18,8 @@
     "test:e2e": "playwright test",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "bump-version": "node scripts/bump-version.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.0",
@@ -29,6 +30,8 @@
     "@lezer/highlight": "^1.2.3",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-dialog": "^2.7.3",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.11.0",
     "gsap": "^3.15.0",
     "lucide-vue-next": "^0.577.0",
     "pinia": "^3.0.3",

@@ -3,11 +3,13 @@ import { t } from './services/i18n';
 import { onMounted, onUnmounted } from "vue";
 import { RouterView, useRouter, useRoute } from "vue-router";
 import { notification, receiveNotification, dismissNotification } from "./services/notificationService";
+import { listenForUpdateAnnouncements } from "./services/updateService";
 
 const router = useRouter();
 const route = useRoute();
 let unlisten: (() => void) | undefined;
 let unlistenNotification: (() => void) | undefined;
+let unlistenUpdate: (() => void) | undefined;
 
 onMounted(async () => {
   if (!("__TAURI_INTERNALS__" in window)) return;
@@ -20,11 +22,16 @@ onMounted(async () => {
   unlisten = await listen<string>("main:navigate", (event) => {
     if (event.payload === "/" || event.payload === "/settings") void router.push(event.payload);
   });
+  // The Rust background task only announces; downloading and installing stay manual.
+  unlistenUpdate = await listenForUpdateAnnouncements((version) => {
+    receiveNotification(`${t('发现新版本 {version}', { version })} · ${t('可在设置中更新')}`);
+  });
 });
 
 onUnmounted(() => {
   unlisten?.();
   unlistenNotification?.();
+  unlistenUpdate?.();
   dismissNotification();
 });
 </script>

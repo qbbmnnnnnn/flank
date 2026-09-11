@@ -2,9 +2,11 @@
 import { t } from '../../services/i18n';
 import { failureReason, showNotification as showToast } from "../../services/notificationService";
 import { dockLayout } from "../dock/layout";
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, shallowRef, watch } from "vue";
 import { isTauri } from "@tauri-apps/api/core";
+import type { Update } from "@tauri-apps/plugin-updater";
 import { savedSettings, settingsLoaded, settingsPending, settingsError, initializeSettings, saveSettingsPatch, flushSettings } from "../../services/settingsService";
+import { availableVersion, checkForUpdate, downloadInstallAndRelaunch } from "../../services/updateService";
 import {
   ArrowLeft,
   Keyboard,
@@ -88,6 +90,101 @@ watch(settingsPending, (count, previous) => {
     if (!settingsPending.value && !settingsError.value) showToast(t('设置已保存'));
   }, 500);
 });
+
+// ---------------------------------------------------------------------------
+// Updates
+// ---------------------------------------------------------------------------
+type UpdateState = "idle" | "checking" | "available" | "downloading" | "error";
+const updateState = ref<UpdateState>("idle");
+// The Update handle owns a backend resource, so it must not be made deeply reactive.
+const pendingUpdate = shallowRef<Update | null>(null);
+const updatePercent = ref(0);
+
+const platformLabel = /Mac/i.test(navigator.userAgent) ? "macOS" : "Windows x64";
+
+const updateTitle = computed(() => {
+  switch (updateState.value) {
+    case "checking": return t('正在检查更新…');
+    case "available": return t('发现新版本 {version}', { version: availableVersion.value ?? '' });
+    case "downloading": return t('正在下载新版本…');
+    case "error": return t('检查更新失败，请稍后重试');
+    default: return t('当前已是最新版本');
+  }
+});
+
+const updateBadge = computed(() => {
+  switch (updateState.value) {
+    case "checking": return t('检查中');
+    case "available": return t('可更新');
+    case "downloading": return `${updatePercent.value}%`;
+    case "error": return t('检查失败');
+    default: return t('已是最新');
+  }
+});
+
+const updateBadgeClass = computed(() => {
+  switch (updateState.value) {
+    case "available": return "available";
+    case "checking":
+    case "downloading": return "busy";
+    case "error": return "error";
+    default: return "";
+  }
+});
+
+async function runUpdateCheck(options: { silent?: boolean } = {}) {
+  if (updateState.value === "checking" || updateState.value === "downloading") return;
+  updateState.value = "checking";
+  try {
+    const update = await checkForUpdate();
+    if (!update) {
+      pendingUpdate.value = null;
+      updateState.value = "idle";
+      if (!options.silent) showToast(t('当前已是最新版本'));
+      return;
+    }
+    pendingUpdate.value = update;
+    updateState.value = "available";
+  } catch (cause) {
+    updateState.value = "error";
+    console.error("Flank: update check failed", cause);
+    const reason = failureReason(cause);
+    if (!options.silent) showToast(reason ? `${t('检查更新失败，请稍后重试')} · ${reason}` : t('检查更新失败，请稍后重试'));
+  }
+}
+
+async function installUpdate() {
+  if (updateState.value === "downloading") return;
+  let update = pendingUpdate.value;
+  if (!update) {
+    // The background checker only announced a version; obtain our own handle.
+    try {
+      update = await checkForUpdate();
+    } catch {
+      update = null;
+    }
+    if (!update) {
+      updateState.value = "idle";
+      showToast(t('检查更新失败，请稍后重试'));
+      return;
+    }
+    pendingUpdate.value = update;
+  }
+  updatePercent.value = 0;
+  updateState.value = "downloading";
+  try {
+    await downloadInstallAndRelaunch(update, ({ downloaded, total }) => {
+      updatePercent.value = total ? Math.min(100, Math.round((downloaded / total) * 100)) : 0;
+    });
+    // Windows exits the app from inside the installer, so this is unreachable there.
+    updateState.value = "idle";
+  } catch (cause) {
+    updateState.value = "error";
+    console.error("Flank: update install failed", cause);
+    const reason = failureReason(cause);
+    showToast(reason ? `${t('更新安装失败，请稍后重试')} · ${reason}` : t('更新安装失败，请稍后重试'));
+  }
+}
 
 const dockCountWarning = computed(() => settings.dockVisibleCount > recommendedDockCount.value);
 
@@ -231,6 +328,8 @@ function resetShortcuts() {
 
 onMounted(async () => {
   await Promise.all([app.initialize(), loadSettings(), updateDockRecommendation()]);
+  // The Rust-side checker may have announced an update before this page mounted.
+  if (availableVersion.value) updateState.value = "available";
   await nextTick();
   if (props.embedded) settingsRoot.value?.querySelector<HTMLElement>('.settings-modal-close')?.focus();
 });
@@ -425,12 +524,21 @@ onUnmounted(() => {
         <div v-else class="settings-page">
           <section class="update-hero">
             <img class="app-icon" src="/noty-logo.png" alt="" aria-hidden="true" />
-            <div><p>FLANK DESKTOP</p><h2>{{ t('当前已是最新版本') }}</h2><span>{{ t('版本') }} {{ app.info?.version ?? '0.1.0' }} · Windows x64</span></div>
-            <div class="update-check"><i></i>{{ t('已是最新') }}</div>
+            <div>
+              <p>FLANK DESKTOP</p>
+              <h2>{{ updateTitle }}</h2>
+              <span>{{ t('版本') }} {{ app.info?.version ?? '0.1.0' }} · {{ platformLabel }}</span>
+              <div v-if="updateState === 'downloading'" class="update-progress" role="progressbar" :aria-valuenow="updatePercent" aria-valuemin="0" aria-valuemax="100"><i :style="{ width: `${updatePercent}%` }"></i></div>
+            </div>
+            <div class="update-check" :class="updateBadgeClass"><i></i>{{ updateBadge }}</div>
           </section>
           <section class="settings-group">
             <label class="setting-row clickable"><div class="setting-copy"><b>{{ t('自动检查更新') }}</b><span>{{ t('每天检查一次，不携带便签或设备内容') }}</span></div><input v-model="settings.automaticUpdates" class="switch-input" type="checkbox"><span class="switch"></span></label>
-            <div class="setting-row"><div class="setting-copy"><b>{{ t('立即检查') }}</b><span>{{ t('更新不会在你输入时强制重启应用') }}</span></div><button class="secondary-button" type="button" @click="showToast(t('正在检查更新…'))">{{ t('检查更新') }}</button></div>
+            <div class="setting-row">
+              <div class="setting-copy"><b>{{ t('立即检查') }}</b><span>{{ t('更新不会在你输入时强制重启应用') }}</span></div>
+              <button v-if="updateState === 'available'" class="secondary-button update-cta" type="button" @click="installUpdate">{{ t('下载并安装 {version}', { version: availableVersion ?? '' }) }}</button>
+              <button v-else class="secondary-button" type="button" :disabled="!desktop || updateState === 'checking' || updateState === 'downloading'" @click="runUpdateCheck()">{{ updateState === 'checking' ? t('正在检查更新…') : t('检查更新') }}</button>
+            </div>
             <div class="setting-row"><div class="setting-copy"><b>{{ t('发布说明') }}</b><span>{{ t('查看当前版本的改进和已知问题') }}</span></div><button class="text-button" type="button" @click="showToast(t('发布说明将在浏览器中打开'))">{{ t('查看发布说明 ↗') }}</button></div>
           </section>
           <div class="notice"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.7 2.9 8.2 7 10 4.1-1.8 7-5.3 7-10V6Z"/><path d="m9 12 2 2 4-5"/></svg><p><b>{{ t('更新包经过签名验证') }}</b><span>{{ t('Flank 只安装同一发布者签名且版本递增的有效更新包。') }}</span></p></div>

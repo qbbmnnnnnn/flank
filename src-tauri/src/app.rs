@@ -7,6 +7,7 @@ use tauri::{
     Emitter, Manager,
 };
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
+use tauri_plugin_updater::UpdaterExt;
 
 use crate::infrastructure::sqlite::{Database, DatabaseError};
 
@@ -160,6 +161,79 @@ fn install_status_entry(app: &mut tauri::App) -> tauri::Result<()> {
     Ok(())
 }
 
+/// Persisted timestamp (ms) of the last automatic update check.
+const UPDATE_STATE_KEY: &str = "update-state";
+/// Delay the first background check so it does not compete with startup work.
+const UPDATE_FIRST_CHECK_DELAY: std::time::Duration = std::time::Duration::from_secs(30);
+/// The background task wakes up this often, and the timestamp decides whether it acts.
+const UPDATE_TICK_INTERVAL: std::time::Duration = std::time::Duration::from_secs(6 * 60 * 60);
+/// Minimum gap between two real checks, matching the "checked daily" promise in Settings.
+const UPDATE_CHECK_INTERVAL_MS: i64 = 24 * 60 * 60 * 1000;
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as i64
+}
+
+async fn last_update_check_ms(database: &Database) -> i64 {
+    database
+        .setting(UPDATE_STATE_KEY)
+        .await
+        .ok()
+        .flatten()
+        .and_then(|value| value.parse::<i64>().ok())
+        .unwrap_or(0)
+}
+
+/// Background updater: notifies the main window when a newer release exists.
+/// It never downloads or installs on its own, so a check can never interrupt typing.
+fn spawn_update_checker(app: &tauri::AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(UPDATE_FIRST_CHECK_DELAY).await;
+        let mut ticker = tokio::time::interval(UPDATE_TICK_INTERVAL);
+        loop {
+            ticker.tick().await;
+            check_for_updates(&app).await;
+        }
+    });
+}
+
+async fn check_for_updates(app: &tauri::AppHandle) {
+    let Some(state) = app.try_state::<AppState>() else { return };
+    let enabled = state
+        .settings
+        .read()
+        .map(|settings| settings.automatic_updates)
+        .unwrap_or(false);
+    if !enabled {
+        return;
+    }
+    if now_ms() - last_update_check_ms(&state.database).await < UPDATE_CHECK_INTERVAL_MS {
+        return;
+    }
+    // Record the attempt first: a failing endpoint must not be retried on every tick.
+    let checked_at = now_ms().to_string();
+    let _ = state.database.save_setting(UPDATE_STATE_KEY, &checked_at).await;
+
+    let updater = match app.updater() {
+        Ok(updater) => updater,
+        Err(error) => {
+            eprintln!("Flank: updater unavailable: {error}");
+            return;
+        }
+    };
+    match updater.check().await {
+        Ok(Some(update)) => {
+            let _ = app.emit_to("main", "update:available", update.version.clone());
+        }
+        Ok(None) => {}
+        Err(error) => eprintln!("Flank: update check failed: {error}"),
+    }
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_autostart::init(
@@ -168,6 +242,8 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             let app_data_dir = app.path().app_data_dir()?;
             let database = tauri::async_runtime::block_on(Database::open(&app_data_dir))
@@ -230,6 +306,8 @@ pub fn run() {
                     }
                 });
             }
+
+            spawn_update_checker(app.handle());
 
             Ok(())
         })
