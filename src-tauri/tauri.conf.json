@@ -65,7 +65,17 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
+    "shortDescription": "本地优先的桌面便签",
+    "longDescription": "来不及整理的，先放在手边。Flank 把常用便签收进屏幕边缘，支持全局速记、Markdown 与待办，正文加密保存在本地，无需注册账号。",
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "headerImage": "installer/nsis-header.bmp",
+        "sidebarImage": "installer/nsis-sidebar.bmp",
+        "languages": ["SimpChinese"]
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
