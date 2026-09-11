@@ -25,6 +25,10 @@ section[id] { scroll-margin-top: 94px; }
 .hero-meta { letter-spacing: .035em; }
 /* Type hierarchy: display / section / card / reading / supporting UI. */
 :root { --type-section: clamp(28px, 3.25vw, 42px); --type-card: 20px; --type-body: 16px; --type-small: 13px; }
+.header-actions { display: flex; align-items: center; gap: 10px; }
+.github-link { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; flex: 0 0 38px; border: 1px solid var(--line-strong); border-radius: 12px; background: #fffdf580; color: var(--ink); transition: background-color .2s ease, border-color .2s ease; }
+.github-link:hover { background-color: #fffdf5; border-color: var(--ink-3); }
+.github-link svg { width: 20px; height: 20px; }
 .brand { gap: 11px; }
 .brand-mark { width: 38px; height: 38px; }
 .brand-name { font-family: var(--font); font-size: 27px; font-weight: 500; letter-spacing: -.055em; }
