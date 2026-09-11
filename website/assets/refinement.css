@@ -27,24 +27,24 @@ section[id] { scroll-margin-top: 94px; }
 :root { --type-section: clamp(28px, 3.25vw, 42px); --type-card: 20px; --type-body: 16px; --type-small: 13px; }
 .brand { gap: 11px; }
 .brand-mark { width: 38px; height: 38px; }
-.brand-name { font-family: var(--font); font-size: 27px; font-weight: 750; letter-spacing: -.055em; }
+.brand-name { font-family: var(--font); font-size: 27px; font-weight: 500; letter-spacing: -.055em; }
 .site-nav a { font-family: var(--font); font-size: 15px; font-weight: 650; color: #454e41; }
-.hero h1 { font-size: clamp(44px, 6.2vw, 76px); font-weight: 700; }
-.section-head h2, .interaction-copy > h2, .privacy-copy > h2, .download-copy > h2 { font-size: var(--type-section); line-height: 1.3; font-weight: 700; text-wrap: balance; }
+.hero h1 { font-size: clamp(44px, 6.2vw, 76px); font-weight: 500; }
+.section-head h2, .interaction-copy > h2, .privacy-copy > h2, .download-copy > h2 { font-size: var(--type-section); line-height: 1.3; font-weight: 500; text-wrap: balance; }
 .section-sub, .lede { font-size: 16px; line-height: 1.85; }
-.card h3 { font-family: var(--font); font-size: var(--type-card); font-weight: 650; line-height: 1.45; }
+.card h3 { font-family: var(--font); font-size: var(--type-card); font-weight: 500; line-height: 1.45; }
 .card p, .step-body span { font-size: 14px; font-weight: 400; line-height: 1.8; }
-.step-body b { font-family: var(--font); font-size: 17px; font-weight: 650; line-height: 1.45; }
+.step-body b { font-family: var(--font); font-size: 17px; font-weight: 500; line-height: 1.45; }
 .step-index { font-family: var(--font); font-size: 12px; font-weight: 650; }
-.kicker { font-family: var(--font); font-size: 12px; font-weight: 650; letter-spacing: .14em; }
+.kicker { font-family: var(--font); font-size: 12px; font-weight: 500; letter-spacing: .14em; }
 .btn { font-family: var(--font); font-size: 15px; font-weight: 650; }
 .btn-sm { font-size: 14px; }
 .btn-lg { font-size: 16px; }
-.stat b { font-family: var(--font); font-size: 28px; font-weight: 700; }
+.stat b { font-family: var(--font); font-size: 28px; font-weight: 500; }
 .stat span, .hero-meta, .download-meta { font-size: var(--type-small); }
-.privacy-list b { font-size: 16px; font-weight: 650; }
-.faq-item summary { font-size: 17px; font-weight: 650; line-height: 1.6; }
-.footer-title { font-family: var(--font); font-size: 15px; font-weight: 650; }
+.privacy-list b { font-size: 16px; font-weight: 500; }
+.faq-item summary { font-size: 17px; font-weight: 500; line-height: 1.6; }
+.footer-title { font-family: var(--font); font-size: 15px; font-weight: 500; }
 .scene { background: radial-gradient(ellipse at 10% 0%, #e7ebdd 0%, transparent 65%), linear-gradient(125deg, #d2dcca, #a9bcaa); color: #36483a; box-shadow: 0 24px 60px -36px #45574166, inset 0 1px #fff9; border-color: #b6c3b1; }
 .scene::before { opacity: .55; mix-blend-mode: multiply; }
 .scene-bar { background: #f4f6ee55; border-color: #536b441f; backdrop-filter: none; }

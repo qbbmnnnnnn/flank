@@ -64,7 +64,8 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-h1, h2, h3 { margin: 0; letter-spacing: -0.03em; font-weight: 600; font-family: var(--font-display); }
+/* 展示字体只有常规字重；标题保持 500，避免浏览器合成粗体后笔画糊连。 */
+h1, h2, h3 { margin: 0; letter-spacing: -0.03em; font-weight: 500; font-family: var(--font-display); }
 .btn, .brand-name, .stat b, .kicker, .step-index, .soon-pill,
 .footer-title, .scene-copy h3, .step-body b { font-family: var(--font-display); }
 p { margin: 0; }
@@ -178,7 +179,7 @@ code {
 }
 .brand-mark img { width: 100%; height: 100%; display: block; object-fit: contain; }
 .brand-mark-lg { width: 46px; height: 46px; border-radius: 13px; }
-.brand-name { font-size: 18px; font-weight: 700; letter-spacing: -0.03em; }
+.brand-name { font-size: 18px; font-weight: 500; letter-spacing: -0.03em; }
 
 .site-nav { display: flex; align-items: center; gap: 26px; }
 .site-nav a {
@@ -656,7 +657,7 @@ code {
 .site-footer { border-top: 1px solid var(--line); padding: 44px 0 52px; }
 .footer-inner { display: flex; align-items: center; }
 .footer-brand { display: flex; align-items: center; gap: 14px; }
-.footer-brand .footer-title { font-size: 14.5px; font-weight: 600; letter-spacing: -0.02em; }
+.footer-brand .footer-title { font-size: 14.5px; font-weight: 500; letter-spacing: -0.02em; }
 .footer-brand .footer-sub { color: var(--ink-3); font-size: 13px; }
 
 /* =========================================================
@@ -799,7 +800,7 @@ code {
   text-orientation: upright;
   color: rgba(47, 42, 43, 0.86);
   font-size: var(--title-size, 16px);
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: 0.04em;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -982,7 +983,7 @@ code {
   overflow: hidden;
   color: #29262b;
   font-size: 19px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: -0.025em;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1167,7 +1168,7 @@ code {
   flex: 0 0 62px;
   padding: 16px 18px 8px;
   font-size: 23px;
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1.2;
   letter-spacing: -0.035em;
 }
