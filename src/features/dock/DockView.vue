@@ -13,6 +13,7 @@ import { noteService } from "../../services/noteService";
 import {
   DOCK_BRIDGE,
   emitToPanel,
+  isMacOS,
   isTauriRuntime,
   listenOnWebview,
   type DockPanelSavePayload,
@@ -23,6 +24,7 @@ import { createNoteSortable, moveItem } from "../notes/sortable";
 
 const root = ref<HTMLElement | null>(null);
 const noteList = ref<HTMLElement | null>(null);
+const macOS = isMacOS();
 const side = ref<"left" | "right">("right");
 const screenHeight = ref(1080);
 const previewNow = Date.now();
@@ -80,10 +82,20 @@ let unlistenPanelBlurred: (() => void) | undefined;
 let unlistenPanelRequestClose: (() => void) | undefined;
 let unlistenCreateNote: (() => void) | undefined;
 let unlistenDockHidden: (() => void) | undefined;
+let unlistenNativePointer: (() => void) | undefined;
 let panelToken = 0;
 let suppressBlurUntil = 0;
 const hoverTimers = new Map<string, number>();
 const quickSetters = new Map<HTMLElement, { x: (value: number) => void; scaleX: (value: number) => void; scaleY: (value: number) => void }>();
+let railMoveFrame: number | undefined;
+let pendingRailMove: { clientY: number; hovered: HTMLElement | null } | undefined;
+let nativeRailActive = false;
+let nativeHoveredNoteId: string | null = null;
+let nativePressedNoteId: string | null = null;
+let nativeClickTimer: number | undefined;
+let lastDomClick = { noteId: "", at: 0 };
+
+type DockNativePointerEvent = { phase: "enter" | "move" | "leave" | "down" | "up"; x: number; y: number; primaryPressed: boolean };
 
 const compact = computed(() => screenHeight.value <= 800);
 const visibleCount = ref(5);
@@ -128,9 +140,19 @@ function resizeDock() {
     const win = await getDockWindow();
     if (!win) return;
     await updateDisplayMetrics();
-    const { LogicalSize } = await import("@tauri-apps/api/dpi");
-    await win.setSize(new LogicalSize(layout.value.railWidth, layout.value.windowHeight));
-    await snapNativeWindow();
+    if (macOS) {
+      await invokeTauri("resize_and_snap_dock", {
+        anchorSide: side.value,
+        logicalWidth: layout.value.railWidth,
+        logicalHeight: layout.value.windowHeight,
+      });
+    } else {
+      // Preserve the existing Windows behavior exactly: resize through the
+      // window API, then select the monitor from the resized Dock center.
+      const { LogicalSize } = await import("@tauri-apps/api/dpi");
+      await win.setSize(new LogicalSize(layout.value.railWidth, layout.value.windowHeight));
+      await snapNativeWindow();
+    }
     await emitToPanel(DOCK_BRIDGE.railResize, { railWidth: layout.value.railWidth });
   }).catch((error) => console.error("Unable to size Dock", error));
   return layoutQueue;
@@ -298,19 +320,42 @@ function findTab(id: string) {
   return root.value?.querySelector<HTMLElement>(`.note-tab[data-id="${id}"]`) ?? null;
 }
 
-function onRailMove(event: PointerEvent) {
+function queueRailMove(clientY: number, hovered: HTMLElement | null) {
   if (sorting.value) return;
   showControls();
+  pendingRailMove = { clientY, hovered };
+  if (railMoveFrame !== undefined) return;
+  railMoveFrame = window.requestAnimationFrame(flushRailMove);
+}
+
+function onRailMove(event: PointerEvent) {
+  const hovered = (event.target as HTMLElement).closest<HTMLElement>(".note-tab");
+  if (!macOS) {
+    // Windows keeps the original synchronous pointermove update path.
+    if (sorting.value) return;
+    showControls();
+    pendingRailMove = { clientY: event.clientY, hovered };
+    flushRailMove();
+    return;
+  }
+  queueRailMove(event.clientY, hovered);
+}
+
+function flushRailMove() {
+  railMoveFrame = undefined;
+  const move = pendingRailMove;
+  pendingRailMove = undefined;
+  if (!move || sorting.value) return;
   const direction = inward();
   const peek = peekScale.value;
-  const hovered = (event.target as HTMLElement).closest<HTMLElement>(".note-tab");
+  const hovered = move.hovered;
   const tabs = [...(root.value?.querySelectorAll<HTMLElement>(".note-tab") ?? [])];
   let nearest: HTMLElement | null = null;
   let nearestDistance = Number.POSITIVE_INFINITY;
 
   for (const tab of tabs) {
     const rect = tab.getBoundingClientRect();
-    const distance = Math.abs(event.clientY - (rect.top + rect.height / 2));
+    const distance = Math.abs(move.clientY - (rect.top + rect.height / 2));
     const influence = gsap.utils.clamp(0, 1, 1 - distance / (132 * peek));
     const scale = 1 + influence * .14;
     let x = gsap.utils.mapRange(0, 1, 0, 24 * peek * direction, influence);
@@ -407,9 +452,73 @@ function hideControls(force = false) {
 }
 
 function onRailLeave() {
+  if (railMoveFrame !== undefined) window.cancelAnimationFrame(railMoveFrame);
+  railMoveFrame = undefined;
+  pendingRailMove = undefined;
   resetRail();
   window.clearTimeout(controlsHideTimer);
   controlsHideTimer = window.setTimeout(() => hideControls(), 1200);
+}
+
+function clearNativeHover() {
+  if (nativeHoveredNoteId) {
+    const note = displayNotes.value.find((item) => item.id === nativeHoveredNoteId);
+    if (note) endHover(note);
+  }
+  nativeHoveredNoteId = null;
+  if (nativeRailActive) onRailLeave();
+  nativeRailActive = false;
+}
+
+function onNativePointer(point: DockNativePointerEvent) {
+  const target = point.phase === "leave"
+    ? null
+    : document.elementFromPoint(point.x, point.y) as HTMLElement | null;
+  const hovered = target?.closest<HTMLElement>(".note-tab") ?? null;
+  const hoveredNoteId = hovered?.dataset.id ?? null;
+
+  // macOS can consume the first click solely to activate the Dock. Native
+  // down/up events preserve one-click selection without periodic polling.
+  if (point.phase === "down") {
+    nativePressedNoteId = target?.closest(".quick-actions button") ? null : hoveredNoteId;
+    window.clearTimeout(nativeClickTimer);
+  } else if (point.phase === "up") {
+    const pressedNoteId = nativePressedNoteId;
+    nativePressedNoteId = null;
+    if (pressedNoteId && hoveredNoteId === pressedNoteId && !sorting.value) {
+      nativeClickTimer = window.setTimeout(() => {
+        if (lastDomClick.noteId === pressedNoteId && Date.now() - lastDomClick.at < 300) return;
+        const note = displayNotes.value.find((item) => item.id === pressedNoteId);
+        if (note) void openNote(note);
+      }, 80);
+    }
+  }
+
+  // DOM events remain authoritative while WKWebView is active. Native hover is
+  // only needed when macOS suppresses DOM mouse movement for inactive windows.
+  if (document.hasFocus()) {
+    if (nativeRailActive) clearNativeHover();
+    return;
+  }
+  const interactive = hovered || target?.closest<HTMLElement>(".rail-controls > button");
+  if (point.phase === "leave" || !interactive) {
+    if (nativeRailActive) clearNativeHover();
+    return;
+  }
+
+  nativeRailActive = true;
+  if (hoveredNoteId !== nativeHoveredNoteId) {
+    if (nativeHoveredNoteId) {
+      const previous = displayNotes.value.find((item) => item.id === nativeHoveredNoteId);
+      if (previous) endHover(previous);
+    }
+    nativeHoveredNoteId = hoveredNoteId;
+    if (hoveredNoteId) {
+      const note = displayNotes.value.find((item) => item.id === hoveredNoteId);
+      if (note) beginHover(note);
+    }
+  }
+  queueRailMove(point.y, hovered);
 }
 
 // ---------------------------------------------------------------------------
@@ -468,6 +577,7 @@ async function reorderDockNotes(oldIndex: number, newIndex: number) {
 }
 
 function onTabClick(note: Note, event: MouseEvent) {
+  if (macOS) lastDomClick = { noteId: note.id, at: Date.now() };
   if (sorting.value || Date.now() - dragEndedAt < 160) {
     event.preventDefault();
     event.stopPropagation();
@@ -503,7 +613,7 @@ async function deleteNote(note: Note) {
 }
 
 // ---------------------------------------------------------------------------
-// Screen-edge centering
+// Screen-edge centering (kept for the existing Windows behavior)
 // ---------------------------------------------------------------------------
 
 async function snapNativeWindow() {
@@ -597,6 +707,9 @@ onMounted(async () => {
   unlistenPanelRequestClose = await listenOnWebview<null>(DOCK_BRIDGE.requestClose, onPanelRequestClose);
   unlistenCreateNote = await listenOnWebview<null>(DOCK_BRIDGE.createNote, () => void createNote());
   unlistenDockHidden = await listenOnWebview<null>(DOCK_BRIDGE.hidden, () => void closePanel());
+  if (macOS) {
+    unlistenNativePointer = await listenOnWebview<DockNativePointerEvent>(DOCK_BRIDGE.nativePointer, onNativePointer);
+  }
 
 });
 
@@ -606,13 +719,17 @@ onUnmounted(() => {
   window.clearTimeout(settingsSelectedTimer);
   window.clearTimeout(controlsHideTimer);
   window.clearTimeout(pendingCloseTimer);
+  window.clearTimeout(nativeClickTimer);
   hoverTimers.forEach((timer) => window.clearTimeout(timer));
+  if (railMoveFrame !== undefined) window.cancelAnimationFrame(railMoveFrame);
+  pendingRailMove = undefined;
   noteListObserver?.disconnect();
   unlistenPanelSave?.();
   unlistenPanelBlurred?.();
   unlistenPanelRequestClose?.();
   unlistenCreateNote?.();
   unlistenDockHidden?.();
+  unlistenNativePointer?.();
   unlistenSettings?.();
   unlistenScale?.();
   unlistenNotesChanged?.();

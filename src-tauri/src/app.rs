@@ -245,6 +245,11 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
+            // Flank is a menu-bar utility on macOS: keep it out of the system Dock
+            // while retaining the status item and allowing its windows to open.
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
             let app_data_dir = app.path().app_data_dir()?;
             let database = tauri::async_runtime::block_on(Database::open(&app_data_dir))
                 .map_err(|error: DatabaseError| Box::<dyn std::error::Error>::from(error))?;
@@ -273,6 +278,8 @@ pub fn run() {
 
             // Keep the compact Dock flush with the primary screen edge on first launch.
             if let Some(dock) = app.get_webview_window("dock") {
+                #[cfg(target_os = "macos")]
+                crate::macos_dock::install(&dock)?;
                 if let Some(monitor) = dock.primary_monitor()? {
                     let screen_position = monitor.position();
                     let screen_size = monitor.size();
@@ -331,6 +338,7 @@ pub fn run() {
             crate::commands::system::save_settings,
             crate::commands::system::show_main_window,
             crate::commands::system::toggle_dock_window,
+            crate::commands::system::resize_and_snap_dock,
             crate::commands::system::sample_screen_luminance,
             crate::commands::system::is_primary_mouse_button_pressed,
             crate::commands::system::show_dock_panel,
