@@ -1,7 +1,9 @@
 /* Shared settings layout. The content area remains the only settings scroller. */
 .settings-fields { display:flex; flex:1; min-width:0; min-height:0; margin:0; padding:0; border:0; }
 .settings-fields > .content-scroll { width:100%; }
-.settings-app button:focus-visible, .settings-app input:focus-visible, .settings-app select:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+.settings-app button:focus-visible, .settings-app input:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+/* Selects signal focus with a border tint only — no surrounding focus box. */
+.settings-app select:focus-visible { outline:none; }
 .switch-input:focus-visible + .switch { outline:2px solid var(--accent); outline-offset:3px; }
 .switch-input:disabled + .switch { opacity:.45; cursor:not-allowed; }
 .settings-app .setting-row { flex-wrap:wrap; gap:12px 20px; }
@@ -9,7 +11,6 @@
 .settings-app .setting-copy + select { max-width:100%; }
 .settings-modal-backdrop .settings-app.embedded .appearance-group,
 .settings-modal-backdrop .settings-app.embedded .startup-group { height:auto; }
-.settings-modal-backdrop .settings-app.embedded .startup-group select { width:auto; max-width:100%; }
 .settings-app .content-header { height:auto; min-height:105px; flex-basis:auto; gap:20px; }
 :root:lang(en) { --display:Geist,"Segoe UI",sans-serif; }
 :root:lang(en) .index-header h1 { font-size:30px; }
@@ -72,11 +73,16 @@
 :root[data-theme="dark"] .settings-modal-backdrop .settings-app.embedded :is(.content-subtitle,.nav-item small) { color:var(--muted); }
 :root[data-theme="dark"] .settings-app :is(select,kbd,.key-recorder,.secondary-button,.dock-launch),
 :root[data-theme="dark"] .settings-modal-backdrop .settings-app.embedded :is(select,.library-link) { color:var(--text); background:var(--surface); border-color:var(--border); box-shadow:none; }
+:root[data-theme="dark"] .settings-app .select-chevron { color:var(--muted); }
+:root[data-theme="dark"] .settings-app .dock-count-control input { color:var(--text); background:var(--surface); border-color:var(--border); }
 :root[data-theme="dark"] .settings-app .segmented,
 :root[data-theme="dark"] .settings-modal-backdrop .settings-app.embedded .segmented { background:var(--canvas); border-color:var(--border); }
 :root[data-theme="dark"] .settings-app .segmented button { color:var(--muted); }
+:root[data-theme="dark"] .settings-app .segmented-marker { background:var(--accent-soft); box-shadow:none; }
 :root[data-theme="dark"] .settings-app :is(.segmented button.selected,.nav-item.active),
-:root[data-theme="dark"] .settings-modal-backdrop .settings-app.embedded :is(.segmented button.selected,.nav-item.active) { background:var(--accent-soft); color:var(--accent); box-shadow:none; }
+:root[data-theme="dark"] .settings-modal-backdrop .settings-app.embedded :is(.segmented button.selected,.nav-item.active) { color:var(--accent); }
+:root[data-theme="dark"] .settings-app .nav-item.active,
+:root[data-theme="dark"] .settings-modal-backdrop .settings-app.embedded .nav-item.active { background:var(--accent-soft); box-shadow:none; }
 :root[data-theme="dark"] .settings-app :is(.notice,.color-grid label.selected) { background:var(--accent-soft); border-color:var(--border); }
 :root[data-theme="dark"] .settings-app .notice { color:var(--accent); }
 :root[data-theme="dark"] .settings-app .nav-item:hover { background:var(--surface-subtle); }

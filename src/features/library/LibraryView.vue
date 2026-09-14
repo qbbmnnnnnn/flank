@@ -215,11 +215,11 @@ async function mutate(note: NoteRecord, action: "archive" | "unarchive" | "delet
         revision: item.revision + 1,
       });
     }
-    showToast(action === "archive" ? t('已归档') : action === "unarchive" ? t('已恢复到展示中') : action === "delete" ? t('已移到最近删除') : note.archivedAtMs ? t('已恢复到归档') : t('已恢复到展示中'));
+    showToast(action === "archive" ? t('已归档') : action === "unarchive" ? t('已恢复到展示中') : action === "delete" ? t('已移到最近删除') : note.archivedAtMs ? t('已恢复到归档') : t('已恢复到展示中'), "success");
     editorOpen.value = false;
     await loadNotes();
   } catch {
-    showToast(t('操作失败，请刷新后重试'));
+    showToast(t('操作失败，请刷新后重试'), "error");
   }
 }
 
@@ -230,11 +230,11 @@ async function permanentlyDelete() {
     if (isDesktop) await noteService.permanentlyDelete({ id: note.id, expectedRevision: note.revision });
     else demoNotes.value = demoNotes.value.filter((item) => item.id !== note.id);
     deleteTarget.value = null;
-    showToast(t('便签已永久删除'));
+    showToast(t('便签已永久删除'), "success");
     await loadNotes();
   } catch {
     deleteTarget.value = null;
-    showToast(t('永久删除失败，请刷新后重试'));
+    showToast(t('永久删除失败，请刷新后重试'), "error");
   }
 }
 
@@ -251,11 +251,11 @@ async function clearTrash() {
       demoNotes.value = demoNotes.value.filter((note) => !deletedIds.has(note.id));
     }
     clearTrashConfirm.value = false;
-    showToast(t('已清空删除项'));
+    showToast(t('已清空删除项'), "success");
     await loadNotes();
   } catch {
     clearTrashConfirm.value = false;
-    showToast(t('清空失败，请刷新后重试'));
+    showToast(t('清空失败，请刷新后重试'), "error");
     await loadNotes();
   } finally {
     clearingTrash.value = false;
@@ -337,7 +337,7 @@ async function reorderNotes(oldIndex: number, newIndex: number) {
     await noteService.reorder({ noteIds: reordered.map((note) => note.id) });
   } catch {
     notes.value = previous;
-    showToast(t('排序保存失败，已恢复原顺序'));
+    showToast(t('排序保存失败，已恢复原顺序'), "error");
     await loadNotes(undefined, { silent: true });
   }
 }

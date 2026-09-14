@@ -124,6 +124,7 @@ export const messages: Record<string, string> = {
   "发布说明": "Release notes",
   "查看当前版本的改进和已知问题": "Improvements and known issues in this version",
   "发布说明将在浏览器中打开": "Release notes will open in your browser",
+  "无法打开浏览器，请手动访问 GitHub 发布页面": "Could not open your browser. Visit the GitHub releases page manually.",
   "查看发布说明 ↗": "View release notes ↗",
   "更新包经过签名验证": "Updates are signature-verified",
   "Flank 只安装同一发布者签名且版本递增的有效更新包。": "FLANK installs only newer, valid updates signed by the same publisher.",

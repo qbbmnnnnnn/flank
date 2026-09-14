@@ -111,7 +111,7 @@ async function loadDockNotes() {
     // hover animation. Keep its creation controls exposed until a note exists.
     if (notes.value.length === 0) showControls();
   } catch {
-    showLocalToast(t('无法读取本地便签'));
+    showLocalToast(t('无法读取本地便签'), "error");
   }
 }
 
@@ -194,7 +194,7 @@ async function invokeTauri<T>(command: string, args?: Record<string, unknown>): 
 
 async function showDockPanel(anchorSide: "left" | "right") {
   if (!("__TAURI_INTERNALS__" in window)) {
-    showLocalToast(t('便签面板需在桌面应用中查看'));
+    showLocalToast(t('便签面板需在桌面应用中查看'), "info");
     return;
   }
   await invokeTauri("show_dock_panel", { anchorSide });
@@ -462,7 +462,7 @@ async function reorderDockNotes(oldIndex: number, newIndex: number) {
     await noteService.reorder({ noteIds: reordered.map((note) => note.id) });
   } catch {
     notes.value = previous;
-    showToast(t('排序保存失败，已恢复原顺序'));
+    showToast(t('排序保存失败，已恢复原顺序'), "error");
     await loadDockNotes();
   }
 }
@@ -482,9 +482,9 @@ async function archiveNote(note: Note) {
     notes.value = notes.value.filter((item) => item.id !== note.id);
     quickSetters.delete(findTab(note.id) as HTMLElement);
     if (activeNoteId.value === note.id) await closePanel();
-    showToast(t('“{title}”已归档', { title: note.title }));
-  } catch {
-    showToast(t('归档失败，便签可能已在其他窗口修改'));
+    showToast(t('“{title}”已归档', { title: note.title }), "success");
+    } catch {
+      showToast(t('归档失败，便签可能已在其他窗口修改'), "error");
     await loadDockNotes();
   }
 }
@@ -495,9 +495,9 @@ async function deleteNote(note: Note) {
     notes.value = notes.value.filter((item) => item.id !== note.id);
     quickSetters.delete(findTab(note.id) as HTMLElement);
     if (activeNoteId.value === note.id) await closePanel();
-    showToast(t('“{title}”已移到废纸篓', { title: note.title }));
-  } catch {
-    showToast(t('删除失败，便签可能已在其他窗口修改'));
+    showToast(t('“{title}”已移到废纸篓', { title: note.title }), "success");
+    } catch {
+      showToast(t('删除失败，便签可能已在其他窗口修改'), "error");
     await loadDockNotes();
   }
 }
@@ -536,7 +536,7 @@ async function openSettings() {
   try {
     await appService.showMainWindow();
   } catch {
-    showToast(t('无法打开主窗口，请重试'));
+    showToast(t('无法打开主窗口，请重试'), "error");
   }
 }
 

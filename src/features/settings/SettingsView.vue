@@ -9,6 +9,7 @@ import { savedSettings, settingsLoaded, settingsPending, settingsError, initiali
 import { availableVersion, checkForUpdate, downloadInstallAndRelaunch } from "../../services/updateService";
 import {
   ArrowLeft,
+  ChevronDown,
   Keyboard,
   PanelRight,
   Pencil,
@@ -22,9 +23,11 @@ import {
 import { useRouter } from "vue-router";
 
 import { useAppStore } from "../../app/stores/app";
+import SegmentedControl from "../../components/SegmentedControl.vue";
 import type { AppSettings } from "../../contracts/app";
 import { MAX_CUSTOM_NOTE_COLORS, type NoteColorOption } from "../../contracts/note";
 import { appService } from "../../services/appService";
+import { openExternalUrl } from "../../services/assetService";
 import { noteFontOptions, noteFontStack } from "../../contracts/fonts";
 import {
   builtinNoteColors,
@@ -66,6 +69,46 @@ function handleSettingsKey(event: KeyboardEvent) {
 
 const recordingShortcut = ref<string | null>(null);
 
+// ---------------------------------------------------------------------------
+// Select fields
+// ---------------------------------------------------------------------------
+/**
+ * A <select> receives a trailing focus/click event once its native popup closes,
+ * so opening is driven by the pointer/key press that actually opens the menu and
+ * closing by a committed choice or by leaving the field.
+ */
+const openSelect = ref<string | null>(null);
+
+function selectHandlers(id: string) {
+  return {
+    onPointerdown: () => { openSelect.value = id; },
+    onKeydown: (event: KeyboardEvent) => {
+      if (["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) openSelect.value = id;
+    },
+    onChange: () => { openSelect.value = null; },
+    onBlur: () => { openSelect.value = null; },
+  };
+}
+
+const themeOptions = computed<{ value: AppSettings["theme"]; label: string }[]>(() => [
+  { value: "system", label: t('跟随系统') },
+  { value: "light", label: t('浅色') },
+  { value: "dark", label: t('深色') },
+]);
+
+const dockSideOptions = computed<{ value: AppSettings["dockSide"]; label: string }[]>(() => [
+  { value: "left", label: t('左侧') },
+  { value: "right", label: t('右侧') },
+]);
+
+const dockSizeOptions = computed<{ value: AppSettings["dockSize"]; label: string }[]>(() => [
+  { value: "small", label: t('紧凑') },
+  { value: "medium", label: t('标准') },
+  { value: "large", label: t('宽松') },
+]);
+
+const dockCountOptions: { value: number; label: string }[] = [5, 7, 9, 12].map((count) => ({ value: count, label: String(count) }));
+
 
 const settings = reactive<AppSettings>({ ...savedSettings.value });
 const recommendedDockCount = ref(7);
@@ -87,7 +130,7 @@ watch(settingsPending, (count, previous) => {
   clearTimeout(savedToastTimer);
   if (count || !previous) return;
   savedToastTimer = setTimeout(() => {
-    if (!settingsPending.value && !settingsError.value) showToast(t('设置已保存'));
+    if (!settingsPending.value && !settingsError.value) showToast(t('设置已保存'), "success");
   }, 500);
 });
 
@@ -101,6 +144,14 @@ const pendingUpdate = shallowRef<Update | null>(null);
 const updatePercent = ref(0);
 
 const platformLabel = /Mac/i.test(navigator.userAgent) ? "macOS" : "Windows x64";
+
+/** GitHub Releases is the single source of truth for published release notes. */
+const RELEASES_URL = "https://github.com/qbbmnnnnnn/flank/releases";
+
+async function openReleaseNotes() {
+  if (await openExternalUrl(RELEASES_URL)) return;
+  showToast(t('无法打开浏览器，请手动访问 GitHub 发布页面'), "error");
+}
 
 const updateTitle = computed(() => {
   switch (updateState.value) {
@@ -140,7 +191,7 @@ async function runUpdateCheck(options: { silent?: boolean } = {}) {
     if (!update) {
       pendingUpdate.value = null;
       updateState.value = "idle";
-      if (!options.silent) showToast(t('当前已是最新版本'));
+      if (!options.silent) showToast(t('当前已是最新版本'), "success");
       return;
     }
     pendingUpdate.value = update;
@@ -149,7 +200,7 @@ async function runUpdateCheck(options: { silent?: boolean } = {}) {
     updateState.value = "error";
     console.error("Flank: update check failed", cause);
     const reason = failureReason(cause);
-    if (!options.silent) showToast(reason ? `${t('检查更新失败，请稍后重试')} · ${reason}` : t('检查更新失败，请稍后重试'));
+    if (!options.silent) showToast(reason ? `${t('检查更新失败，请稍后重试')} · ${reason}` : t('检查更新失败，请稍后重试'), "error");
   }
 }
 
@@ -165,7 +216,7 @@ async function installUpdate() {
     }
     if (!update) {
       updateState.value = "idle";
-      showToast(t('检查更新失败，请稍后重试'));
+      showToast(t('检查更新失败，请稍后重试'), "error");
       return;
     }
     pendingUpdate.value = update;
@@ -182,7 +233,7 @@ async function installUpdate() {
     updateState.value = "error";
     console.error("Flank: update install failed", cause);
     const reason = failureReason(cause);
-    showToast(reason ? `${t('更新安装失败，请稍后重试')} · ${reason}` : t('更新安装失败，请稍后重试'));
+    showToast(reason ? `${t('更新安装失败，请稍后重试')} · ${reason}` : t('更新安装失败，请稍后重试'), "error");
   }
 }
 
@@ -218,7 +269,7 @@ async function updateDockRecommendation() {
 async function loadSettings() {
   await initializeSettings();
   syncSavedSettings();
-  if (settingsError.value) showToast(t(settingsError.value));
+  if (settingsError.value) showToast(t(settingsError.value), "error");
 }
 
 watch(settings, () => {
@@ -229,7 +280,7 @@ watch(settings, () => {
   void saveSettingsPatch(patch).catch((cause: unknown) => {
     const reason = failureReason(cause);
     console.error("Flank: saving settings failed", cause);
-    showToast(reason ? `${t('设置保存失败，已恢复为已保存的设置')} · ${reason}` : t('设置保存失败，已恢复为已保存的设置'));
+    showToast(reason ? `${t('设置保存失败，已恢复为已保存的设置')} · ${reason}` : t('设置保存失败，已恢复为已保存的设置'), "error");
   });
 }, { deep: true, flush: "sync" });
 
@@ -268,7 +319,7 @@ function commitCustomColors() {
 function addCustomColor(event: Event) {
   const value = (event.target as HTMLInputElement).value.toLowerCase();
   if (!canAddColor.value) {
-    showToast(t('颜色池最多可添加 {count} 种颜色', { count: MAX_CUSTOM_NOTE_COLORS }));
+    showToast(t('颜色池最多可添加 {count} 种颜色', { count: MAX_CUSTOM_NOTE_COLORS }), "error");
     return;
   }
   customColors.value = [...customColors.value, { id: createNoteColorId(), name: `${t('自定义')} ${customColors.value.length + 1}`, value }];
@@ -304,15 +355,15 @@ function chooseSection(id: SectionId) {
 async function openDockWindow() {
   try {
     const visible = await appService.toggleDockWindow();
-    showToast(visible ? t('便签栏已显示') : t('便签栏已隐藏'));
+    showToast(visible ? t('便签栏已显示') : t('便签栏已隐藏'), "success");
   } catch {
-    showToast(t('浏览器预览中可通过 /#/dock 查看便签栏'));
+    showToast(t('浏览器预览中可通过 /#/dock 查看便签栏'), "info");
   }
 }
 
 function startShortcutRecording(id: string) {
   recordingShortcut.value = recordingShortcut.value === id ? null : id;
-  if (recordingShortcut.value) showToast(t('请按下新的快捷键组合'));
+  if (recordingShortcut.value) showToast(t('请按下新的快捷键组合'), "info");
 }
 
 function resetShortcuts() {
@@ -323,7 +374,7 @@ function resetShortcuts() {
     { id: "all", label: "All Notes", description: "打开全部便签资料库", keys: ["Ctrl", "Alt", "L"] },
     { id: "archive", label: "Archive", description: "打开已归档便签", keys: ["Ctrl", "Alt", "A"] },
   ];
-  showToast(t('已恢复 Windows 默认快捷键'));
+  showToast(t('已恢复 Windows 默认快捷键'), "success");
 }
 
 onMounted(async () => {
@@ -398,11 +449,11 @@ onUnmounted(() => {
             <div class="group-heading"><div><h2>{{ t('外观与语言') }}</h2><p>{{ t('界面语言与整体颜色模式') }}</p></div></div>
             <div class="setting-row">
               <div class="setting-copy"><b>{{ t('界面语言') }}</b><span>{{ t('更改后应用到所有窗口') }}</span></div>
-              <select v-model="settings.language" :aria-label="t('界面语言')"><option value="zh-CN">简体中文</option><option value="en-US">English</option></select>
+              <span class="select-field" :class="{ open: openSelect === 'language' }"><select v-model="settings.language" v-bind="selectHandlers('language')" :aria-label="t('界面语言')"><option value="zh-CN">简体中文</option><option value="en-US">English</option></select><ChevronDown class="select-chevron" aria-hidden="true" /></span>
             </div>
             <div class="setting-row">
               <div class="setting-copy"><b>{{ t('颜色主题') }}</b></div>
-              <div class="segmented" role="group" :aria-label="t('颜色主题')"><button v-for="theme in (['system', 'light', 'dark'] as const)" :key="theme" :class="{ selected: settings.theme === theme }" :aria-pressed="settings.theme === theme" type="button" @click="settings.theme = theme">{{ theme === 'system' ? t('跟随系统') : theme === 'light' ? t('浅色') : t('深色') }}</button></div>
+              <SegmentedControl v-model="settings.theme" :options="themeOptions" :aria-label="t('颜色主题')" />
             </div>
           </section>
 
@@ -414,7 +465,7 @@ onUnmounted(() => {
             </label>
             <div class="setting-row">
               <div class="setting-copy"><b>{{ t('关闭主窗口时') }}</b></div>
-              <select v-model="settings.closeBehavior" :aria-label="t('关闭主窗口时')"><option value="background">{{ t('后台运行') }}</option><option value="quit">{{ t('退出 FLANK') }}</option></select>
+              <span class="select-field" :class="{ open: openSelect === 'closeBehavior' }"><select v-model="settings.closeBehavior" v-bind="selectHandlers('closeBehavior')" :aria-label="t('关闭主窗口时')"><option value="background">{{ t('后台运行') }}</option><option value="quit">{{ t('退出 FLANK') }}</option></select><ChevronDown class="select-chevron" aria-hidden="true" /></span>
             </div>
           </section>
 
@@ -446,18 +497,18 @@ onUnmounted(() => {
             <label class="setting-row clickable"><div class="setting-copy"><b>{{ t('启用 Dock') }}</b><span>{{ t('关闭后仍可通过系统托盘、菜单栏或主窗口重新启用') }}</span></div><input v-model="settings.dockEnabled" class="switch-input" type="checkbox"><span class="switch"></span></label>
             <div class="setting-row align-start">
               <div class="setting-copy"><b>{{ t('每次展示数量') }}</b><span>{{ t('默认最多显示 5 个完整便签；不足上限时随数量增高，超出后滚动') }}<br>{{ t('当前屏幕最多容纳') }} {{ recommendedDockCount }} {{ t('个') }}<br><em v-if="dockCountWarning" class="setting-warning">{{ t('设置已保留，实际数量会按屏幕安全空间调整') }}</em></span></div>
-              <div class="dock-count-control"><div class="segmented"><button v-for="count in [5, 7, 9, 12]" :key="count" :class="{ selected: settings.dockVisibleCount === count }" type="button" @click="settings.dockVisibleCount = count">{{ count }}</button></div><label>{{ t('自定义') }} <input v-model.number="settings.dockVisibleCount" type="number" min="5" max="12" step="1" @change="clampDockCount"></label></div>
+              <div class="dock-count-control"><SegmentedControl v-model="settings.dockVisibleCount" :options="dockCountOptions" :aria-label="t('每次展示数量')" /><label>{{ t('自定义') }} <input v-model.number="settings.dockVisibleCount" type="number" min="5" max="12" step="1" @change="clampDockCount"></label></div>
             </div>
             <div class="setting-row">
               <div class="setting-copy"><b>{{ t('屏幕边缘') }}</b><span>{{ t('固定在所选屏幕边缘的居中位置') }}</span></div>
-              <div class="segmented"><button :class="{ selected: settings.dockSide === 'left' }" type="button" @click="settings.dockSide = 'left'">{{ t('左侧') }}</button><button :class="{ selected: settings.dockSide === 'right' }" type="button" @click="settings.dockSide = 'right'">{{ t('右侧') }}</button></div>
+              <SegmentedControl v-model="settings.dockSide" :options="dockSideOptions" :aria-label="t('屏幕边缘')" />
             </div>
             <!-- <div class="setting-row">
               <div class="setting-copy"><b>{{ t('垂直位置') }}</b><span>{{ t('始终居中，随便签栏高度自动调整') }}</span></div>
             </div> -->
             <div class="setting-row">
               <div class="setting-copy"><b>{{ t('便签栏大小') }}</b><span>{{ t('不会改变便签正文的字体大小') }}</span></div>
-              <div class="segmented" role="group" :aria-label="t('便签栏大小')"><button v-for="size in (['small', 'medium', 'large'] as const)" :key="size" :class="{ selected: settings.dockSize === size }" :aria-pressed="settings.dockSize === size" type="button" @click="settings.dockSize = size">{{ size === 'small' ? t('紧凑') : size === 'medium' ? t('标准') : t('宽松') }}</button></div>
+              <SegmentedControl v-model="settings.dockSize" :options="dockSizeOptions" :aria-label="t('便签栏大小')" />
             </div>
           </section>
           <!-- <section class="settings-group">
@@ -468,7 +519,7 @@ onUnmounted(() => {
           </section> -->
           <section class="settings-group">
             <div class="group-heading"><div><h2>{{ t('编辑体验') }}</h2><p>{{ t('设置所有新建和已有便签的阅读体验。') }}</p></div></div>
-            <div class="setting-row"><div class="setting-copy"><b>{{ t('字体') }}</b><span>{{ t('便签正文、Markdown 预览与整个界面统一使用的字体') }}</span></div><div class="font-picker"><select v-model="settings.font" class="font-select" :style="{ fontFamily: noteFontStack(settings.font) }"><option v-for="option in noteFontOptions" :key="option.id" :value="option.id" :style="{ fontFamily: option.stack }">{{ t(option.name) }}</option></select></div></div>
+            <div class="setting-row"><div class="setting-copy"><b>{{ t('字体') }}</b><span>{{ t('便签正文、Markdown 预览与整个界面统一使用的字体') }}</span></div><div class="font-picker"><span class="select-field" :class="{ open: openSelect === 'font' }"><select v-model="settings.font" v-bind="selectHandlers('font')" class="font-select" :style="{ fontFamily: noteFontStack(settings.font) }" :aria-label="t('字体')"><option v-for="option in noteFontOptions" :key="option.id" :value="option.id" :style="{ fontFamily: option.stack }">{{ t(option.name) }}</option></select><ChevronDown class="select-chevron" aria-hidden="true" /></span></div></div>
             <div class="setting-row"><div class="setting-copy"><b>{{ t('正文字号') }}</b><span>{{ settings.fontSize }} px</span></div><input v-model.number="settings.fontSize" class="range short" type="range" min="13" max="22" step="1"></div>
             <!-- <div class="setting-row"><div class="setting-copy"><b>{{ t('默认文字方向') }}</b><span>{{ t('支持 Arabic / Hebrew 基础 RTL') }}</span></div><select v-model="settings.textDirection"><option value="automatic">{{ t('自动检测') }}</option><option value="ltr">{{ t('从左到右') }}</option><option value="rtl">{{ t('从右到左') }}</option></select></div> -->
             <!-- <label class="setting-row clickable"><div class="setting-copy"><b>{{ t('启用 Markdown') }}</b><span>{{ t('支持标题、粗体、列表、任务与行内代码') }}</span></div><input v-model="settings.markdown" class="switch-input" type="checkbox"><span class="switch"></span></label> -->
@@ -539,7 +590,7 @@ onUnmounted(() => {
               <button v-if="updateState === 'available'" class="secondary-button update-cta" type="button" @click="installUpdate">{{ t('下载并安装 {version}', { version: availableVersion ?? '' }) }}</button>
               <button v-else class="secondary-button" type="button" :disabled="!desktop || updateState === 'checking' || updateState === 'downloading'" @click="runUpdateCheck()">{{ updateState === 'checking' ? t('正在检查更新…') : t('检查更新') }}</button>
             </div>
-            <div class="setting-row"><div class="setting-copy"><b>{{ t('发布说明') }}</b><span>{{ t('查看当前版本的改进和已知问题') }}</span></div><button class="text-button" type="button" @click="showToast(t('发布说明将在浏览器中打开'))">{{ t('查看发布说明 ↗') }}</button></div>
+            <div class="setting-row"><div class="setting-copy"><b>{{ t('发布说明') }}</b><span>{{ t('查看当前版本的改进和已知问题') }}</span></div><button class="text-button" type="button" @click="openReleaseNotes">{{ t('查看发布说明 ↗') }}</button></div>
           </section>
           <div class="notice"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.7 2.9 8.2 7 10 4.1-1.8 7-5.3 7-10V6Z"/><path d="m9 12 2 2 4-5"/></svg><p><b>{{ t('更新包经过签名验证') }}</b><span>{{ t('Flank 只安装同一发布者签名且版本递增的有效更新包。') }}</span></p></div>
         </div>
@@ -553,8 +604,6 @@ onUnmounted(() => {
 
 <style scoped>
 .font-picker { display: grid; gap: 8px; }
-/* CJK font names are wider than the classic three options. */
-.font-select { min-width: 178px; }
 /* Renders in the selected face so a pick is confirmed without leaving the row. */
 .font-sample { margin: 0; color: var(--muted, #9a959e); font-size: 16px; line-height: 1.3; text-align: center; white-space: nowrap; }
 .pool-count { margin-left: auto; padding: 3px 9px; border-radius: 99px; color: var(--muted, #7b7590); background: var(--soft, #f4f2ef); font-size: 9px; font-weight: 750; }

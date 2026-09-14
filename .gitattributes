@@ -1,0 +1,4 @@
+# sqlx embeds migrations at compile time and verifies a SHA-384 checksum of the
+# raw file bytes, so CRLF/LF drift makes the app fail to start.
+# Pin migrations to LF so every checkout compiles byte-identical SQL.
+*.sql text eol=lf

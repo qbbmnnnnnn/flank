@@ -88,7 +88,7 @@ function setSaveState(state: typeof saveState.value, cause?: unknown) {
   if (state === "error" && saveState.value !== "error") {
     const reason = failureReason(cause);
     const message = t('便签保存失败，请重试；当前编辑内容已保留');
-    showNotification(reason ? `${message} · ${reason}` : message);
+    showNotification(reason ? `${message} · ${reason}` : message, "error");
   }
   saveState.value = state;
   if (state === "saved") saveStateTimer = window.setTimeout(() => (saveState.value = "idle"), 1800);

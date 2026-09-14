@@ -255,10 +255,18 @@ pub fn hide_dock_panel(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Toast payload for the main window. Mirrors `NotificationMessage` in notificationService.ts.
+#[derive(Clone, Serialize)]
+struct MainNotification {
+    message: String,
+    kind: String,
+}
+
 #[tauri::command]
 pub fn show_main_notification(
     app: tauri::AppHandle,
     message: String,
+    kind: Option<String>,
 ) -> Result<(), String> {
     // Show without stealing keyboard focus from the note editor.
     let main = app.get_webview_window("main")
@@ -267,7 +275,11 @@ pub fn show_main_notification(
         main.unminimize().map_err(|error| error.to_string())?;
     }
     main.show().map_err(|error| error.to_string())?;
-    app.emit_to("main", "main:notification", message)
+    let payload = MainNotification {
+        message,
+        kind: kind.unwrap_or_else(|| "info".to_string()),
+    };
+    app.emit_to("main", "main:notification", payload)
         .map_err(|error| error.to_string())
 }
 

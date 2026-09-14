@@ -40,10 +40,10 @@ defineExpose({
     try {
       const asset = await pickAndImportImage();
       if (asset) insertImage(view, `${ASSET_URI_PREFIX}${asset.id}`, asset.originalName.replace(/\.[^.]+$/, ''));
-      else if (!("__TAURI_INTERNALS__" in window)) showNotification(t('请在桌面应用中导入本地图片'));
+      else if (!("__TAURI_INTERNALS__" in window)) showNotification(t('请在桌面应用中导入本地图片'), "info");
     } catch (cause) {
       console.error('Flank: importing image failed', cause);
-      showNotification(t('图片导入失败，请重试'));
+      showNotification(t('图片导入失败，请重试'), "error");
     } finally {
       importingImage = false;
     }
