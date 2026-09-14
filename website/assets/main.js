@@ -1,7 +1,7 @@
 /* =========================================================
    Flank for Windows · 产品宣传页
    ---------------------------------------------------------
-   1) 下载地址：填下面的 DOWNLOAD_URL 即可；留空时下载按钮退回 #download 锚点。
+   1) 下载地址：启动时读取 GitHub 最新 Release，并按 Windows / macOS 选择安装包。
    2) 便签栏的结构/尺寸/动效对齐 src/features/dock/DockView.vue：
       gsap.quickTo 驱动 x / scaleX / scaleY（power3.out .34）；
       指针距离决定 influence，当前项与邻居一起放大；
@@ -10,9 +10,13 @@
       项目已移除拖拽换边，这里同样没有拖拽把手。
    ========================================================= */
 
-/* 下载地址：按系统分别填写。留空时对应按钮退回 #download 锚点。 */
-const DOWNLOAD_URL_WINDOWS = ''; // TODO: 填写 Windows 安装包地址
-const DOWNLOAD_URL_MAC = ''; // TODO: 填写 macOS 安装包地址
+/*
+ * 从仓库配置读取版本号，再拼出 Release 直链。
+ * 不使用 api.github.com，避免未登录 API 的共享 IP 限流导致下载退回 Release 页面。
+ */
+const RELEASE_VERSION_URL = 'https://raw.githubusercontent.com/qbbmnnnnnn/flank/master/src-tauri/tauri.conf.json';
+const RELEASE_DOWNLOAD_BASE = 'https://github.com/qbbmnnnnnn/flank/releases/download';
+const RELEASE_PAGE_URL = 'https://github.com/qbbmnnnnnn/flank/releases/latest';
 
 (() => {
   'use strict';
@@ -61,22 +65,46 @@ const DOWNLOAD_URL_MAC = ''; // TODO: 填写 macOS 安装包地址
   const downloadLinks = [...document.querySelectorAll('[data-download]')];
   const osCopies = [...document.querySelectorAll('[data-os-windows], [data-os-mac]')];
   const switchButtons = [...document.querySelectorAll('[data-platform-switch] button')];
+  const downloadUrls = { windows: '', mac: '' };
   let platform = 'windows';
+  let releaseLoaded = false;
+
+  async function loadLatestRelease() {
+    try {
+      const response = await fetch(RELEASE_VERSION_URL, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`GitHub Raw ${response.status}`);
+      const config = await response.json();
+      const version = String(config.version || '').trim();
+      if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {
+        throw new Error('无效的 Release 版本号');
+      }
+
+      const releaseBase = `${RELEASE_DOWNLOAD_BASE}/v${version}`;
+      downloadUrls.windows = `${releaseBase}/Flank_${version}_x64-setup.exe`;
+      downloadUrls.mac = `${releaseBase}/Flank_${version}_aarch64.dmg`;
+    } catch (error) {
+      console.warn('无法解析 Flank 最新安装包直链，将打开 Release 页面。', error);
+    } finally {
+      releaseLoaded = true;
+      applyPlatform(platform);
+    }
+  }
 
   function applyPlatform(next, { remember = false } = {}) {
     platform = next === 'mac' ? 'mac' : 'windows';
     if (remember) storePlatform(platform);
     document.documentElement.dataset.platform = platform;
 
-    const url = platform === 'mac' ? DOWNLOAD_URL_MAC : DOWNLOAD_URL_WINDOWS;
+    const url = downloadUrls[platform];
     downloadLinks.forEach((link) => {
+      link.href = url || RELEASE_PAGE_URL;
+      link.removeAttribute('download');
       if (url) {
-        link.href = url;
-        link.setAttribute('download', '');
         link.removeAttribute('title');
       } else {
-        link.href = '#download';
-        link.title = platform === 'mac' ? 'macOS 下载地址待配置' : 'Windows 下载地址待配置';
+        link.title = releaseLoaded
+          ? `最新 Release 中没有找到 ${platform === 'mac' ? 'macOS' : 'Windows'} 安装包，点击查看 Release 页面`
+          : '正在获取最新安装包…';
       }
     });
 
@@ -102,6 +130,16 @@ const DOWNLOAD_URL_MAC = ''; // TODO: 填写 macOS 安装包地址
   }
 
   applyPlatform(readStoredPlatform() || detectPlatform());
+  const releasePromise = loadLatestRelease();
+
+  downloadLinks.forEach((link) => {
+    link.addEventListener('click', async (event) => {
+      if (downloadUrls[platform] || releaseLoaded) return;
+      event.preventDefault();
+      await releasePromise;
+      window.location.assign(downloadUrls[platform] || RELEASE_PAGE_URL);
+    });
+  });
 
   switchButtons.forEach((button) => {
     button.addEventListener('click', () => {
