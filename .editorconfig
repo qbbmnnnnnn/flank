@@ -1,0 +1,39 @@
+# EditorConfig keeps every editor writing the same bytes that Git and the build
+# tools expect. https://editorconfig.org
+#
+# Why line endings are pinned here: this repo is developed on both macOS and
+# Windows, and sqlx embeds the migration files at compile time and verifies a
+# SHA-384 checksum of their raw bytes at startup. A CRLF/LF drift therefore
+# makes the app fail to launch, so migrations must stay LF on every platform.
+# .gitattributes enforces this for Git; this file keeps editors honest too.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 2
+trim_trailing_whitespace = true
+
+# rustfmt formats Rust with its default four-space indentation.
+[*.rs]
+indent_size = 4
+
+# sqlx migration checksums are computed from the raw file bytes: never CRLF.
+[src-tauri/migrations/*.sql]
+end_of_line = lf
+
+# Windows-native scripts are the exception; cmd.exe and Windows PowerShell 5.1
+# expect CRLF line endings.
+[*.{bat,cmd,ps1,reg}]
+end_of_line = crlf
+
+# Trailing whitespace is significant in Markdown (two spaces mean a hard break).
+[*.md]
+trim_trailing_whitespace = false
+
+# Checked-in binary assets must never be rewritten.
+[*.{png,jpg,jpeg,gif,webp,ico,bmp,ttf,otf,woff,woff2,sqlite3}]
+insert_final_newline = false
+trim_trailing_whitespace = false
