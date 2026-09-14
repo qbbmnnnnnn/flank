@@ -15,6 +15,7 @@
 | 构建产物 | Windows `-setup.exe` + `.exe.sig`；macOS `.app.tar.gz` + `.sig` + `.dmg` |
 | 更新清单 | `tauri-action` 自动生成 `latest.json`，两端 key 合并 |
 | GitHub Secrets | `TAURI_SIGNING_PRIVATE_KEY`、`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`（**都必须非空**） |
+| macOS 应用签名 | `bundle.macOS.signingIdentity: "-"`（ad-hoc 签名；无需 Apple Developer 账号，不影响 Windows） |
 | 私钥 | `%USERPROFILE%\.tauri\flank.key`（口令在密码管理器里，**丢了就无法再给老用户推更新**） |
 | 更新地址 | `https://github.com/qbbmnnnnnn/flank/releases/latest/download/latest.json` |
 
@@ -117,6 +118,15 @@ gh run watch
 | `latest.json` 的 url | 指向 `.exe` / `.app.tar.gz`，**不是** `.dmg`、**不是** `.nsis.zip` |
 | 草稿状态 | 还是 Draft（草稿不会被 `/releases/latest/` 命中，用户此刻不受影响） |
 
+macOS 首次或重要版本建议下载 `.dmg`，安装后验证 ad-hoc 签名：
+
+```bash
+codesign --verify --deep --strict --verbose=2 /Applications/Flank.app
+codesign -dv --verbose=4 /Applications/Flank.app 2>&1 | grep 'Signature='
+```
+
+第二条命令应显示 `Signature=adhoc`。ad-hoc 签名不能获得 Apple 信任，首次打开仍可能需要前往“系统设置 → 隐私与安全性”点击“仍要打开”，但可避免 Apple Silicon 将完全未签名的下载产物直接判断为“已损坏”。
+
 ### 步骤 8｜发布
 
 点 **Publish release**。Publish 之前用户完全收不到更新，可以放心核对、甚至关掉重来。
@@ -178,7 +188,9 @@ gh run list --limit 3
 | 同上 | tag 没推上去 | `git push github --tags`，或 `git ls-remote --tags github` 确认 |
 | job 一直挂着、日志停在 `Signing without password.` | 签名口令缺失或为空 secret（GitHub 建不了空 secret） | 检查 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 是否为非空口令 |
 | 报 `A public key has been found, but no private key` | `TAURI_SIGNING_PRIVATE_KEY` 没配或名称拼错 | 重新粘贴私钥**整段内容**（含换行） |
-| `latest.json` 里只有 Windows | macOS job 失败（多半是证书/依赖问题） | 看该 job 日志；先修 macOS，或临时把它从 matrix 里去掉再发 |
+| `latest.json` 里只有 Windows | macOS job 失败（多半是签名/依赖问题） | 看该 job 日志；先修 macOS，或临时把它从 matrix 里去掉再发 |
+| macOS 下载后仍提示“已损坏” | ad-hoc 签名未生效，或签名后 `.app` 内容被修改 | 用 `codesign --verify --deep --strict --verbose=2` 检查；让用户优先下载原始 `.dmg`，不要重新压缩或修改 `.app` |
+| macOS 提示“无法验证开发者” | ad-hoc 签名没有 Apple 信任链，属于预期行为 | 在“系统设置 → 隐私与安全性”点击“仍要打开”；要免除此步骤必须使用 Developer ID 签名并公证 |
 | 改完代码想重跑 | —— | Actions 页面点 **Re-run all jobs**；草稿 Release 会被复用并覆盖资产 |
 
 **重新发同一个版本**（CI 失败后修正重来）：因为 Release 还是草稿，可以删掉 tag 重推——
