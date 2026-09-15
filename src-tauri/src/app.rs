@@ -113,14 +113,15 @@ fn create_note_from_status_entry(app: &tauri::AppHandle) {
 
 fn status_menu(app: &tauri::AppHandle, language: &str) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     let labels = match language {
-        "en-US" => ["Open main window", "Show / hide Dock", "New note", "Quit FLANK"],
-        _ => ["打开主窗口", "显示 / 隐藏便签栏", "新建便签", "退出 FLANK"],
+        "en-US" => ["Open main window", "Show / hide Dock", "New note", "Check for updates", "Quit FLANK"],
+        _ => ["打开主窗口", "显示 / 隐藏便签栏", "新建便签", "检查更新", "退出 FLANK"],
     };
     let open = MenuItemBuilder::with_id("open-main", labels[0]).build(app)?;
     let dock = MenuItemBuilder::with_id("toggle-dock", labels[1]).build(app)?;
     let new_note = MenuItemBuilder::with_id("new-note", labels[2]).build(app)?;
-    let quit = MenuItemBuilder::with_id("quit", labels[3]).build(app)?;
-    MenuBuilder::new(app).items(&[&open, &dock, &new_note, &quit]).build()
+    let check_updates = MenuItemBuilder::with_id("check-updates", labels[3]).build(app)?;
+    let quit = MenuItemBuilder::with_id("quit", labels[4]).build(app)?;
+    MenuBuilder::new(app).items(&[&open, &dock, &new_note, &check_updates, &quit]).build()
 }
 
 pub fn update_status_language(app: &tauri::AppHandle, language: &str) {
@@ -151,6 +152,10 @@ fn install_status_entry(app: &mut tauri::App) -> tauri::Result<()> {
             "open-main" => show_main(app, Some("/")),
             "toggle-dock" => toggle_dock(app),
             "new-note" => create_note_from_status_entry(app),
+            "check-updates" => {
+                show_main(app, Some("/"));
+                let _ = app.emit_to("main", "update:check-requested", ());
+            }
             "quit" => app.exit(0),
             _ => {}
         });

@@ -4,13 +4,14 @@ import { onMounted, onUnmounted } from "vue";
 import { RouterView, useRouter, useRoute } from "vue-router";
 import { AlertTriangle, Check, Info, X } from "lucide-vue-next";
 import { NOTIFICATION_DURATION_MS, notification, receiveNotification, dismissNotification } from "./services/notificationService";
-import { listenForUpdateAnnouncements } from "./services/updateService";
+import { listenForUpdateAnnouncements, requestManualUpdateCheck } from "./services/updateService";
 
 const router = useRouter();
 const route = useRoute();
 let unlisten: (() => void) | undefined;
 let unlistenNotification: (() => void) | undefined;
 let unlistenUpdate: (() => void) | undefined;
+let unlistenUpdateRequest: (() => void) | undefined;
 
 onMounted(async () => {
   if (!("__TAURI_INTERNALS__" in window)) return;
@@ -22,7 +23,12 @@ onMounted(async () => {
   unlistenNotification = await listen<{ message: string; kind?: string }>("main:notification", (event) =>
     receiveNotification(event.payload.message, event.payload.kind === "success" || event.payload.kind === "error" ? event.payload.kind : "info"));
   unlisten = await listen<string>("main:navigate", (event) => {
-    if (event.payload === "/" || event.payload === "/settings") void router.push(event.payload);
+    if (event.payload === "/") void router.push(event.payload);
+  });
+  // Keep the request pending while the lazily loaded Settings view mounts.
+  unlistenUpdateRequest = await listen("update:check-requested", () => {
+    requestManualUpdateCheck();
+    void router.push("/");
   });
   // The Rust background task only announces; downloading and installing stay manual.
   unlistenUpdate = await listenForUpdateAnnouncements((version) => {
@@ -34,6 +40,7 @@ onUnmounted(() => {
   unlisten?.();
   unlistenNotification?.();
   unlistenUpdate?.();
+  unlistenUpdateRequest?.();
   dismissNotification();
 });
 </script>

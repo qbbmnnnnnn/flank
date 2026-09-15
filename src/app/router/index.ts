@@ -9,11 +9,6 @@ export const router = createRouter({
       component: () => import("../../features/library/LibraryView.vue"),
     },
     {
-      path: "/settings",
-      name: "settings",
-      component: () => import("../../features/settings/SettingsView.vue"),
-    },
-    {
       path: "/dock",
       name: "dock",
       component: () => import("../../features/dock/DockView.vue"),
@@ -22,6 +17,10 @@ export const router = createRouter({
       path: "/dock-panel",
       name: "dock-panel",
       component: () => import("../../features/dock/DockPanelView.vue"),
+    },
+    {
+      path: "/:pathMatch(.*)*",
+      redirect: "/",
     },
   ],
 });

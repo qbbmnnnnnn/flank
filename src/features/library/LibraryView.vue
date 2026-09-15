@@ -24,6 +24,7 @@ import type { NoteRecord, NoteScope } from "../../contracts/note";
 import { noteService } from "../../services/noteService";
 import { openExternalUrl } from "../../services/assetService";
 import { notePaperStyle } from "../../services/noteColorService";
+import { manualUpdateCheckRequested } from "../../services/updateService";
 import SettingsView from "../settings/SettingsView.vue";
 import NoteEditor from "../../components/NoteEditor.vue";
 import MarkdownImage from "../../components/MarkdownImage.vue";
@@ -509,6 +510,11 @@ function onListKeydown(event: KeyboardEvent) {
   void nextTick(() => document.querySelector<HTMLElement>(`[data-note-id="${notes.value[index].id}"]`)?.focus());
 }
 
+// The tray opens the current modal-based Settings experience, never the removed standalone route.
+watch(manualUpdateCheckRequested, (requested) => {
+  if (requested) settingsOpen.value = true;
+}, { immediate: true });
+
 watch(query, () => {
   noteSortable?.option("disabled", true);
   window.clearTimeout(searchTimer);
@@ -682,7 +688,7 @@ onUnmounted(() => {
       <NoteEditor ref="noteEditor" :key="editorKey" :note="selected" @saved="onEditorSaved" />
     </section>
 
-    <Transition name="modal-fade"><div v-if="settingsOpen" class="settings-modal-backdrop" @click.self="settingsOpen = false"><SettingsView embedded @close="settingsOpen = false" /></div></Transition>
+    <Transition name="modal-fade"><div v-if="settingsOpen" class="settings-modal-backdrop" @click.self="settingsOpen = false"><SettingsView @close="settingsOpen = false" /></div></Transition>
     <div v-if="deleteTarget" class="modal-backdrop" @click.self="deleteTarget = null"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-title"><span class="dialog-icon">!</span><h2 id="delete-title">{{ t('永久删除这张便签？') }}</h2><p>{{ t('“{title}”将立即从此设备移除，此操作无法撤销。', { title: deleteTarget.title || t('无标题便签') }) }}</p><div><button type="button" @click="deleteTarget = null">{{ t('取消') }}</button><button class="confirm-danger" type="button" @click="permanentlyDelete">{{ t('永久删除') }}</button></div></section></div>
     <div v-if="clearTrashConfirm" class="modal-backdrop" @click.self="clearTrashConfirm = false"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-trash-title"><span class="dialog-icon">!</span><h2 id="clear-trash-title">{{ t('清空所有删除项？') }}</h2><p>{{ t('最近删除中的 {count} 张便签将从此设备永久移除，此操作无法撤销。', { count: notes.length }) }}</p><div><button type="button" :disabled="clearingTrash" @click="clearTrashConfirm = false">{{ t('取消') }}</button><button class="confirm-danger" type="button" :disabled="clearingTrash" @click="clearTrash">{{ clearingTrash ? t('正在清空…') : t('清空删除项') }}</button></div></section></div>
 

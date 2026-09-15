@@ -10,6 +10,19 @@ export type UpdateProgress = {
 /** Version announced by the background checker or by a manual check; null means "up to date". */
 export const availableVersion = ref<string | null>(null);
 
+/** A tray request is retained until the Settings view is ready to handle it. */
+export const manualUpdateCheckRequested = ref(false);
+
+export function requestManualUpdateCheck(): void {
+  manualUpdateCheckRequested.value = true;
+}
+
+export function takeManualUpdateCheckRequest(): boolean {
+  if (!manualUpdateCheckRequested.value) return false;
+  manualUpdateCheckRequested.value = false;
+  return true;
+}
+
 /**
  * Check for an update. Resolves to null when the app is up to date, or when
  * running outside the desktop shell (browser preview).

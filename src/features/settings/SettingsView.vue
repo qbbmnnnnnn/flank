@@ -6,7 +6,13 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, shallowRef, 
 import { isTauri } from "@tauri-apps/api/core";
 import type { Update } from "@tauri-apps/plugin-updater";
 import { savedSettings, settingsLoaded, settingsPending, settingsError, initializeSettings, saveSettingsPatch, flushSettings } from "../../services/settingsService";
-import { availableVersion, checkForUpdate, downloadInstallAndRelaunch } from "../../services/updateService";
+import {
+  availableVersion,
+  checkForUpdate,
+  downloadInstallAndRelaunch,
+  manualUpdateCheckRequested,
+  takeManualUpdateCheckRequest,
+} from "../../services/updateService";
 import {
   ArrowLeft,
   ChevronDown,
@@ -20,8 +26,6 @@ import {
   Trash2,
   X,
 } from "lucide-vue-next";
-import { useRouter } from "vue-router";
-
 import { useAppStore } from "../../app/stores/app";
 import SegmentedControl from "../../components/SegmentedControl.vue";
 import type { AppSettings } from "../../contracts/app";
@@ -38,7 +42,6 @@ import {
 
 type SectionId = "general" | "shortcuts" | "dock" | "privacy" | "updates";
 
-const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
 const emit = defineEmits<{ close: [] }>();
 
 type Shortcut = {
@@ -49,13 +52,11 @@ type Shortcut = {
 };
 
 const app = useAppStore();
-const router = useRouter();
 const activeSection = ref<SectionId>("general");
 const settingsRoot = ref<HTMLElement | null>(null);
 const returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
 function handleSettingsKey(event: KeyboardEvent) {
-  if (!props.embedded) return;
   if (event.key === "Escape") {
     event.stopPropagation();
     void closeSettings();
@@ -204,6 +205,16 @@ async function runUpdateCheck(options: { silent?: boolean } = {}) {
   }
 }
 
+function consumeManualUpdateCheckRequest() {
+  if (!takeManualUpdateCheckRequest()) return;
+  activeSection.value = "updates";
+  void runUpdateCheck();
+}
+
+watch(manualUpdateCheckRequested, (requested) => {
+  if (requested) consumeManualUpdateCheckRequest();
+});
+
 async function installUpdate() {
   if (updateState.value === "downloading") return;
   let update = pendingUpdate.value;
@@ -343,8 +354,7 @@ function removeCustomColor(id: string) {
 
 async function closeSettings() {
   await flushSettings();
-  if (props.embedded) emit("close");
-  else void router.push({ name: "library" });
+  emit("close");
 }
 
 function chooseSection(id: SectionId) {
@@ -381,18 +391,19 @@ onMounted(async () => {
   await Promise.all([app.initialize(), loadSettings(), updateDockRecommendation()]);
   // The Rust-side checker may have announced an update before this page mounted.
   if (availableVersion.value) updateState.value = "available";
+  consumeManualUpdateCheckRequest();
   await nextTick();
-  if (props.embedded) settingsRoot.value?.querySelector<HTMLElement>('.settings-modal-close')?.focus();
+  settingsRoot.value?.querySelector<HTMLElement>('.settings-modal-close')?.focus();
 });
 onUnmounted(() => {
   clearTimeout(savedToastTimer);
-  if (props.embedded && returnFocus?.isConnected) returnFocus.focus();
+  if (returnFocus?.isConnected) returnFocus.focus();
 });
 </script>
 
 <template>
-  <main ref="settingsRoot" class="settings-app" :class="{ embedded }" :role="embedded ? 'dialog' : undefined" :aria-modal="embedded ? true : undefined" aria-labelledby="settings-heading" @keydown="handleSettingsKey">
-    <button v-if="embedded" class="settings-modal-close" type="button" :aria-label="t('关闭设置')" @click="closeSettings"><X /></button>
+  <main ref="settingsRoot" class="settings-app embedded" role="dialog" aria-modal="true" aria-labelledby="settings-heading" @keydown="handleSettingsKey">
+    <button class="settings-modal-close" type="button" :aria-label="t('关闭设置')" @click="closeSettings"><X /></button>
     <aside class="sidebar" :aria-label="t('设置分类')">
       <!-- <div class="brand settings-brand">
         <img src="/noty-logo.png" alt="" />
