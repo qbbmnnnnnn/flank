@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dockLayout, dockMetrics, MAX_PEEK, type DockSize } from "./layout";
+import { DOCK_WINDOW_CHROME, dockLayout, dockMetrics, MAX_PEEK, type DockSize } from "./layout";
 
 const SIZES = ["small", "medium", "large"] as DockSize[];
 
@@ -10,6 +10,7 @@ describe("Dock height", () => {
     expect(heights[5]).toBe(heights[4]);
     expect(heights[6]).toBe(heights[4]);
     expect(dockLayout(1, 5, 1080).listHeight).toBe(126 + 28);
+    expect(dockLayout(1, 5, 1080).windowHeight).toBe(126 + 28 + DOCK_WINDOW_CHROME);
   });
 
   it("uses one guide note when empty and shrinks after deletion", () => {

@@ -232,6 +232,8 @@ export const messages: Record<string, string> = {
   "刚刚": "Just now",
   "即将永久删除": "Deleting soon",
   "打开设置": "Open settings",
+  "收起便签栏": "Collapse Dock",
+  "展开便签栏": "Expand Dock",
   "无法读取本地便签": "Could not load local notes",
   "便签面板需在桌面应用中查看": "Open note panels in the desktop app",
   "归档失败，便签可能已在其他窗口修改": "Archive failed; the note may have changed in another window",

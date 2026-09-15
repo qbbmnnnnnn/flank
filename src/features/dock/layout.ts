@@ -39,6 +39,8 @@ const TITLE_EDGE = 2;
 
 /** Largest inward travel of a card: 42px full hover + 4px hover offset. */
 export const MAX_PEEK = 46;
+/** Expanded-window space outside the note list: top collapse control, bottom controls and screen breathing room. */
+export const DOCK_WINDOW_CHROME = 176;
 
 /** All dock metrics for a given display height and chosen size. */
 export function dockMetrics(screenHeight: number, size: DockSize = "medium") {
@@ -83,9 +85,9 @@ export function dockLayout(noteCount: number, maximum: number, screenHeight: num
   const m = dockMetrics(screenHeight, size);
   const step = m.noteHeight + m.gap + m.marginTop;
   const limit = Math.min(12, Math.max(5, Math.round(maximum) || 5));
-  // 28px list padding + 108px controls + 6px rail padding + 16px screen margin.
-  const capacity = Math.max(1, 1 + Math.floor((screenHeight - 158 - m.noteHeight) / step));
+  // 28px list padding plus the controls and screen breathing room.
+  const capacity = Math.max(1, 1 + Math.floor((screenHeight - DOCK_WINDOW_CHROME - 28 - m.noteHeight) / step));
   const count = Math.min(Math.max(1, noteCount), limit, capacity);
   const listHeight = 28 + m.noteHeight + (count - 1) * step;
-  return { count, listHeight, windowHeight: listHeight + 130, ...m };
+  return { count, listHeight, windowHeight: listHeight + DOCK_WINDOW_CHROME, ...m };
 }

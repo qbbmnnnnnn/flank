@@ -3,6 +3,7 @@ import { t } from '../../services/i18n';
 import { guideCopy } from './guide';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { gsap } from "gsap";
+import { Minimize2, Plus, Settings } from "lucide-vue-next";
 import type Sortable from "sortablejs";
 import { showNotification as showToast, showNotification as showLocalToast } from "../../services/notificationService";
 import { dockLayout, type DockSize } from "./layout";
@@ -59,6 +60,10 @@ const controlsVisible = ref(false);
 const actionNote = ref<string | null>(null);
 const peekNote = ref<string | null>(null);
 const settingsSelected = ref(false);
+const dockCollapsed = ref(false);
+const dockTransitioning = ref(false);
+const collapsedDragging = ref(false);
+const collapsedLauncher = ref<HTMLButtonElement | null>(null);
 const canScrollUp = ref(false);
 const canScrollDown = ref(false);
 const sorting = ref(false);
@@ -109,6 +114,8 @@ let unlistenSettings: (() => void) | undefined;
 let unlistenNotesChanged: (() => void) | undefined;
 let noteSortable: Sortable | undefined;
 let dragEndedAt = 0;
+const COLLAPSED_DOCK_SIZE = 40;
+const COLLAPSED_DRAG_THRESHOLD = 4;
 
 async function loadDockNotes() {
   if (!isTauriRuntime()) return;
@@ -134,7 +141,8 @@ async function applyDockSettings(settings: AppSettings) {
   await resizeDock();
 }
 
-function resizeDock() {
+function resizeDock(force = false) {
+  if ((dockCollapsed.value || dockTransitioning.value) && !force) return layoutQueue;
   layoutQueue = layoutQueue.then(async () => {
     if (!isTauriRuntime()) return;
     const win = await getDockWindow();
@@ -411,20 +419,28 @@ function endHover(note: Note) {
 
 function controlElements() {
   const scope = root.value;
+  const controls = scope?.querySelector<HTMLElement>(".rail-controls:not(.rail-controls-top)") ?? null;
+  const collapse = scope?.querySelector<HTMLElement>(".rail-controls-top") ?? null;
   return {
-    controls: scope?.querySelector<HTMLElement>(".rail-controls") ?? null,
-    actions: [...(scope?.querySelectorAll<HTMLElement>(".rail-controls > button") ?? [])],
+    collapse,
+    collapseAction: collapse?.querySelector<HTMLElement>(":scope > button") ?? null,
+    controls,
+    actions: [...(controls?.querySelectorAll<HTMLElement>(":scope > button") ?? [])],
   };
 }
 
 function buildControlsTimeline() {
-  const { controls, actions } = controlElements();
+  const { collapse, collapseAction, controls, actions } = controlElements();
   controlsTimeline?.kill();
-  gsap.killTweensOf([controls, ...actions]);
+  gsap.killTweensOf([collapse, collapseAction, controls, ...actions]);
   const duration = isReducedMotion() ? 0 : .42;
+  const startAt = isReducedMotion() ? 0 : .08;
   controlsTimeline = gsap.timeline({ paused: true, defaults: { overwrite: "auto" } })
-    .fromTo(controls, { autoAlpha: 0, x: 18 * -inward() }, { autoAlpha: 1, x: 0, duration: duration * .55, ease: "power2.out" }, 0)
-    .fromTo(actions, { autoAlpha: 0, y: -30, scale: .76 }, { autoAlpha: 1, y: 0, scale: 1, duration, stagger: isReducedMotion() ? 0 : .12, ease: "back.out(1.9)" }, isReducedMotion() ? 0 : .08);
+    .fromTo([collapse, controls], { autoAlpha: 0, x: 18 * -inward() }, { autoAlpha: 1, x: 0, duration: duration * .55, ease: "power2.out" }, 0)
+    // Add/settings enter from top to bottom and leave in the reverse direction.
+    .fromTo(actions, { autoAlpha: 0, y: -30, scale: .76 }, { autoAlpha: 1, y: 0, scale: 1, duration, stagger: isReducedMotion() ? 0 : .12, ease: "back.out(1.9)" }, startAt)
+    // Collapse uses the opposite vertical motion while sharing visibility timing.
+    .fromTo(collapseAction, { autoAlpha: 0, y: 30, scale: .76 }, { autoAlpha: 1, y: 0, scale: 1, duration, ease: "back.out(1.9)" }, startAt);
 }
 
 function showControls() {
@@ -444,8 +460,8 @@ function hideControls(force = false) {
   if (force || isReducedMotion()) {
     controlsTimeline?.kill();
     controlsTimeline = undefined;
-    const { controls, actions } = controlElements();
-    gsap.set([controls, ...actions], { autoAlpha: 0 });
+    const { collapse, collapseAction, controls, actions } = controlElements();
+    gsap.set([collapse, collapseAction, controls, ...actions], { autoAlpha: 0 });
     return;
   }
   controlsTimeline?.reverse();
@@ -500,7 +516,7 @@ function onNativePointer(point: DockNativePointerEvent) {
     if (nativeRailActive) clearNativeHover();
     return;
   }
-  const interactive = hovered || target?.closest<HTMLElement>(".rail-controls > button");
+  const interactive = hovered || target?.closest<HTMLElement>(".rail-controls > button, .collapsed-launcher");
   if (point.phase === "leave" || !interactive) {
     if (nativeRailActive) clearNativeHover();
     return;
@@ -639,6 +655,237 @@ async function snapNativeWindow() {
   }
 }
 
+async function animateVisibility(
+  target: gsap.TweenTarget,
+  vars: gsap.TweenVars,
+): Promise<void> {
+  if (isReducedMotion()) {
+    gsap.set(target, { ...vars, duration: 0, onComplete: undefined });
+    return;
+  }
+  await new Promise<void>((resolve) => {
+    gsap.to(target, { ...vars, overwrite: "auto", onComplete: resolve });
+  });
+}
+
+async function collapseDock() {
+  if (dockCollapsed.value || dockTransitioning.value) return;
+  dockTransitioning.value = true;
+  await closePanel();
+  hideControls(true);
+
+  const win = await getDockWindow();
+  const collapseControl = root.value?.querySelector<HTMLElement>('[data-control="collapse"]');
+  let targetPosition: { x: number; y: number } | null = null;
+  try {
+    if (win && collapseControl) {
+      const [{ monitorFromPoint }, position, scaleFactor] = await Promise.all([
+        import("@tauri-apps/api/window"), win.outerPosition(), win.scaleFactor(),
+      ]);
+      const rect = collapseControl.getBoundingClientRect();
+      const centerX = position.x + (rect.left + rect.width / 2) * scaleFactor;
+      const centerY = position.y + (rect.top + rect.height / 2) * scaleFactor;
+      const monitor = await monitorFromPoint(centerX, centerY);
+      if (monitor) {
+        const physicalSize = Math.round(COLLAPSED_DOCK_SIZE * monitor.scaleFactor);
+        targetPosition = {
+          x: side.value === "left"
+            ? monitor.position.x
+            : monitor.position.x + monitor.size.width - physicalSize,
+          y: Math.round(gsap.utils.clamp(
+            monitor.position.y,
+            monitor.position.y + monitor.size.height - physicalSize,
+            centerY - physicalSize / 2,
+          )),
+        };
+      }
+    }
+
+    const rail = root.value?.querySelector<HTMLElement>(".dock-rail");
+    if (rail) await animateVisibility(rail, { autoAlpha: 0, x: 18 * -inward(), duration: .2, ease: "power2.in" });
+    dockCollapsed.value = true;
+    await nextTick();
+
+    if (win && targetPosition) {
+      const { LogicalSize, PhysicalPosition } = await import("@tauri-apps/api/dpi");
+      await win.setSize(new LogicalSize(COLLAPSED_DOCK_SIZE, COLLAPSED_DOCK_SIZE));
+      await win.setPosition(new PhysicalPosition(targetPosition.x, targetPosition.y));
+    }
+
+    if (collapsedLauncher.value) {
+      gsap.set(collapsedLauncher.value, { autoAlpha: 0, scale: .72 });
+      await animateVisibility(collapsedLauncher.value, {
+        autoAlpha: 1,
+        scale: 1,
+        duration: .32,
+        ease: "back.out(1.8)",
+      });
+    }
+  } catch (error) {
+    dockCollapsed.value = false;
+    await nextTick();
+    try { await restoreExpandedWindow(); } catch { /* Preserve the original error below. */ }
+    const rail = root.value?.querySelector<HTMLElement>(".dock-rail");
+    if (rail) gsap.set(rail, { clearProps: "opacity,visibility,transform" });
+    console.error("Unable to collapse Dock", error);
+  } finally {
+    dockTransitioning.value = false;
+  }
+}
+
+async function snapCollapsedDock() {
+  const win = await getDockWindow();
+  if (!win) return;
+  try {
+    const [{ currentMonitor, monitorFromPoint }, { PhysicalPosition }, position, size] = await Promise.all([
+      import("@tauri-apps/api/window"), import("@tauri-apps/api/dpi"), win.outerPosition(), win.outerSize(),
+    ]);
+    const centerX = position.x + size.width / 2;
+    const centerY = position.y + size.height / 2;
+    const monitor = await monitorFromPoint(centerX, centerY) ?? await currentMonitor();
+    if (!monitor) return;
+    const leftDistance = Math.abs(centerX - monitor.position.x);
+    const rightDistance = Math.abs(monitor.position.x + monitor.size.width - centerX);
+    const snappedSide: "left" | "right" = leftDistance <= rightDistance ? "left" : "right";
+    const x = snappedSide === "left"
+      ? monitor.position.x
+      : monitor.position.x + monitor.size.width - size.width;
+    const y = Math.round(gsap.utils.clamp(
+      monitor.position.y,
+      monitor.position.y + monitor.size.height - size.height,
+      position.y,
+    ));
+    await win.setPosition(new PhysicalPosition(x, y));
+    if (side.value !== snappedSide) {
+      side.value = snappedSide;
+      await appService.updateSettings({ dockSide: snappedSide });
+    }
+    await updateDisplayMetrics(monitor);
+  } catch (error) {
+    console.error("Unable to snap collapsed Dock", error);
+  }
+}
+
+async function restoreExpandedWindow() {
+  const win = await getDockWindow();
+  if (!win) return;
+  const [{ monitorFromPoint }, { LogicalSize, PhysicalPosition }, position, size] = await Promise.all([
+    import("@tauri-apps/api/window"), import("@tauri-apps/api/dpi"), win.outerPosition(), win.outerSize(),
+  ]);
+  const monitor = await monitorFromPoint(position.x + size.width / 2, position.y + size.height / 2);
+  if (!monitor) {
+    await resizeDock(true);
+    return;
+  }
+  await updateDisplayMetrics(monitor);
+  const physicalWidth = Math.round(layout.value.railWidth * monitor.scaleFactor);
+  const physicalHeight = Math.round(layout.value.windowHeight * monitor.scaleFactor);
+  const x = side.value === "left"
+    ? monitor.position.x
+    : monitor.position.x + monitor.size.width - physicalWidth;
+  const y = Math.round(monitor.position.y + (monitor.size.height - physicalHeight) / 2);
+  await win.setSize(new LogicalSize(layout.value.railWidth, layout.value.windowHeight));
+  await win.setPosition(new PhysicalPosition(x, y));
+  await emitToPanel(DOCK_BRIDGE.railResize, { railWidth: layout.value.railWidth });
+}
+
+async function expandDock() {
+  if (!dockCollapsed.value || dockTransitioning.value) return;
+  dockTransitioning.value = true;
+  try {
+    if (collapsedLauncher.value) {
+      await animateVisibility(collapsedLauncher.value, {
+        autoAlpha: 0,
+        scale: .78,
+        duration: .16,
+        ease: "power2.in",
+      });
+    }
+    dockCollapsed.value = false;
+    await nextTick();
+    const rail = root.value?.querySelector<HTMLElement>(".dock-rail");
+    if (rail) gsap.set(rail, { autoAlpha: 0, x: 22 * -inward() });
+    await restoreExpandedWindow();
+    if (rail) {
+      await animateVisibility(rail, {
+        autoAlpha: 1,
+        x: 0,
+        duration: .42,
+        ease: "back.out(1.35)",
+      });
+      gsap.set(rail, { clearProps: "opacity,visibility,transform" });
+    }
+  } catch (error) {
+    console.error("Unable to expand Dock", error);
+  } finally {
+    dockTransitioning.value = false;
+  }
+}
+
+function delay(milliseconds: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+async function waitForPrimaryMouseRelease() {
+  // Native window dragging captures the pointer, so the webview does not
+  // reliably receive pointerup. Give the native drag loop time to start, then
+  // require two released samples to avoid treating a transient result as up.
+  await delay(32);
+  const deadline = Date.now() + 15_000;
+  let releasedSamples = 0;
+  while (Date.now() < deadline) {
+    const pressed = await invokeTauri<boolean>("is_primary_mouse_button_pressed");
+    releasedSamples = pressed ? 0 : releasedSamples + 1;
+    if (releasedSamples >= 2) return;
+    await delay(16);
+  }
+}
+
+async function onCollapsedPointerDown(event: PointerEvent) {
+  if (event.button !== 0 || dockTransitioning.value || collapsedDragging.value) return;
+  event.preventDefault();
+  const win = await getDockWindow();
+  if (!win) {
+    await expandDock();
+    return;
+  }
+
+  collapsedDragging.value = true;
+  let unlistenMoved: (() => void) | undefined;
+  let shouldExpand = false;
+  let shouldSnap = false;
+  try {
+    const before = await win.outerPosition();
+    let maximumDistance = 0;
+    unlistenMoved = await win.onMoved(({ payload: position }) => {
+      maximumDistance = Math.max(maximumDistance, Math.hypot(position.x - before.x, position.y - before.y));
+    });
+    await win.startDragging();
+    await waitForPrimaryMouseRelease();
+    const after = await win.outerPosition();
+    maximumDistance = Math.max(maximumDistance, Math.hypot(after.x - before.x, after.y - before.y));
+    if (maximumDistance >= COLLAPSED_DRAG_THRESHOLD) shouldSnap = true;
+    else shouldExpand = true;
+  } catch (error) {
+    console.error("Unable to drag collapsed Dock", error);
+    shouldExpand = true;
+  } finally {
+    unlistenMoved?.();
+    collapsedDragging.value = false;
+  }
+  // Remove the native move listener before the programmatic snap; otherwise
+  // the snap itself can be mistaken for a continuation of the drag.
+  if (shouldSnap) {
+    await snapCollapsedDock();
+    await nextTick();
+    if (dockCollapsed.value && collapsedLauncher.value) {
+      gsap.set(collapsedLauncher.value, { autoAlpha: 1, scale: 1 });
+    }
+  } else if (shouldExpand) {
+    await expandDock();
+  }
+}
+
 async function openSettings() {
   window.clearTimeout(settingsSelectedTimer);
   settingsSelected.value = true;
@@ -742,8 +989,9 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main ref="root" class="dock-window" :class="[`dock-${side}`, { 'screen-compact': compact }]" :style="{ '--screen-height': `${screenHeight}px`, '--list-target': `${listTargetHeight}px`, '--note-gap': `${layout.gap}px`, '--note-margin-top': `${layout.marginTop}px`, '--note-height': `${layout.noteHeight}px`, '--title-size': `${layout.titleSize}px`, '--rail': `${layout.railWidth}px`, '--tab-width': `${layout.tabWidth}px`, '--tab-margin': `${layout.tabMargin}px`, '--spine': `${layout.spineOffset}px`, '--title-width': `${layout.titleWidth}px`, '--action-btn': `${layout.actionBtn}px`, '--action-icon': `${layout.actionIcon}px`, '--action-gap': `${layout.actionGap}px`, '--action-edge': `${layout.actionEdge}px`, '--action-spine': `${layout.actionSpine}px` }" @keydown="onRootKeydown" @pointerdown="onRootPointerDown">
-    <aside class="dock-rail" :class="{ 'controls-visible': controlsVisible }" :aria-label="t('便签栏')" @pointermove="onRailMove" @pointerleave="onRailLeave">
+  <main ref="root" class="dock-window" :class="[`dock-${side}`, { 'screen-compact': compact, collapsed: dockCollapsed }]" :style="{ '--screen-height': `${screenHeight}px`, '--list-target': `${listTargetHeight}px`, '--note-gap': `${layout.gap}px`, '--note-margin-top': `${layout.marginTop}px`, '--note-height': `${layout.noteHeight}px`, '--title-size': `${layout.titleSize}px`, '--rail': `${layout.railWidth}px`, '--tab-width': `${layout.tabWidth}px`, '--tab-margin': `${layout.tabMargin}px`, '--spine': `${layout.spineOffset}px`, '--title-width': `${layout.titleWidth}px`, '--action-btn': `${layout.actionBtn}px`, '--action-icon': `${layout.actionIcon}px`, '--action-gap': `${layout.actionGap}px`, '--action-edge': `${layout.actionEdge}px`, '--action-spine': `${layout.actionSpine}px` }" @keydown="onRootKeydown" @pointerdown="onRootPointerDown">
+    <aside v-show="!dockCollapsed" class="dock-rail" :class="{ 'controls-visible': controlsVisible }" :aria-label="t('便签栏')" @pointermove="onRailMove" @pointerleave="onRailLeave">
+      <div class="rail-controls rail-controls-top"><button class="adaptive-control" data-control="collapse" type="button" :aria-label="t('收起便签栏')" @click="collapseDock"><Minimize2 :size="18" :stroke-width="1.8" /></button></div>
       <div class="note-list-shell" :class="{ 'overflow-top': canScrollUp, 'overflow-bottom': canScrollDown }">
         <div ref="noteList" class="note-list" :class="{ sorting }" @scroll="updateScrollEdges" @pointerenter="showControls">
         <div v-for="note in displayNotes" :key="note.id" class="note-tab" :class="{ active: activeNoteId === note.id, actions: actionNote === note.id, guide: note.id === GUIDE_NOTE_ID }" :data-id="note.id" role="button" tabindex="0" draggable="false" :aria-label="t('打开{title}', { title: note.title })" :aria-roledescription="note.id === GUIDE_NOTE_ID ? undefined : t('可排序便签')" @pointerenter="beginHover(note)" @pointerleave="endHover(note)" @click="onTabClick(note, $event)" @keydown.enter.prevent="openNote(note)" @keydown.space.prevent="openNote(note)">
@@ -752,21 +1000,21 @@ onUnmounted(() => {
         </div>
       </div>
       <div class="rail-controls"><span class="separator"></span>
-        <button class="adaptive-control" :class="{ selected: isNewNotePending }" data-control="add" type="button" :aria-label="t('新建便签')" :aria-pressed="isNewNotePending ? 'true' : 'false'" @click="createNote"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
-        <button class="adaptive-control" :class="{ selected: settingsSelected }" data-control="settings" type="button" :aria-label="t('打开设置')" @click="openSettings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.17.38.38.73.6 1 .28.34.67.54 1.1.6H21v4h-.09A1.7 1.7 0 0 0 19.4 15Z"/></svg></button>
+        <button class="adaptive-control" :class="{ selected: isNewNotePending }" data-control="add" type="button" :aria-label="t('新建便签')" :aria-pressed="isNewNotePending ? 'true' : 'false'" @click="createNote"><Plus :size="18" :stroke-width="1.8" /></button>
+        <button class="adaptive-control" :class="{ selected: settingsSelected }" data-control="settings" type="button" :aria-label="t('打开设置')" @click="openSettings"><Settings :size="18" :stroke-width="1.8" /></button>
       </div>
     </aside>
-
-
+    <button v-show="dockCollapsed" ref="collapsedLauncher" class="collapsed-launcher" type="button" :aria-label="t('展开便签栏')" @pointerdown="onCollapsedPointerDown" @keydown.enter.prevent="expandDock" @keydown.space.prevent="expandDock"><img src="/noty-logo.png" alt="" draggable="false"></button>
   </main>
 </template>
 
 <style scoped>
-.dock-window{--rail:104px;--tab-width:88px;--tab-margin:-48px;--spine:42px;--title-width:36px;--note-height:126px;--title-size:16px;--action-btn:26px;--action-icon:14px;--action-gap:7px;--action-edge:6px;--action-spine:7px;--ease:cubic-bezier(.22,1,.36,1);width:100vw;height:100vh;position:relative;overflow:hidden;color:#29262b;background:transparent;pointer-events:none;user-select:none;-webkit-user-select:none;font-family:var(--note-font,"Noty Display","Microsoft YaHei",Geist,"Segoe UI",sans-serif)}.dock-window svg,.note-tab,.paper{-webkit-user-drag:none}.note-tab,.rail-controls>button{pointer-events:auto}.dock-rail{position:absolute;z-index:5;top:50%;right:0;width:var(--rail);height:calc(var(--list-target) + 114px);padding:3px 0;display:flex;flex-direction:column;align-items:flex-end;transform:translateY(-50%);perspective:700px;pointer-events:none}.dock-left .dock-rail{left:0;right:auto;align-items:flex-start}
+.dock-window{--rail:104px;--tab-width:88px;--tab-margin:-48px;--spine:42px;--title-width:36px;--note-height:126px;--title-size:16px;--action-btn:26px;--action-icon:14px;--action-gap:7px;--action-edge:6px;--action-spine:7px;--ease:cubic-bezier(.22,1,.36,1);width:100vw;height:100vh;position:relative;overflow:hidden;color:#29262b;background:transparent;pointer-events:none;user-select:none;-webkit-user-select:none;font-family:var(--note-font,"Noty Display","Microsoft YaHei",Geist,"Segoe UI",sans-serif)}.dock-window svg,.note-tab,.paper,.collapsed-launcher img{-webkit-user-drag:none}.note-tab,.rail-controls>button,.collapsed-launcher{pointer-events:auto}.dock-rail{position:absolute;z-index:5;top:50%;right:0;width:var(--rail);height:calc(var(--list-target) + 160px);padding:3px 0;display:flex;flex-direction:column;align-items:flex-end;transform:translateY(-50%);perspective:700px;pointer-events:none}.dock-left .dock-rail{left:0;right:auto;align-items:flex-start}
 .note-list-shell{position:relative;width:100%;min-height:0;height:var(--list-target);flex:0 0 var(--list-target);overflow:hidden;pointer-events:none}.note-list{width:100%;height:100%;max-height:none;padding:14px 0;pointer-events:none;display:flex;flex-direction:column;align-items:flex-end;gap:var(--note-gap);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scroll-behavior:smooth;scrollbar-width:none}.note-list::-webkit-scrollbar{display:none}.dock-left .note-list{align-items:flex-start}.note-tab{position:relative;width:var(--tab-width);height:var(--note-height);flex:0 0 var(--note-height);margin:0 var(--tab-margin) 0 0;padding:0;border:0;color:#302c2e;background:transparent;cursor:pointer;transform-origin:right center;will-change:transform;rotate:var(--tilt,0deg)}.note-tab+.note-tab{margin-top:var(--note-margin-top)}.dock-left .note-tab{margin-right:0;margin-left:var(--tab-margin);transform-origin:left center}.note-tab:nth-child(1){--tilt:-1.8deg;z-index:1}.note-tab:nth-child(2){--tilt:.9deg;z-index:2}.note-tab:nth-child(3){--tilt:-1.1deg;z-index:3}.note-tab:nth-child(4){--tilt:1.25deg;z-index:4}.note-tab:nth-child(5){--tilt:-1.35deg;z-index:5}.note-tab:nth-child(n+6){--tilt:-1deg}.note-tab.nearest,.note-tab.active,.note-tab:hover,.note-tab.note-sort-chosen{z-index:12}.note-list.sorting{cursor:grabbing}.note-tab.note-sort-chosen .paper{transform:scale(1.04);filter:brightness(1.055);box-shadow:0 14px 30px rgba(0,0,0,.18)}.note-tab.note-sort-ghost{opacity:.18}.note-tab.note-sort-drag .paper{filter:brightness(1.065);box-shadow:0 18px 34px rgba(0,0,0,.22)}.paper{position:absolute;inset:0;overflow:hidden;display:block;border-radius:18px 0 0 18px;background:var(--paper);box-shadow:none;transition:filter .2s ease,transform .2s var(--ease),box-shadow .2s var(--ease)}.note-tab:hover .paper{filter:brightness(1.045);box-shadow:none}.dock-left .paper{border-radius:0 18px 18px 0;box-shadow:none}.paper::after{content:"";position:absolute;inset:0;background:linear-gradient(145deg,rgba(255,255,255,.3),transparent 40%,rgba(60,45,30,.05));pointer-events:none}.paper::before{content:"";position:absolute;z-index:2;top:9px;bottom:9px;right:calc(100% - var(--spine));border-right:1px dashed rgba(72,58,43,.2)}.title{position:absolute;z-index:3;left:0;top:9px;bottom:9px;width:var(--title-width);display:grid;place-items:center;writing-mode:vertical-rl;text-orientation:upright;color:var(--paper-ink,rgb(47,42,40));font-size:var(--title-size);font-weight:700;letter-spacing:.04em;overflow:hidden;text-overflow:ellipsis}.dock-left .title{left:auto;right:0}
 .quick-actions{position:absolute;z-index:4;top:0;bottom:0;right:var(--action-edge);left:calc(var(--spine) + var(--action-spine));display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--action-gap);opacity:0;transform:translateX(7px) scale(.92);pointer-events:none;transition:opacity .16s ease,transform .22s var(--ease)}.dock-left .quick-actions{left:var(--action-edge);right:auto;transform:translateX(-7px) scale(.92)}.note-tab.actions .quick-actions{opacity:1;transform:none}.quick-actions button{width:var(--action-btn);height:var(--action-btn);padding:0;display:grid;place-items:center;border:0;border-radius:9px;color:var(--paper-ink-soft,rgba(52,45,44,.63));background:transparent;pointer-events:none;cursor:pointer;transition:color .18s ease,background .18s ease,transform .2s var(--ease)}.note-tab.actions .quick-actions button{pointer-events:auto}.quick-actions svg{width:var(--action-icon);height:var(--action-icon);fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.quick-actions button:hover{color:#fff;transform:scale(1.06)}.quick-actions button:hover:first-child{background:#5b92e8;box-shadow:none}.quick-actions button:hover:last-child{background:#ef6262;box-shadow:none}
-.rail-controls{position:relative;z-index:30;width:100%;padding-top:10px;display:flex;flex:0 0 auto;flex-direction:column;align-items:flex-end;opacity:0;visibility:hidden;transform:translateX(18px);pointer-events:none}.dock-left .rail-controls{align-items:flex-start;transform:translateX(-18px)}.controls-visible .rail-controls{pointer-events:none}.rail-controls .separator{position:absolute;z-index:2;top:4px;right:0;width:40px;height:1px;margin:0;background:rgba(255,255,255,.18)}.dock-left .rail-controls .separator{right:auto;left:0}.rail-controls>button{position:relative;width:40px;height:40px;margin:0 0 6px 0;padding:0;display:grid;place-items:center;border:1px solid rgba(255,255,255,.22);border-radius:50%;color:rgba(255,255,255,.82);background:rgba(24,26,31,.88);box-shadow:0 6px 18px rgba(0,0,0,.22);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);cursor:pointer;transition:color .18s ease,border-color .18s ease,box-shadow .2s var(--ease)}.dock-left .rail-controls>button{margin:0 0 6px 0}.rail-controls>button>svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s var(--ease)}.rail-controls>button:hover{color:#fff}.rail-controls>button:hover>svg{transform:scale(1.16)}.rail-controls>button:active>svg{transform:scale(.94)}
+.rail-controls{position:relative;z-index:30;width:100%;padding-top:10px;display:flex;flex:0 0 auto;flex-direction:column;align-items:flex-end;opacity:0;visibility:hidden;transform:translateX(18px);pointer-events:none}.rail-controls-top{height:46px;padding-top:0}.dock-left .rail-controls{align-items:flex-start;transform:translateX(-18px)}.controls-visible .rail-controls{pointer-events:none}.rail-controls .separator{position:absolute;z-index:2;top:4px;right:0;width:40px;height:1px;margin:0;background:rgba(255,255,255,.18)}.dock-left .rail-controls .separator{right:auto;left:0}.rail-controls>button{position:relative;width:40px;height:40px;margin:0 0 6px 0;padding:0;display:grid;place-items:center;border:1px solid rgba(255,255,255,.22);border-radius:50%;color:rgba(255,255,255,.82);background:rgba(24,26,31,.88);box-shadow:0 6px 18px rgba(0,0,0,.22);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);cursor:pointer;transition:color .18s ease,border-color .18s ease,box-shadow .2s var(--ease)}.dock-left .rail-controls>button{margin:0 0 6px 0}.rail-controls>button>svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s var(--ease)}.rail-controls>button:hover{color:#fff}.rail-controls>button:hover>svg{transform:scale(1.16)}.rail-controls>button:active>svg{transform:scale(.94)}
 .adaptive-control.selected{color:#fff;border-color:rgba(255,255,255,.72);box-shadow:0 0 0 3px rgba(255,255,255,.14),0 7px 22px rgba(0,0,0,.3),inset 0 0 14px rgba(255,255,255,.1)}.adaptive-control.selected>svg{transform:scale(1.12)}.rail-controls>button[data-control="add"].selected>svg{transform:rotate(45deg) scale(1.06)}
+.collapsed-launcher{position:absolute;inset:0;width:40px;height:40px;margin:0;padding:0;border:0;border-radius:50%;overflow:hidden;background:transparent;box-shadow:none;cursor:grab;opacity:0;visibility:hidden;will-change:transform,opacity}.collapsed-launcher:active{cursor:grabbing}.collapsed-launcher:focus-visible{outline:2px solid rgba(255,255,255,.9);outline-offset:-2px}.collapsed-launcher img{display:block;width:100%;height:100%;border-radius:50%;object-fit:cover;pointer-events:none}
 .screen-compact .paper{border-radius:15px 0 0 15px}.screen-compact.dock-left .paper{border-radius:0 15px 15px 0}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 </style>
