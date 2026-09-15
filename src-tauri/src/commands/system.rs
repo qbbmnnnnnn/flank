@@ -145,16 +145,25 @@ fn dock_target_position(
     monitor_y: i32,
     monitor_width: u32,
     monitor_height: u32,
-    dock_width: u32,
-    dock_height: u32,
+    scale_factor: f64,
+    dock_width: f64,
+    dock_height: f64,
     anchor_side: &str,
-) -> (i32, i32) {
+) -> (f64, f64) {
+    // Tao reports monitor bounds in physical pixels, but AppKit positions
+    // windows in logical screen coordinates. Use the target monitor's scale
+    // explicitly: a hidden window can still report scale 1 before its first
+    // placement on a Retina display.
+    let monitor_x = f64::from(monitor_x) / scale_factor;
+    let monitor_y = f64::from(monitor_y) / scale_factor;
+    let monitor_width = f64::from(monitor_width) / scale_factor;
+    let monitor_height = f64::from(monitor_height) / scale_factor;
     let x = if anchor_side == "left" {
         monitor_x
     } else {
-        monitor_x + monitor_width.saturating_sub(dock_width) as i32
+        monitor_x + monitor_width - dock_width
     };
-    let y = monitor_y + (monitor_height.saturating_sub(dock_height) / 2) as i32;
+    let y = monitor_y + (monitor_height - dock_height).max(0.0) / 2.0;
     (x, y)
 }
 
@@ -172,19 +181,19 @@ pub fn resize_and_snap_dock(
 }
 
 #[cfg(target_os = "macos")]
-fn resize_and_snap_dock_impl(
+pub(crate) fn resize_and_snap_dock_impl(
     window: &tauri::WebviewWindow,
     anchor_side: &str,
     logical_width: f64,
     logical_height: f64,
 ) -> Result<(), String> {
+    // A not-yet-visible Dock has no reliable current scale factor. Fall back
+    // to the primary monitor so first-launch placement cannot land off-screen.
     let monitor = window
         .current_monitor()
         .map_err(|error| error.to_string())?
-        .ok_or_else(|| "current monitor is unavailable".to_string())?;
-    let scale = monitor.scale_factor();
-    let dock_width = (logical_width * scale).round().max(1.0) as u32;
-    let dock_height = (logical_height * scale).round().max(1.0) as u32;
+        .or(window.primary_monitor().map_err(|error| error.to_string())?)
+        .ok_or_else(|| "no monitor is available".to_string())?;
     let monitor_position = monitor.position();
     let monitor_size = monitor.size();
     let (x, y) = dock_target_position(
@@ -192,8 +201,9 @@ fn resize_and_snap_dock_impl(
         monitor_position.y,
         monitor_size.width,
         monitor_size.height,
-        dock_width,
-        dock_height,
+        monitor.scale_factor(),
+        logical_width,
+        logical_height,
         anchor_side,
     );
 
@@ -201,7 +211,7 @@ fn resize_and_snap_dock_impl(
         .set_size(tauri::LogicalSize::new(logical_width, logical_height))
         .map_err(|error| error.to_string())?;
     window
-        .set_position(tauri::PhysicalPosition::new(x, y))
+        .set_position(tauri::LogicalPosition::new(x, y))
         .map_err(|error| error.to_string())
 }
 
@@ -594,7 +604,16 @@ fn primary_mouse_button_pressed_impl() -> bool {
     unsafe { GetAsyncKeyState(VK_LBUTTON) < 0 }
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "macos")]
+fn primary_mouse_button_pressed_impl() -> bool {
+    // `startDragging` enters AppKit's native drag loop, so the WebView does not
+    // reliably receive pointerup. Query AppKit directly while that loop owns
+    // the pointer; returning `false` here makes every press look like a click
+    // and immediately expands the collapsed Dock.
+    objc2_app_kit::NSEvent::pressedMouseButtons() & 1 != 0
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 fn primary_mouse_button_pressed_impl() -> bool {
     false
 }
@@ -667,14 +686,33 @@ mod settings_tests {
 
     #[cfg(target_os = "macos")]
     #[test]
-    fn dock_target_stays_flush_for_every_width_and_side() {
-        for width in [88, 104, 120, 176, 208, 240] {
-            let left = dock_target_position(40, -20, 2560, 1440, width, 720, "left");
-            let right = dock_target_position(40, -20, 2560, 1440, width, 720, "right");
-            assert_eq!(left.0, 40);
-            assert_eq!(right.0 + width as i32, 2600);
-            assert_eq!(left.1, 340);
-            assert_eq!(right.1, 340);
+    fn dock_target_stays_flush_for_every_width_side_and_scale() {
+        for scale in [1.0, 2.0] {
+            for width in [88.0, 104.0, 120.0] {
+                let left = dock_target_position(
+                    (40.0 * scale) as i32,
+                    (-20.0 * scale) as i32,
+                    (1280.0 * scale) as u32,
+                    (720.0 * scale) as u32,
+                    scale,
+                    width,
+                    360.0,
+                    "left",
+                );
+                let right = dock_target_position(
+                    (40.0 * scale) as i32,
+                    (-20.0 * scale) as i32,
+                    (1280.0 * scale) as u32,
+                    (720.0 * scale) as u32,
+                    scale,
+                    width,
+                    360.0,
+                    "right",
+                );
+                assert_eq!(left, (40.0, 160.0));
+                assert_eq!(right.0 + width, 1320.0);
+                assert_eq!(right.1, 160.0);
+            }
         }
     }
 

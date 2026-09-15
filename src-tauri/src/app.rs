@@ -284,7 +284,17 @@ pub fn run() {
             // Keep the compact Dock flush with the primary screen edge on first launch.
             if let Some(dock) = app.get_webview_window("dock") {
                 #[cfg(target_os = "macos")]
-                crate::macos_dock::install(&dock)?;
+                {
+                    crate::macos_dock::install(&dock)?;
+                    crate::commands::system::resize_and_snap_dock_impl(
+                        &dock,
+                        &settings.dock_side,
+                        104.0,
+                        720.0,
+                    )
+                    .map_err(std::io::Error::other)?;
+                }
+                #[cfg(not(target_os = "macos"))]
                 if let Some(monitor) = dock.primary_monitor()? {
                     let screen_position = monitor.position();
                     let screen_size = monitor.size();
